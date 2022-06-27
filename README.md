@@ -4,18 +4,18 @@
 
 <p> Migrate3D was created with ease of use in mind, to that end a graphical user interface (GUI) was implemented.</p>
 
-## Packages Required:
-<p> dearpygui, numpy, pandas, openpyxl, python, statistics</p>
+## Python Packages Required:
+<p> dearpygui, numpy, pandas, openpyxl, statistics</p>
 
 ## Running Migrate3D
 <p> 
-1. To run Migrate3D, first download the latest version of Python: https://www.python.org/downloads/
+1. To run Migrate3D, first download the latest 3.x version of Python: https://www.python.org/downloads/
 </p>
 <p>
 2. Once Python is installed, create a folder where you would like to store Migrate3D. 
 </p>
 <p>
-3. Now, go to the command prompt or an equivilent application and set the working directory to the folder you have just created this is done by typing: cd 'path to folder'. Note 'path to folder' would be the name of the folder you have just created. 
+3. Now, go to the command prompt or an equivalent application and set the working directory to the folder you have just created.
 </p>
 <p> 
 4. Now that you have set your working directory you will have to install the required packages. To do this, in the command prompt that you have just set to your working directory, type:
