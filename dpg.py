@@ -17,12 +17,11 @@ do mean squared displacement and then apply random walk etc based on that value
 
 """
 
-
-
 dpg.create_context()
 parameters = {'Interval': 15, 'arrest_displacement': 3.0, 'contact_length': 10.0, 'arrested': 0.95, 'moving': 4,
               'timelapse': 4, 'savefile': 'Migrate3D_Results.xlsx', 'parent_id': 'Parent ID', 'time_col': "Time",
-              'x_for': 'X Coordinate', 'y_for': 'Y Coordinate', 'z_for': 'Z Coordinate', 'Contact': False, 'Tau_val': 6}
+              'x_for': 'X Coordinate', 'y_for': 'Y Coordinate', 'z_for': 'Z Coordinate', 'parent_id2': 'Parent ID', 'category_col': 'Category',
+              'Contact': False, 'Tau_val': 6}
 
 
 def migrate3D(param):
@@ -35,12 +34,15 @@ def migrate3D(param):
     format_check = 'n'
     contact_parameter = parameters['Contact']
 
+    print(parameters['Infile_segs'])
+    print(parameters['Infile_cats'])
+
     def main():
         try:
             p_bar_increase = 0.10
             while p_bar_increase < 1:
                 dpg.set_value('pbar', p_bar_increase)
-                infile = parameters['Infile']
+                infile = parameters['Infile_segs']
                 savefile = parameters['savefile']
                 infile = pd.read_csv(infile, sep=',')
 
@@ -673,10 +675,13 @@ def run_contact(sender, app_data):
         parameters['Contact'] = False
 
 
-def callback_file(sender, app_data):
+def callback_file_segs(sender, app_data):
     infile = str(app_data['file_path_name'])
-    parameters['Infile'] = infile
+    parameters['Infile_segs'] = infile
 
+def callback_file_cats(sender, app_data):
+    infile = str(app_data['file_path_name'])
+    parameters['Infile_cats'] = infile
 
 def input_return(sender, app_data):
     parameters[sender] = app_data
@@ -690,8 +695,16 @@ def Start_migrate(sender, app_data):
     migrate3D(parameters)
 
 
-with dpg.file_dialog(width=700, height=550, directory_selector=False, show=False, callback=callback_file, file_count=3,
-                     tag="file_dialog_tag"):
+with dpg.file_dialog(width=700, height=550, directory_selector=False, show=False, callback=callback_file_segs, file_count=3,
+                     tag="segs_dialog_tag"):
+    dpg.add_file_extension("", color=(255, 150, 150, 255))
+    dpg.add_file_extension(".csv", color=(255, 0, 255, 255))
+    dpg.add_file_extension(".*")
+    dpg.add_file_extension(".xlsx", color=(255, 255, 0, 255))
+    dpg.add_file_extension(".py", color=(0, 255, 0, 255))
+
+with dpg.file_dialog(width=700, height=550, directory_selector=False, show=False, callback=callback_file_cats, file_count=3,
+                     tag="cats_dialog_tag"):
     dpg.add_file_extension("", color=(255, 150, 150, 255))
     dpg.add_file_extension(".csv", color=(255, 0, 255, 255))
     dpg.add_file_extension(".*")
@@ -699,7 +712,8 @@ with dpg.file_dialog(width=700, height=550, directory_selector=False, show=False
     dpg.add_file_extension(".py", color=(0, 255, 0, 255))
 
 with dpg.window(label="Migrate3D", width=800, height=600) as Window:
-    dpg.add_button(width=100, label="Open File", callback=lambda: dpg.show_item("file_dialog_tag"))
+    dpg.add_button(width=120, label="Open Segments File", callback=lambda: dpg.show_item("segs_dialog_tag"))
+    dpg.add_button(width=120, label="Open Categories File", callback=lambda: dpg.show_item("cats_dialog_tag"))
     interval = dpg.add_input_int(width=100, label='Intervals to calculate', default_value=15, callback=input_return,
                                  tag='Interval')
     arrest_displacement = dpg.add_input_float(width=100,
@@ -721,7 +735,7 @@ with dpg.window(label="Migrate3D", width=800, height=600) as Window:
                                    label='Output filename (will be in .xlsx format)',
                                    default_value='Migrate3D_Results.xlsx', callback=input_return, tag='savefile')
 
-    parent_id = dpg.add_input_text(width=200, label='What is the name of the Column your cell ID data is in?',
+    parent_id = dpg.add_input_text(width=200, label='What is the name of the Column your cell ID data is in? (Segments file)',
                                    default_value='Parent ID', callback=input_return, tag='parent_id')
     time_col = dpg.add_input_text(width=200, label='What is the name of the Column your Time data is in?',
                                   default_value='Time', callback=input_return, tag='time_col')
@@ -731,6 +745,10 @@ with dpg.window(label="Migrate3D", width=800, height=600) as Window:
                                default_value='Y Coordinate', callback=input_return, tag='y_for')
     z_for = dpg.add_input_text(width=200, label='What is the name of the Column your Z coordinate data is in?',
                                default_value='Z Coordinate', callback=input_return, tag='z_for')
+    parent_id2 = dpg.add_input_text(width=200, label='What is the name of the Column your cell ID data is in? (Categories file)',
+                                    default_value='Parent ID', callback=input_return, tag='parent_id2')
+    category_col = dpg.add_input_text(width=200, label="What is the name of the Column the cell's Category is in?",
+                                      default_value='Category', callback=input_return, tag='category_col')
     Contact = dpg.add_checkbox(label='Analyze contacts? (note: can significantly increase processing time)',
                                callback=run_contact)
 
