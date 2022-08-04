@@ -6,15 +6,14 @@ import time as tempo
 import re
 
 """
+- Suppress error when no Categories file is loaded
+- dem_2_chck variable (line 53) seems to not be used anywhere
 - Check to make sure that angle median and euclid median are properly zeroing out on tracks below the moving limit
-
 - Is there a way to determine "ideal" number of timepoints to calculate?
 - Any other parameters we should be calculating? Check recent literature
 - Any parameters we should drop or remove from Summary sheet because they are useless?
-
 - Consider pre-filtering dataset for contacts down to alive/moving cells only to speed it up?
-do mean squared displacement and then apply random walk etc based on that value 
-
+- do mean squared displacement and then apply random walk etc based on that value 
 """
 
 dpg.create_context()
@@ -387,7 +386,7 @@ def migrate3D(param):
 
         df_sum.columns = ['Cell ID', 'Duration', 'Final Euclidean', 'Max Euclidean',
                           'Path Length', 'Straightness', 'Time Corrected Straightness',
-                          'Displacement Ratio', 'Outreach_Ratio', 'Velocity Mean',
+                          'Displacement Ratio', 'Outreach Ratio', 'Velocity Mean',
                           'Velocity Median', 'Velocity filtered Mean',
                           'Velocity Filtered Median', 'Velocity Filtered Standard Deviation', 'Acceleration Mean',
                           'Acceleration Median', 'Acceleration Filtered Mean',
