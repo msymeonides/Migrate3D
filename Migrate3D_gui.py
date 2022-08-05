@@ -4,18 +4,17 @@ import numpy as np
 import pandas as pd
 import time as tempo
 import re
-from scipy.spatial.qhull import ConvexHull
-
+from scipy.spatial import ConvexHull
+from scipy.stats import linregress
 
 """
+- Add a sheet in the output xlsx that lists all the parameters and the actual value used in that run
+- Fit exponential growth curve to MSD series and record the slope on summary sheet (use scipy.optimize.curve_fit)
 - Suppress error when no Categories file is loaded
 - dem_2_chck variable (line 53) seems to not be used anywhere
-- Check to make sure that angle median and euclid median are properly zeroing out on tracks below the moving limit
-- Is there a way to determine "ideal" number of timepoints to calculate?
 - Any other parameters we should be calculating? Check recent literature
 - Any parameters we should drop or remove from Summary sheet because they are useless?
 - Consider pre-filtering dataset for contacts down to alive/moving cells only to speed it up?
-- do mean squared displacement and then apply random walk etc based on that value 
 """
 
 dpg.create_context()
@@ -298,6 +297,7 @@ def migrate3D(param):
             y_values = np.array(df_infile.loc[df_infile[parent_id] == cell, y_for])
             z_values = np.array(df_infile.loc[df_infile[parent_id] == cell, z_for])
             vals = []
+            y_val_msd_slope = []
 
             for t_diff in range(1, tau_val+1):
                 r = np.sqrt(x_values ** 2 + y_values ** 2 + z_values ** 2)
@@ -305,9 +305,13 @@ def migrate3D(param):
                 diff_sq = diff ** 2
                 vals.append(np.mean(diff_sq))
                 print(vals)
+                y_val_msd_slope.append(t_diff)
                 if t_diff == tau_val:
                     msd_dict['MSD for Cell ' + str(cell)] = vals
+                    result = linregress(vals, y_val_msd_slope)
+                    msd_slope = result.slope
                     vals = []
+                    y_val_msd_slope = []
 
             x_values = np.array(df_infile.loc[df_infile[parent_id] == cell, x_for])
             y_values = np.array(df_infile.loc[df_infile[parent_id] == cell, y_for])
@@ -332,7 +336,7 @@ def migrate3D(param):
             straightness = final_euclid / max_path
             tc_straightness = straightness * np.sqrt(duration)
             displacement_ratio = final_euclid / max_euclid
-            tc_convex = convex_hull_volume * np.sqrt(duration)
+            tc_convex = convex_hull_volume / np.sqrt(duration)
             outreach_ratio = max_euclid / max_path
             velocity = list(df.loc[df[parent_id] == cell, 'Instantaneous Velocity'])
             velocity_filtered = list(df.loc[df[parent_id] == cell, 'Instantaneous Velocity Filtered'])
@@ -386,7 +390,7 @@ def migrate3D(param):
                          acceleration_filtered_mean, \
                          acceleration_filtered_median, acceleration_filtered_stdev, \
                          arrest_coefficient, overall_angle_median, overall_euclidean_median, convex_hull_volume, \
-                         tc_convex
+                         tc_convex, msd_slope
 
         df_sum = pd.DataFrame.from_dict(sum_, orient='index')
         df_msd = pd.DataFrame.from_dict(msd_dict, orient='index')
@@ -409,7 +413,7 @@ def migrate3D(param):
                           'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
                           'Arrest Coefficient',
                           'Overall Angle Median', 'Overall Euclidean Median', 'Convex Hull Volume',
-                          'Time Corrected Convex Hull Volume']
+                          'Time Corrected Convex Hull Volume', 'MSD Slope']
 
         print(msd_dict)
         return df_sum, time_interval, df_single, df_msd

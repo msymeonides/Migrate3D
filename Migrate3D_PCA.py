@@ -6,11 +6,11 @@ from sklearn.preprocessing import StandardScaler
 import scikit_posthocs as sp
 from scipy import stats
 
-filename = 'Migrate3D_Results_2022-08-03.xlsx'   # Name of .xlsx Migrate3D results file (input).
-#categories = [4, 5, 8]       # Change the numbers in square brackets to select Categories of interest,
-categories = range(2, 9)      # or uncomment this to include all categories.
-#outfile = 'Migrate3D_Results_2022-08-03_PCA-458-only.xlsx'        # Name of .xlsx PCA results file (output).
-outfile = 'Migrate3D_Results_2022-08-03_PCA-2to9-only.xlsx'        # Name of .xlsx PCA results file (output).
+filename = 'Migrate3D_Results_with-convexhull_new.xlsx'   # Name of .xlsx Migrate3D results file (input).
+categories = [4, 5, 8]       # Change the numbers in square brackets to select Categories of interest,
+#categories = range(2, 9)      # or uncomment this to include all categories.
+outfile = 'Migrate3D_Results_with-convexhull_new_PCA-458-only.xlsx'        # Name of .xlsx PCA results file (output).
+#outfile = 'Migrate3D_Results_with-convexhull_new_PCA-2to9-only.xlsx'        # Name of .xlsx PCA results file (output).
 
 # Prepare dataset
 print("Loading dataset...")
@@ -39,8 +39,9 @@ for i in categories:
 print("Full dataset: {}".format(df.shape))
 df = df_building
 print("Subsetted dataset: {}".format(df.shape))
-df_pca = df.drop(labels=['Cell ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean', 'Velocity Mean', 'Velocity Median',
-                     'Acceleration Filtered Mean', 'Acceleration Mean', 'Acceleration Median', 'Overall Euclidean Median', 'Category'], axis=1)
+df_pca = df.drop(labels=['Cell ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean', 'Velocity Mean',
+                        'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean', 'Acceleration Median', 'Overall Angle Median',
+                        'Overall Euclidean Median', 'Convex Hull Volume', 'Category'], axis=1)
 print("PCA dataset: {}".format(df_pca.shape))
 
 
