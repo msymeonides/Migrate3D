@@ -6,74 +6,50 @@ import statistics
 Needs to be able to sort by cell id, then time.
 account for multi-tracked datapoints
 """
-
-
 def multi_tracking(df, unique_cell_ids, parent_col, time_col, x_col, y_col, z_col, infile_):
-    list_of_df = []
     multi_tracked_spotted = False
-    multi_before = 0
+    list_of_df = []
+    df_1 = df.copy()
     for i, cell in enumerate(unique_cell_ids):
-        print(cell)
-        x_val = list(df.loc[df[parent_col] == cell, x_col])
-        y_val = list(df.loc[df[parent_col] == cell, y_col])
-        z_val = list(df.loc[df[parent_col] == cell, z_col])
         tracked_times = list(df.loc[df[parent_col] == cell, time_col])
-        cell_list = list(df.loc[df[parent_col] == cell, parent_col])
-        multi_tracked_occurences = 1
         for index, time in enumerate(tracked_times):
             if index == 0:
                 pass
             else:
-                if tracked_times[index] == tracked_times[index - 1]:  # identification of a multi-tracked cell
+                if tracked_times[index] == tracked_times[index - 1]:  # identification of a multitracked cell
                     multi_tracked_spotted = True
-                    multi_tracked_occurences += 1
-                    print(f"INDEX {index}")
 
                 elif tracked_times[index] != tracked_times[index - 1] and multi_tracked_spotted:
                     # multi_track done subject to change how to capture area
+                    df_corrected = pd.DataFrame()
                     multi_tracked_spotted = False
                     time_end = tracked_times[index - 1]
-                    x_multi_tracked_mean = statistics.mean(
-                        x_val[index - (multi_tracked_occurences + multi_before):index - multi_before])
-                    y_multi_tracked_mean = statistics.mean(
-                        y_val[index - (multi_tracked_occurences + multi_before):index - multi_before])
-                    z_multi_tracked_mean = statistics.mean(
-                        z_val[index - (multi_tracked_occurences + multi_before):index - multi_before])
+                    df_by_cell_and_time = df.loc[(df[parent_col] == cell) & (df[time_col] == time_end), [parent_col, time_col, x_col, y_col, z_col]]
+                    df_1 = df_1.drop(df_by_cell_and_time.index)
+                    x_adjusted = statistics.mean(list(df_by_cell_and_time.loc[:, x_col]))
+                    y_adjusted = statistics.mean(list(df_by_cell_and_time.loc[:, y_col]))
+                    z_adjusted = statistics.mean(list(df_by_cell_and_time.loc[:, z_col]))
+                    df_corrected[parent_col] = df_by_cell_and_time[parent_col]
+                    df_corrected[time_col] = df_by_cell_and_time[time_col]
+                    df_corrected[x_col] = x_adjusted
+                    df_corrected[y_col] = y_adjusted
+                    df_corrected[z_col] = z_adjusted
+                    df_corrected = df_corrected.iloc[:1, :]
+                    list_of_df.append(df_corrected)
 
-                    del (x_val[index - (multi_tracked_occurences + multi_before):index - multi_before],
-                         y_val[index - (multi_tracked_occurences + multi_before):index - multi_before],
-                         z_val[index - (multi_tracked_occurences + multi_before):index - multi_before],
-                         tracked_times[index - (multi_tracked_occurences + multi_before):index - multi_before],
-                         cell_list[index - (multi_tracked_occurences + multi_before):index - multi_before])
+    list_of_df.append(df_1)
+    df_formatted_return = pd.concat(list_of_df)
+    df_formatted_return = df_formatted_return.sort_values(by=[parent_col, time_col], ascending=True)
 
-                    x_val.insert(index - (multi_tracked_occurences + multi_before), x_multi_tracked_mean)
-                    y_val.insert(index - (multi_tracked_occurences + multi_before), y_multi_tracked_mean)
-                    z_val.insert(index - (multi_tracked_occurences + multi_before), z_multi_tracked_mean)
-                    tracked_times.insert(index - (multi_tracked_occurences + multi_before), time_end)
-                    cell_list.insert(index - (multi_tracked_occurences + multi_before), cell)
-
-                    multi_before += multi_tracked_occurences - 1  # always inserting back mean
-                    multi_tracked_occurences = 1
-
-        df_formatted = pd.DataFrame()
-        df_formatted[parent_col] = cell_list
-        df_formatted[time_col] = tracked_times
-        df_formatted[x_col] = x_val
-        df_formatted[y_col] = y_val
-        df_formatted[z_col] = z_val
-        list_of_df.append(df_formatted)
-
-    df_formatted_return = pd.concat(list_of_df, ignore_index=True)
-    infile_ = infile_[:-4]
-    df_formatted_return.to_csv(f"{infile_}_multitracked.csv", index=False)
-
+    df_formatted_return.to_csv(f"{os.path.basename(infile_[:-4])}_multitracked.csv", index=False)
     return df_formatted_return
+
 
 
 def adjust_2D(df, infile_):
     df['Z Coordinate'] = 0
     infile_ = infile_[:-4]
-    df.to_csv(f"{infile_}_2D.csv", index=False)
+    df.to_csv(f"{os.path.basename(infile_[:-4])}_2D.csv", index=False)
 
     return df
 
@@ -127,7 +103,7 @@ def interpolate_lazy(df, unique_cell_ids, parent_col, time_col, x_col, y_col, z_
 
     df_formatted_return = pd.concat(list_of_df, ignore_index=True)
     infile_ = infile_[:-4]
-    df_formatted_return.to_csv(f"{infile_}_interpolated.csv", index=False)
+    df_formatted_return.to_csv(f"{os.path.basename(infile_[:-4])}_interpolated.csv", index=False)
 
     return df_formatted_return
 
