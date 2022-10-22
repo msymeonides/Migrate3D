@@ -1,7 +1,6 @@
 # README
 
-Created: August 1, 2022 2:49 PM
-Last Edited Time: October 20, 2022 12:08 PM
+Last Edited: October 22, 2022 (Migrate3D version 1.0)
 
 # Migrate3D
 
