@@ -35,7 +35,7 @@ py -3 -m pip install dearpygui numpy pandas openpyxl sklearn scikit_posthocs sci
 ```
 
 1.  Download the code as a zip file from GitHub and move all files into the folder created in step 2.
-2. To run Migrate3D, navigate to the PowerShell or an equivalent change your working directory to where you stored all files, then run:
+2. To run Migrate3D, navigate to the PowerShell or an equivalent terminal program, change your working directory to where you stored all files, then run:
 
 ```powershell
 py main.py
@@ -195,16 +195,16 @@ Metrics for cells that have been considered alive by the users Arrest Displaceme
 
 ## Contacts
 
-Contacts will iterate over over all the cells in the dataset comparing their x, y, and z coordinates. If two cells are closer in these dimensions than the user inputted contact length, it will be recorded as a contact. This option reports all contacts, contacts that are not mitotic, contacts that are alive, and a summary of a cell’s contacts.
+Contacts will iterate over all the cells in the dataset comparing their x, y, and z coordinates. If two cells are closer in these dimensions than the user inputted contact length, it will be recorded as a contact. This option reports all contacts, contacts that are not mitotic, contacts that are alive, and a summary of each cell’s contacts.
 
 ### Contacts no Mitosis:
 
-Contacts are analyzed for mitotic events and filtered out accordingly. A mitotic event is denoted as having a Cell ID that is plus or minus one. This may limit universality of the function.
+Contacts are analyzed for mitotic events and filtered out accordingly. A mitotic event is denoted as having a pair of Cell IDs that are off by plus or minus one from each other. This may limit universality of the function.
 
 ### Contacts no Dead:
 
-Utilizes the user’s arrest coefficient input to filter contacts. 
+Utilizes the user’s arrest coefficient input to filter out contacts that involve "dead" or non-motile cells. 
 
 ### Contact Summary:
 
-A summary of contact history for each individual cell. Per cell, the number of contacts, the total time spent in contact, and the median contact duration.
+A summary of contact history for each individual cell. Per cell, the number of contacts, the total time spent in contact, and the median contact duration are reported.
