@@ -17,7 +17,8 @@ After execution, the program will return a .xlsx file with several worksheets, c
 
 Migrate3D was created with ease of use in mind, to that end a graphical user interface (GUI) was implemented. This includes easy file open dialogs, user-adjustable parameters, and a progress bar. We welcome feedback and intend to support the program as resources allow.
 
-Migrate3D was developed by Matthew Kinahan and Menelaos Symeonides at the University of Vermont.
+Migrate3D was developed by Matthew Kinahan and Menelaos Symeonides at the University of Vermont, funded by NIH R01-GM117839 (and supplement 07S1), NIH R21-AI152816, and NIH R56-AI172486 (PI: Markus Thali).
+
 
 ## Python Packages Required
 
