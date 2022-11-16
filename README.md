@@ -127,7 +127,7 @@ $$
 
 ### Angle Between Cell Vectors:
 
-The magnitude of two vectors separated by n time points. The magnitude is found by subtracting a cell’s coordinates over n time points. From these magnitudes we are able to get the angle (will be described better)
+The angle is calculated by the magnitude of two vectors separated by n time points.
 
 ## Summary Sheet
 
