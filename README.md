@@ -31,7 +31,7 @@ dearpygui, numpy, pandas, openpyxl, statistics, sklearn, scikit_posthocs, scipy
 4. Now that you have set your working directory you will have to install the required packages. To do this, in the command prompt that you have just set to your working directory, type:
 
 ```powershell
-py -3 -m pip install dearpygui numpy pandas openpyxl scikit-learn scikit_posthocs scipy
+py -3 -m pip install dearpygui numpy pandas openpyxl scikit-learn scikit_posthocs scipy xlsxwriter
 ```
 
 1.  Download the code as a zip file from GitHub and move all files into the folder created in step 2.
