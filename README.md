@@ -34,7 +34,7 @@ On Windows:
 ```powershell
 py -3 -m pip install dearpygui numpy pandas openpyxl scikit-learn scikit_posthocs scipy xlsxwriter
 ```
-on Mac:
+On MacOS:
 ```powershell
 python3 -m pip install install dearpygui numpy pandas openpyxl scikit-learn scikit_posthocs scipy xlsxwriter
 ```
@@ -45,7 +45,7 @@ On Windows:
 ```powershell
 py Migrate3D-main/main.py
 ```
-On Mac:
+On MacOS:
 ```powershell 
 python Migrate3D-main/main.py
 ```
