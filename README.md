@@ -31,14 +31,22 @@ dearpygui, numpy, pandas, openpyxl, statistics, sklearn, scikit_posthocs, scipy
 4. Now that you have set your working directory you will have to install the required packages. To do this, in the command prompt that you have just set to your working directory, type:
 
 ```powershell
+# In windows
 py -3 -m pip install dearpygui numpy pandas openpyxl scikit-learn scikit_posthocs scipy xlsxwriter
 ```
-
+```powershell
+# On Mac
+python3 -m pip install install dearpygui numpy pandas openpyxl scikit-learn scikit_posthocs scipy xlsxwriter
+```
 1.  Download the code as a zip file from GitHub and move all files into the folder created in step 2.
 2. To run Migrate3D, navigate to the PowerShell or an equivalent terminal program, change your working directory to where you stored all files, then run:
 
 ```powershell
+# on Windows
 py Migrate3D-main/main.py
+```
+```powershell 
+python Migrate3D-main/main.py
 ```
 
 - When the GUI launches please be sure to include the .xlsx file extension when naming the save file and also have the .csv file saved in the folder you created in step 2.
