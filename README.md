@@ -54,6 +54,10 @@ python Migrate3D-main/main.py
 
 ## General Inputs
 
+## Notes:
+
+Please ensure that column headers are in row one of the .csv file input.
+
 ### Interval:
 
 The interval parameter is an integer variable that allows for the user to indicate the range of intervals stepwise calculations will be preformed on. The default is 15 and primarily impacts Euclidean distance calculations, and angle timepoint measurements and related calculations.
