@@ -82,7 +82,7 @@ This Tau value is an integer variable that controls the range of intervals that 
 
 ### Output Filename: (Default = Migrate3D_Results)
 
-Enter a name for your output file. The .xlsx extension will be added on, do not include it in this field.
+Enter a name for your output file. The .xlsx extension will be added on, do not include it in this field. Note that any output file with the same name present in the program folder will be overwrittenn. Additionally, if a file with the same name is currently open in Excel, this will cause Migrate3D to crash.
 
 ### Column Header Names (Segments file):
 
