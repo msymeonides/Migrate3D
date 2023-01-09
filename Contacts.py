@@ -6,7 +6,6 @@ import statistics
 def contacts(cell_id, df, parent_id, x, y, z, time_, contact_length):
     df_of_contacts = []
     base_done = []
-    print('Running Contacts')
     for cell_base in cell_id:
         try:
             x_base = list(df.loc[df[parent_id] == cell_base, x])

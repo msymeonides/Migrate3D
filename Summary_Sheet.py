@@ -1,42 +1,54 @@
 import numpy as np
 import pandas as pd
 import statistics
+import time as tempo
+import warnings
 from scipy.spatial import ConvexHull
 from Overall_Medians import overall_medians
 from PCA import pca
 
 
-def summary_sheet(df, cell_id, cols_angles, cols_euclidean, parent_id, df_infile, x_for, y_for, z_for, tau_val,
-                  parameters, track_df):
+def summary_sheet(df, cell_id, cols_angles, cols_euclidean, parent_id, df_infile, x_for, y_for, z_for, tau_msd,
+                  parameters, track_df, savefile):
+    tic = tempo.time()
+    print('Running Summary Sheet...')
+    warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     sum_ = {}
     single_euclid_dict = {}
     single_angle_dict = {}
     msd_dict = {}
-    print('Running Summary Sheet...')
     time_interval = False
     category = 0
     for cell in cell_id:
         x_values = np.array(df_infile.loc[df_infile[parent_id] == cell, x_for])
         y_values = np.array(df_infile.loc[df_infile[parent_id] == cell, y_for])
         z_values = np.array(df_infile.loc[df_infile[parent_id] == cell, z_for])
-        vals = []
-        y_val_msd_slope = []
+        vals_msd = []
+        for t_diff in range(1, tau_msd + 1):
+            displacement_list = []
+            for indx, coord in enumerate(x_values):
+                if indx < t_diff:
+                    pass
+                else:
+                    x_diff = (x_values[indx] - x_values[indx - t_diff])**2
+                    y_diff = (y_values[indx] - y_values[indx - t_diff])**2
+                    z_diff = (z_values[indx] - z_values[indx - t_diff])**2
+                    displacement = np.sqrt(x_diff + y_diff + z_diff)
+                    squared_displacement = displacement**2
+                    if squared_displacement <= 0:
+                        pass
+                    else:
+                        displacement_list.append(squared_displacement)
+            MSD = np.mean(displacement_list)
+            vals_msd.append(MSD)
 
-        for t_diff in range(1, tau_val + 1):
-            r = np.sqrt(x_values ** 2 + y_values ** 2 + z_values ** 2)
-            diff = np.diff(r, n=t_diff)
-            diff_sq = diff ** 2
-            vals.append(np.mean(diff_sq))
-            y_val_msd_slope.append(t_diff)
-            if t_diff == tau_val:
-                msd_dict[f'MSD for Cell {str(cell)}'] = vals
-                y_ = [i for i in range(1, len(vals) + 1)]
-                vals = []
-                y_ = []
+            if t_diff == tau_msd:  # last tau value adds headers
+                msd_dict[cell] = vals_msd
+
         if track_df.shape[0] > 0:
             category = int(track_df.loc[track_df[parameters['parent_id2']] == cell, parameters['category_col']])
         convex_coords = np.array([x_values, y_values, z_values]).transpose()
-        if convex_coords.shape[0] < 4 or parameters['two_dem']:
+        if convex_coords.shape[0] < 4 or parameters['two_dim']:
             convex_hull_volume = 0
         else:
             convex_hull = ConvexHull(convex_coords)
@@ -97,7 +109,7 @@ def summary_sheet(df, cell_id, cols_angles, cols_euclidean, parent_id, df_infile
         instantaneous_displacement = list(df.loc[df[parent_id] == cell, 'Instantaneous Displacement'])
         instantaneous_displacement = [x for x in instantaneous_displacement if np.isnan(x) == False and x != 0]
         time_under = [x for x in instantaneous_displacement if
-                      x < parameters['arrest_displacement']]
+                      x < parameters['arrest_limit']]
         arrest_coefficient = (len(time_under) * time_interval) / duration
 
         sum_[cell] = cell, duration, final_euclid, max_euclid, max_path, straightness, tc_straightness, \
@@ -110,15 +122,48 @@ def summary_sheet(df, cell_id, cols_angles, cols_euclidean, parent_id, df_infile
 
     df_sum = pd.DataFrame.from_dict(sum_, orient='index')
     df_msd = pd.DataFrame.from_dict(msd_dict, orient='index')
-    all_cols = (cols_euclidean + cols_angles)
-    df_msd.columns = ['MSD ' + str(x) for x in range(1, tau_val + 1)]
+    df_msd.columns = ['MSD ' + str(x) for x in range(1, tau_msd + 1)]
     cells = list(single_euclid_dict.keys())
     df_single_euclids = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
+    df_single_euclids.columns = cols_euclidean
     df_single_angles = pd.DataFrame.from_dict(single_angle_dict, orient='index')
+    df_single_angles.columns = [f"Filtered Angle {(x * 2) - 1}" for x in range(2, df_single_angles.shape[1] + 2)]
     df_single = pd.concat([df_single_euclids, df_single_angles], axis=1)
-    df_single.columns = all_cols
     df_single.insert(0, 'Cell ID', cells)
+    msd_means_stdev_all = {}
+    msd_means_stdev_per_cat = {}
+
+    df_msd_sum_cat = pd.DataFrame()
+    for msd_col in df_msd.columns:
+        column_vals = list(df_msd.loc[:, str(msd_col)])
+        if len(column_vals) < 2:
+            pass
+        else:
+            msd_means_stdev_all[msd_col] = [np.nanmean(column_vals), np.nanstd(column_vals)]
+
+    if track_df.shape[0] > 0:
+        category_tracks = list(track_df.loc[:, parameters['category_col']])
+        df_msd["Cell Type"] = category_tracks
+        all_cat = list(df_msd.loc[:, 'Cell Type'])
+        unique_cat = []
+        for x in all_cat:
+            if x not in unique_cat:
+                unique_cat.append(x)
+            else:
+                pass
+        for cat in unique_cat:
+            for msd in df_msd.columns[:-1]:
+                per_cat = list(df_msd.loc[df_msd['Cell Type'] == cat, str(msd)])
+                msd_means_stdev_per_cat[f"Cell Category {cat}, {str(msd)}"] = [np.nanmean(per_cat), np.nanstd(per_cat)]
+
     df_msd.insert(0, 'Cell ID', cells)
+    df_msd_sum_all = pd.DataFrame.from_dict(msd_means_stdev_all)
+    df_msd_sum_all.index = ["Average", 'Standard Deviation']
+    df_msd_sum_all = df_msd_sum_all.transpose()
+    if track_df.shape[0] > 0:
+        df_msd_sum_cat = pd.DataFrame.from_dict(msd_means_stdev_per_cat)
+        df_msd_sum_cat.index = ['Average', 'Standard Deviation']
+        df_msd_sum_cat = df_msd_sum_cat.transpose()
 
     df_sum.columns = ['Cell ID', 'Duration', 'Final Euclidean', 'Max Euclidean',
                       'Path Length', 'Straightness', 'Time Corrected Straightness',
@@ -130,10 +175,13 @@ def summary_sheet(df, cell_id, cols_angles, cols_euclidean, parent_id, df_infile
                       'Arrest Coefficient',
                       'Overall Angle Median', 'Overall Euclidean Median', 'Convex Hull Volume',
                       'Time Corrected Convex Hull Volume', 'Cell Type']
+    toc = tempo.time()
+    print('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
-    print('pca check')
     if track_df.shape[0] > 0:
-        print('running PCA')
-        pca(df_sum, parameters)
+        print('Cell category input required for PCA found! Running PCA...')
+        pca(df_sum, parameters, savefile)
+    else:
+        print('Cell category input required for PCA not found. Skipping PCA.')
 
-    return df_sum, time_interval, df_single, df_msd
+    return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat

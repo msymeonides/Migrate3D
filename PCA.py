@@ -6,28 +6,22 @@ import scikit_posthocs as sp
 from scipy import stats
 
 
-def pca(df, parameters):
-    filter_ = parameters['pca_format']
+def pca(df, parameters, savefile):
+    filter_ = parameters['pca_filter']
     if filter_ is not None:
         filter_ = filter_.split(sep=',')
         filter_ = [int(x) for x in filter_]
+        print(f'Filtering categories for PCA to {filter_}...')
+        df = df[df['Cell Type'].isin(filter_)]
 
     df = df.dropna()
     df_pca = df.drop(
         labels=['Cell ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
-                'Velocity Mean',
-                'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean', 'Acceleration Median',
-                'Overall Angle Median',
-                'Overall Euclidean Median', 'Convex Hull Volume'], axis=1)
-
-    if filter_ is not None:
-        df_pca = df[df['Cell Type'].isin(filter_)]
-        df = df[df['Cell Type'].isin(filter_)]
+                'Velocity Mean', 'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean',
+                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Cell Type'], axis=1)
 
     df_pca.columns = df_pca.columns.str.strip()
-    print("PCA dataset: {}".format(df_pca.shape))
     df_pca = df_pca.dropna()
-    print("PCA dataset: {}".format(df_pca.shape))
     x = np.array(df_pca)
     x = StandardScaler().fit_transform(x)
     pca = PCA(n_components=4)
@@ -43,7 +37,6 @@ def pca(df, parameters):
     df_features.columns = df_pca.columns
     df_features.index = ['PC1', 'PC2', 'PC3', 'PC4']
 
-    # Kruskal-Wallis test
     kruskal_result_list = []
 
     def kw_test(PC_kw):
@@ -68,7 +61,9 @@ def pca(df, parameters):
     df_PC3 = pd.DataFrame(PC3_test)
     df_PC4 = pd.DataFrame(PC4_test)
 
-    writer = pd.ExcelWriter(str(parameters['savefile'] + '_PCA.xlsx'), engine='xlsxwriter')
+    savePCA = savefile + '_PCA.xlsx'
+    print('Saving PCA output to ' + savePCA + '...')
+    writer = pd.ExcelWriter(savePCA, engine='xlsxwriter')
     df.to_excel(writer, sheet_name='Full dataset', index=False)
     df_pca.to_excel(writer, sheet_name='PCA dataset', index=False)
     df_expl_var.to_excel(writer, sheet_name='PC explained variance', index=True)
@@ -89,7 +84,6 @@ def pca(df, parameters):
                                                   'format': format_white})
         worksheet.conditional_format('B2:L12', {'type': 'cell',
                                                 'criteria': '<=',
-                                                # 'criteria': '=AND((NOT(ISBLANK(A1)),(A1<=0.05))',
                                                 'value': 0.05,
                                                 'format': format_yellow})
 
@@ -99,8 +93,5 @@ def pca(df, parameters):
         worksheet = writer.sheets[i]
         highlight_cells(worksheet)
 
-    writer.save()
-    print('pca Done')
-
-
-
+    writer.close()
+    print('...PCA done.')
