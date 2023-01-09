@@ -12,19 +12,19 @@ Migrate3D requires a .csv file input that contains data from cell movements thro
 
 Migrate3D has formatting functionality. If selected by the user, the program can account for multi-tracked timepoints, interpolate missing data points, and adjust for two-dimensional data. All **formatting functions do not alter original datafile** and will return a new .csv file of the formatted data.
 
-After execution, the program will return a .xlsx file with several worksheets, containing stepwise calculations done for each timepoint of each track, track-by-track summary metrics, mean squared displacement analysis (both track-by-track and summary statistics), and (if the option is enabled) analysis of cell-cell contacts. Additionally, an option of performing Principal Component Analysis with detailed outputs is available, which can be further enhanced by providing categorization of the data as .csv file (simply listing the category for each cell ID). If a categorization file is given, the PCA results will be returned in their own .xlsx file. There is no guarantee that the PCA is performed in a statistically-sound way, that is left up to the user to ensure, but the library used to perform the PCA (sklearn) is widely used.
+After execution, the program will return a .xlsx file with several worksheets, containing stepwise calculations done for each timepoint of each track, track-by-track summary metrics, and mean squared displacement analysis (both track-by-track and summary statistics). If the option is enabled, a separate .xlsx file will be returned with analysis of cell-cell contacts. Additionally, another .xlax output will be generated if Principal Component Analysis (PCA) is performed. This will include with detailed outputs, which can be further enhanced by providing categorization of the data as .csv file (simply listing the category for each cell ID). If a categorization file is given, the PCA results will be returned in their own .xlsx file. There is no guarantee that the PCA is performed in a statistically-sound way, that is left up to the user to ensure, but the library used to perform the PCA (sklearn) is widely used.
 
 Migrate3D was created with ease of use in mind, to that end a graphical user interface (GUI) was implemented. This includes easy file open dialogs, user-adjustable parameters, and a progress bar. We welcome feedback and intend to support the program as resources allow.
 
 Migrate3D was developed by Matthew Kinahan and Menelaos Symeonides at the University of Vermont, funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali).
 
-## Python Packages Required
+## Dependencies
 
 dearpygui, numpy, os, pandas, re, scikit_posthocs, scipy, sklearn, statistics, time, warnings, xlsxwriter
 
 ## Running Migrate3D
 
-1. To run Migrate3D, first download the latest 3.x version of Python: https://www.python.org/downloads/
+1. To run Migrate3D, first download the latest 3.x version of Python: https://www.python.org/downloads/ (Note: tested to be functional up to Python 3.11)
 2. Once Python is installed, create a folder where you would like to store Migrate3D.
 3. Now, go to the command prompt or an equivalent application and set the working directory to the folder you have just created.
 4. Now that you have set your working directory you will have to install the required packages. To do this, in the command prompt that you have just set to your working directory, type:
