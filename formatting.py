@@ -1,12 +1,7 @@
 import pandas as pd
-import numpy as np
 import statistics
 import os
 
-"""
-Needs to be able to sort by cell id, then time.
-account for multi-tracked datapoints
-"""
 
 def multi_tracking(df, unique_cell_ids, parent_col, time_col, x_col, y_col, z_col, infile_):
     multi_tracked_spotted = False
@@ -18,11 +13,10 @@ def multi_tracking(df, unique_cell_ids, parent_col, time_col, x_col, y_col, z_co
             if index == 0:
                 pass
             else:
-                if tracked_times[index] == tracked_times[index - 1]:  # identification of a multitracked cell
+                if tracked_times[index] == tracked_times[index - 1]:
                     multi_tracked_spotted = True
 
                 elif tracked_times[index] != tracked_times[index - 1] and multi_tracked_spotted:
-                    # multi_track done subject to change how to capture area
                     df_corrected = pd.DataFrame()
                     multi_tracked_spotted = False
                     time_end = tracked_times[index - 1]
@@ -70,7 +64,6 @@ def interpolate_lazy(df, unique_cell_ids, parent_col, time_col, x_col, y_col, z_
             else:
                 if (tracked_times[index] - tracked_times[index - 1]) != time_between and\
                         (tracked_times[index] - tracked_times[index - 1]) != 0:
-                    # identification of a missing time point
                     x_interpolated = (x_val[index] - x_val[index - 1]) / 2
                     x_interpolated = x_val[index - 1] + x_interpolated
                     y_interpolated = (y_val[index] - y_val[index - 1]) / 2
@@ -102,4 +95,3 @@ def interpolate_lazy(df, unique_cell_ids, parent_col, time_col, x_col, y_col, z_
     df_formatted_return.to_csv(f"{os.path.basename(infile_[:-4])}_interpolated.csv", index=False)
 
     return df_formatted_return
-

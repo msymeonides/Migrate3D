@@ -15,14 +15,14 @@ def calculations(cell, x, y, z, list_, num_euclid_spaces, time, parent_id, param
             pass
         else:
             pl = path_length[index - 1]
-            sum_x = (x[index] - x[index - 1]) ** 2  # start instantaneous displacement
+            sum_x = (x[index] - x[index - 1]) ** 2
             sum_y = (y[index] - y[index - 1]) ** 2
             sum_z = (z[index] - z[index - 1]) ** 2
             sum_all = sum_x + sum_y + sum_z
             inst_displacement = np.sqrt(sum_all)
-            instantaneous_displacement.append(inst_displacement)  # the sqrt of the sum of final x,y,z dim - initial
+            instantaneous_displacement.append(inst_displacement)
 
-            tot_x = (x[index] - x[0]) ** 2  # start total displacement
+            tot_x = (x[index] - x[0]) ** 2
             tot_y = (y[index] - y[0]) ** 2
             tot_z = (z[index] - z[0]) ** 2
             sum_tot = tot_x + tot_y + tot_z
@@ -32,7 +32,7 @@ def calculations(cell, x, y, z, list_, num_euclid_spaces, time, parent_id, param
             instantaneous_velocity.append(instantaneous_displacement[index] / parameters['timelapse'])
             instantaneous_acceleration.append(
                 (instantaneous_velocity[index] - instantaneous_velocity[index - 1]) / parameters['timelapse'])
-            if inst_displacement > parameters['arrest_displacement']:
+            if inst_displacement > parameters['arrest_limit']:
                 instantaneous_velocity_filtered.append(instantaneous_displacement[index] / parameters['timelapse'])
                 instantaneous_acceleration_filtered.append(
                     (instantaneous_velocity[index] - instantaneous_velocity[index - 1]) / parameters['timelapse'])
@@ -51,7 +51,7 @@ def calculations(cell, x, y, z, list_, num_euclid_spaces, time, parent_id, param
                                  'Instantaneous Acceleration Filtered': instantaneous_acceleration_filtered,
                                  })
 
-    for back in range(2, num_euclid_spaces + 1):  # makes euclidean distance calculations
+    for back in range(1, num_euclid_spaces + 1):
         euclid = []
         for index, element in enumerate(x):
             if back > index:
@@ -64,7 +64,7 @@ def calculations(cell, x, y, z, list_, num_euclid_spaces, time, parent_id, param
         df_to_append['Euclidean ' + str(back) + ' TP'] = euclid
 
     mod = 3
-    arrest_multiplyer = 1
+    arrest_multiplier = 1
     space = [s for s in range(num_euclid_spaces + 1) if s % 2 != 0]
     for back_angle in range(1, num_euclid_spaces - len(space) + 1):
         angle = []
@@ -89,9 +89,9 @@ def calculations(cell, x, y, z, list_, num_euclid_spaces, time, parent_id, param
                     vec_1 = vec_1 / np.linalg.norm(vec_1)
                     angle_ = np.arccos(np.clip(np.dot(vec_0, vec_1), -1.0, 1.0))
                     angle_ = angle_ * 180 / np.pi
-                    angle.append(angle_)  # unfiltered angle calculations
+                    angle.append(angle_)
 
-                    x_val0 = (x[index] - x[index - back_angle]) ** 2  # start filtered angle calculations
+                    x_val0 = (x[index] - x[index - back_angle]) ** 2
                     y_val0 = (y[index] - y[index - back_angle]) ** 2
                     z_val0 = (z[index] - z[index - back_angle]) ** 2
 
@@ -100,18 +100,15 @@ def calculations(cell, x, y, z, list_, num_euclid_spaces, time, parent_id, param
                     z_val1 = (z[index - back_angle] - z[index - (back_angle * 2)]) ** 2
                     euclid_current = np.sqrt(x_val0 + y_val0 + z_val0)
                     euclid_previous = np.sqrt(x_val1 + y_val1 + z_val1)
-                    if euclid_current > parameters['arrest_displacement'] * arrest_multiplyer and euclid_previous > parameters['arrest_displacement'] * arrest_multiplyer:
+                    if euclid_current > parameters['arrest_limit'] * arrest_multiplier and euclid_previous > parameters['arrest_limit'] * arrest_multiplier:
                         angle_filtered.append(np.absolute(angle_))
                     else:
                         angle_filtered.append(0)
             except RuntimeWarning:
                 pass
 
-        arrest_multiplyer += 1
+        arrest_multiplier += 1
         df_to_append['Angle ' + str(mod) + ' TP'] = angle
         df_to_append['Filtered Angle ' + str(mod) + ' TP'] = angle_filtered
         mod += 2
     list_.append(df_to_append)
-
-
-

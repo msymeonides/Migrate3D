@@ -39,4 +39,3 @@ def overall_medians(cell, df, cols_angles, cols_euclidean, parent_id):
         overall_angle_median = None
 
     return overall_euclidean_median, overall_angle_median, single_euclidean, single_angle
-
