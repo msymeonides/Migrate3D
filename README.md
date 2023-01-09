@@ -20,7 +20,7 @@ Migrate3D was developed by Matthew Kinahan and Menelaos Symeonides at the Univer
 
 ## Python Packages Required
 
-dearpygui, numpy, pandas, openpyxl, statistics, sklearn, scikit_posthocs, scipy
+dearpygui, numpy, os, pandas, re, scikit_posthocs, scipy, sklearn, statistics, time, warnings, xlsxwriter
 
 ## Running Migrate3D
 
@@ -31,11 +31,11 @@ dearpygui, numpy, pandas, openpyxl, statistics, sklearn, scikit_posthocs, scipy
 
 On Windows:
 ```powershell
-py -3 -m pip install dearpygui numpy pandas openpyxl scikit-learn scikit_posthocs scipy xlsxwriter
+py -3 -m pip install dearpygui numpy pandas scikit-learn scikit_posthocs scipy xlsxwriter
 ```
 On MacOS:
 ```powershell
-python3 -m pip install install dearpygui numpy pandas openpyxl scikit-learn scikit_posthocs scipy xlsxwriter
+python3 -m pip install dearpygui numpy pandas scikit-learn scikit_posthocs scipy xlsxwriter
 ```
 1. Download the code as a zip file from GitHub and move all files into the folder created in step 2.
 2. To run Migrate3D, navigate to the PowerShell or an equivalent terminal program, change your working directory to where you stored all files, then run:
@@ -48,8 +48,7 @@ On MacOS:
 ```powershell 
 python Migrate3D-main/main.py
 ```
-
-- Place your .csv input dataset in the folder you created in step 2 to make it easier to find in the GUI. Output files will also be placed in this folder.
+Place your .csv input dataset in the folder you created in step 2 to make it easier to find in the GUI. Output files will also be placed in this folder.
 
 ## Tunable Variables
 
@@ -191,7 +190,7 @@ $$
 
 ### Time Corrected Straightness:
 
-Straightness multiplied by the square root of the duration of a cell’s track. Needed when the tracking duration of the cells in the dataset varies.
+Straightness multiplied by the square root of the duration of that cell’s track. Needed when the tracking duration of the cells in the dataset varies.
 
 $$
 Time\ Corrected\ Straightness=Straightness\times\sqrt{Duration}
@@ -231,9 +230,9 @@ $$
 
 MSD Summary Sheets are also provided with the average and standard deviation of the MSD at each τ value, either across the whole dataset or for each cell category (if provided). These can be used to plot MSD log-log plots and evaluate whether a category of cell is moving with a certain pattern. 
 
-### Filtered Metrics:
+### Convex Hull Volume
 
-Metrics for cells that have been considered alive by the users Arrest Displacement input.
+The volume of a convex hull contained within the track is calculated. Essentially represents how much volume a cell covered during its tracking history. Similarly to Straightness, a Time-Corrected value is also provided by mutiplying each Convex Hull Volume value by the square root of the duration of that cell’s track (needed when the tracking duration of the cells in the dataset varies).
 
 ## Contacts
 
