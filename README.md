@@ -12,7 +12,7 @@ Migrate3D requires a .csv file input that contains data from cell movements thro
 
 Migrate3D has formatting functionality. If selected by the user, the program can account for multi-tracked timepoints, interpolate missing data points, and adjust for two-dimensional data. All **formatting functions do not alter original datafile** and will return a new .csv file of the formatted data.
 
-After execution, the program will return a .xlsx file with several worksheets, containing stepwise calculations done for each timepoint of each track, track-by-track summary metrics, and mean squared displacement analysis (both track-by-track and summary statistics). If the option is enabled, a separate .xlsx file will be returned with analysis of cell-cell contacts. Additionally, another .xlax output will be generated if Principal Component Analysis (PCA) is performed. This will include with detailed outputs, which can be further enhanced by providing categorization of the data as .csv file (simply listing the category for each cell ID). If a categorization file is given, the PCA results will be returned in their own .xlsx file. There is no guarantee that the PCA is performed in a statistically-sound way, that is left up to the user to ensure, but the library used to perform the PCA (sklearn) is widely used.
+After execution, the program will return a .xlsx file with several worksheets, containing stepwise calculations done for each timepoint of each track, track-by-track summary metrics, and mean squared displacement analysis (both track-by-track and summary statistics). If the option is enabled, a separate .xlsx file will be returned with analysis of cell-cell contacts. Additionally, another .xlsx output will be generated if Principal Component Analysis (PCA) is performed. This will include detailed outputs, which can be further enhanced by providing categorization of the data as .csv file (simply listing the category for each cell ID). If a categorization file is given, the PCA results will be returned in their own .xlsx file. There is no guarantee that the PCA is performed in a statistically-sound way, that is left up to the user to ensure, but the library used to perform the PCA (sklearn) is widely used.
 
 Migrate3D was created with ease of use in mind, to that end a graphical user interface (GUI) was implemented. This includes easy file open dialogs, user-adjustable parameters, and a progress bar. We welcome feedback and intend to support the program as resources allow.
 
@@ -78,11 +78,11 @@ This Tau value is an integer variable that controls the number of Mean Squared D
 
 ### Tau Value (Euclidean & Angle): (Default value = 25)
 
-This Tau value is an integer variable that controls the range of intervals that Euclidean Distance and Turning Angle calculations will be preformed on. It is recommended to set this value to half the number of the MSD Tau Value.
+This Tau value is an integer variable that controls the range of intervals that Euclidean Distance and Turning Angle calculations will be performed on. It is recommended to set this value to half the number of the MSD Tau Value.
 
 ### Output Filename: (Default = Migrate3D_Results)
 
-Enter a name for your output file. The .xlsx extension will be added on, do not include it in this field. Note that any output file with the same name present in the program folder will be overwrittenn. Additionally, if a file with the same name is currently open in Excel, this will cause Migrate3D to crash.
+Enter a name for your output file. The .xlsx extension will be added on, do not include it in this field. Note that any output file with the same name present in the program folder will be overwritten. Additionally, if a file with the same name is currently open in Excel, this will cause Migrate3D to crash.
 
 ### Column Header Names (Segments file):
 
@@ -232,7 +232,7 @@ MSD Summary Sheets are also provided with the average and standard deviation of 
 
 ### Convex Hull Volume
 
-The volume of a convex hull contained within the track is calculated. Essentially represents how much volume a cell covered during its tracking history. Similarly to Straightness, a Time-Corrected value is also provided by mutiplying each Convex Hull Volume value by the square root of the duration of that cell’s track (needed when the tracking duration of the cells in the dataset varies).
+The volume of a convex hull contained within the track is calculated. Essentially represents how much volume a cell covered during its tracking history. Similarly to Straightness, a Time-Corrected value is also provided by multiplying each Convex Hull Volume value by the square root of the duration of that cell’s track (needed when the tracking duration of the cells in the dataset varies).
 
 ## Contacts
 
