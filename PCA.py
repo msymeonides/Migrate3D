@@ -7,6 +7,7 @@ from scipy import stats
 
 
 def pca(df, parameters, savefile):
+    # Filter PCA if specific categories are given
     filter_ = parameters['pca_filter']
     if filter_ is not None:
         filter_ = filter_.split(sep=',')
@@ -18,8 +19,9 @@ def pca(df, parameters, savefile):
     df_pca = df.drop(
         labels=['Cell ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
                 'Velocity Mean', 'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean',
+                'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
+                'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
                 'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Cell Type'], axis=1)
-
     df_pca.columns = df_pca.columns.str.strip()
     df_pca = df_pca.dropna()
     x = np.array(df_pca)
@@ -51,7 +53,6 @@ def pca(df, parameters, savefile):
 
     df_kruskal = pd.concat(kruskal_result_list)
     df_kruskal.index = ['PC1', 'PC2', 'PC3', 'PC4']
-
     PC1_test = sp.posthoc_dunn(df_PCscores, val_col='PC1', group_col='Category', p_adjust='bonferroni')
     PC2_test = sp.posthoc_dunn(df_PCscores, val_col='PC2', group_col='Category', p_adjust='bonferroni')
     PC3_test = sp.posthoc_dunn(df_PCscores, val_col='PC3', group_col='Category', p_adjust='bonferroni')
@@ -60,7 +61,6 @@ def pca(df, parameters, savefile):
     df_PC2 = pd.DataFrame(PC2_test)
     df_PC3 = pd.DataFrame(PC3_test)
     df_PC4 = pd.DataFrame(PC4_test)
-
     savePCA = savefile + '_PCA.xlsx'
     print('Saving PCA output to ' + savePCA + '...')
     writer = pd.ExcelWriter(savePCA, engine='xlsxwriter')

@@ -1,14 +1,14 @@
 # README
 
-Last Edited: January 9, 2023 (Migrate3D version 1.1)
+Last Edited: January 12, 2024 (Migrate3D version 1.5)
 
 # Migrate3D
 
 Migrate3D is a Python program that streamlines and automates cell migration analysis, returning meaningful metrics that provide insight into cell migration to help the user evaluate biological questions. This program does not handle imaging data, only previously generated tracking data, so it is not meant to replace functions already performed very well by programs such as Imaris, Vision4D, CellProfiler, TrackMate etc. Migrate3D’s purpose is to take the tracks produced from any of these programs and quickly and easily process the data to generate various metrics of interest in a transparent and tunable fashion.
 
-These results can be used in downstream analyses to compare different conditions, different cell subpopulations, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity or arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement across selectable time lags, relative turn angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
+These results can be used in downstream analyses to compare different conditions, different cell subpopulations, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity and arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement across selectable time lags, relative turn angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
 
-Migrate3D requires a .csv file input that contains data from cell movements through two- or three-dimensional space. Each row should include a unique cell identifier (ID), X/Y/Z coordinates, and the time. While complete/uninterrupted tracks are ideal, the program can interpolate missing data if needed, as long as the different segments of the track belong to the same unique cell ID. A key limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
+Migrate3D requires a .csv file input that contains data from cell movements through two- or three-dimensional space. Each row should include a unique cell identifier (ID), time, and X/Y/Z coordinates. While complete/uninterrupted tracks are ideal, the program can interpolate missing data if needed, as long as the different segments of the track belong to the same unique cell ID. A key limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
 
 Migrate3D has formatting functionality. If selected by the user, the program can account for multi-tracked timepoints, interpolate missing data points, and adjust for two-dimensional data. All **formatting functions do not alter original datafile** and will return a new .csv file of the formatted data.
 
@@ -16,7 +16,16 @@ After execution, the program will return a .xlsx file with several worksheets, c
 
 Migrate3D was created with ease of use in mind, to that end a graphical user interface (GUI) was implemented. This includes easy file open dialogs, user-adjustable parameters, and a progress bar. We welcome feedback and intend to support the program as resources allow.
 
-Migrate3D was developed by Matthew Kinahan and Menelaos Symeonides at the University of Vermont, funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali).
+Migrate3D was developed by Matthew Kinahan, Emily Mynar, and Menelaos Symeonides at the University of Vermont, funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali).
+
+## Input Files
+
+### Segments
+Segments input files should be a .csv with cell ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input.
+
+### Categories
+Categories input files should be a .csv with cell ID and cell category (No categories file is necessary to run the program).
+Please ensure that column headers are in the first row of the .csv file input. 
 
 ## Dependencies
 
@@ -31,20 +40,20 @@ dearpygui, numpy, os, pandas, re, scikit_posthocs, scipy, sklearn, statistics, t
 
 On Windows:
 ```powershell
-py -3 -m pip install dearpygui numpy pandas scikit-learn scikit_posthocs scipy xlsxwriter
+py -3 -m pip install -r requirements.txt
 ```
-On MacOS:
+On macOS:
 ```powershell
-python3 -m pip install dearpygui numpy pandas scikit-learn scikit_posthocs scipy xlsxwriter
+python3 -m pip install -r requirements.txt
 ```
-1. Download the code as a zip file from GitHub and move all files into the folder created in step 2.
-2. To run Migrate3D, navigate to the PowerShell or an equivalent terminal program, change your working directory to where you stored all files, then run:
+5. Download the code as a zip file from GitHub and move all files into the folder created in step 2.
+6. To run Migrate3D, navigate to the PowerShell or an equivalent terminal program, change your working directory to where you stored all files, then run:
 
 On Windows:
 ```powershell
 py Migrate3D-main/main.py
 ```
-On MacOS:
+On macOS:
 ```powershell 
 python Migrate3D-main/main.py
 ```
@@ -86,7 +95,7 @@ Enter a name for your output file. The .xlsx extension will be added on, do not 
 
 ### Column Header Names (Segments file):
 
-Enter the name of each column in your input dataset to help Migrate3D find your Cell ID, Time, and X/Y/Z coordinate data correctly. Any additional columns will simply be ignored. You can just open your .csv, copy each header name, and paste it in the appropriate field. If your output always looks the same, you can just edit the script to change the default entries. NOTE: Please ensure that column headers are in the first row of the .csv file input.
+Enter the name of each column in your input dataset to help Migrate3D find your Cell ID, Time, and X/Y/Z coordinate data correctly. Any additional columns will simply be ignored. You can just open your .csv, copy each header name, and paste it in the appropriate field. If your output always looks the same, you can edit the script to change the default entries. NOTE: Please ensure that column headers are in the first row of the .csv file input.
 
 ### Column Header Names (Categories file):
 
