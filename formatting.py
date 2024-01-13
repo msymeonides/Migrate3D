@@ -1,97 +1,105 @@
-import pandas as pd
-import statistics
-import os
+import numpy as np
 
 
-def multi_tracking(df, unique_cell_ids, parent_col, time_col, x_col, y_col, z_col, infile_):
-    multi_tracked_spotted = False
-    list_of_df = []
-    df_1 = df.copy()
-    for i, cell in enumerate(unique_cell_ids):
-        tracked_times = list(df.loc[df[parent_col] == cell, time_col])
-        for index, time in enumerate(tracked_times):
-            if index == 0:
-                pass
-            else:
-                if tracked_times[index] == tracked_times[index - 1]:
-                    multi_tracked_spotted = True
+def multi_tracking(arr_segments):
+    instances = {}
 
-                elif tracked_times[index] != tracked_times[index - 1] and multi_tracked_spotted:
-                    df_corrected = pd.DataFrame()
-                    multi_tracked_spotted = False
-                    time_end = tracked_times[index - 1]
-                    df_by_cell_and_time = df.loc[(df[parent_col] == cell) & (df[time_col] == time_end), [parent_col, time_col, x_col, y_col, z_col]]
-                    df_1 = df_1.drop(df_by_cell_and_time.index)
-                    x_adjusted = statistics.mean(list(df_by_cell_and_time.loc[:, x_col]))
-                    y_adjusted = statistics.mean(list(df_by_cell_and_time.loc[:, y_col]))
-                    z_adjusted = statistics.mean(list(df_by_cell_and_time.loc[:, z_col]))
-                    df_corrected[parent_col] = df_by_cell_and_time[parent_col]
-                    df_corrected[time_col] = df_by_cell_and_time[time_col]
-                    df_corrected[x_col] = x_adjusted
-                    df_corrected[y_col] = y_adjusted
-                    df_corrected[z_col] = z_adjusted
-                    df_corrected = df_corrected.iloc[:1, :]
-                    list_of_df.append(df_corrected)
+    # Get unique combinations of cell ID and timepoint
+    for row in arr_segments:
+        cell_id, timepoint, x, y, z = row
+        key = (cell_id, timepoint)
 
-    list_of_df.append(df_1)
-    df_formatted_return = pd.concat(list_of_df)
-    df_formatted_return = df_formatted_return.sort_values(by=[parent_col, time_col], ascending=True)
+        # Initialize with first set of coordinates for cell ID and timepoint and begin count
+        if key not in instances:
+            instances[key] = [x, y, z, 1]
 
-    df_formatted_return.to_csv(f"{os.path.basename(infile_[:-4])}_multitracked.csv", index=False)
-    return df_formatted_return
+        # If cell ID and timepoint have already been spotted, add the coordinates and increment count
+        else:
+            instances[key][0] += x
+            instances[key][1] += y
+            instances[key][2] += z
+            instances[key][3] += 1
+
+    # Calculate averages for multitracked timepoints and append add to result data
+    result_data = []
+    for key, value in instances.items():
+        cell_id, timepoint = key
+        x_avg = value[0] / value[3]
+        y_avg = value[1] / value[3]
+        z_avg = value[2] / value[3]
+        result_data.append([cell_id, timepoint, x_avg, y_avg, z_avg])
+
+    # Save and return averaged data
+    arr_segments_multi = np.array(result_data)
+    return arr_segments_multi
 
 
-def adjust_2D(df, infile_):
-    df['Z Coordinate'] = 0
-    df.to_csv(f"{os.path.basename(infile_[:-4])}_2D.csv", index=False)
+def adjust_2D(arr_segments):
+    # Set Z coordinate to zero for all timepoints
+    arr_segments[:, 4] = 0
+    return arr_segments
 
-    return df
 
+def interpolate_lazy(arr_segments, timelapse_interval, unique_cells):
+    cell_data_dict = {}
 
-def interpolate_lazy(df, unique_cell_ids, parent_col, time_col, x_col, y_col, z_col, infile_, time_between):
-    list_of_df = []
-    for i, cell in enumerate(unique_cell_ids):
-        num_insertions = 0
-        x_val = list(df.loc[df[parent_col] == cell, x_col])
-        y_val = list(df.loc[df[parent_col] == cell, y_col])
-        z_val = list(df.loc[df[parent_col] == cell, z_col])
-        tracked_times = list(df.loc[df[parent_col] == cell, time_col])
-        cell_list = list(df.loc[df[parent_col] == cell, parent_col])
-        dict_to_insert = {}
-        for index, time in enumerate(tracked_times):
-            if index == 0:
-                pass
-            else:
-                if (tracked_times[index] - tracked_times[index - 1]) != time_between and\
-                        (tracked_times[index] - tracked_times[index - 1]) != 0:
-                    x_interpolated = (x_val[index] - x_val[index - 1]) / 2
-                    x_interpolated = x_val[index - 1] + x_interpolated
-                    y_interpolated = (y_val[index] - y_val[index - 1]) / 2
-                    y_interpolated = y_val[index - 1] + y_interpolated
-                    z_interpolated = (z_val[index] - z_val[index - 1]) / 2
-                    z_interpolated = z_val[index - 1] + z_interpolated
-                    time_interpolated = tracked_times[index] - time_between
-                    dict_to_insert[index] = [index + num_insertions, time_interpolated, x_interpolated, y_interpolated,
-                                             z_interpolated]
-                    num_insertions += 1
+    # Create dictionary of cell IDs with list of timepoint, x, y, and z as values
+    for row in arr_segments:
+        cell_id, timepoint, x, y, z = row
+        if cell_id not in cell_data_dict:
+            cell_data_dict[cell_id] = []
+        cell_data_dict[cell_id].append([timepoint, x, y, z])
 
-        for key in dict_to_insert.keys():
-            values_ = dict_to_insert[key]
-            cell_list.insert(values_[0], cell)
-            tracked_times.insert(values_[0], values_[1])
-            x_val.insert(values_[0], values_[2])
-            y_val.insert(values_[0], values_[3])
-            z_val.insert(values_[0], values_[4])
+    interpolated_data = []
 
-        df_formatted = pd.DataFrame()
-        df_formatted[parent_col] = cell_list
-        df_formatted[time_col] = tracked_times
-        df_formatted[x_col] = x_val
-        df_formatted[y_col] = y_val
-        df_formatted[z_col] = z_val
-        list_of_df.append(df_formatted)
+    # For each unique cell, sort sets of timepoint and coordinates by timepoint
+    for cell_id in cell_data_dict.keys():
+        timepoint_data = cell_data_dict[cell_id]
+        timepoint_data.sort()
 
-    df_formatted_return = pd.concat(list_of_df, ignore_index=True)
-    df_formatted_return.to_csv(f"{os.path.basename(infile_[:-4])}_interpolated.csv", index=False)
+        # Calculate index of final timepoint
+        final_tp_index = int(((timepoint_data[-1][0]) / timelapse_interval) - (timepoint_data[1][0] / timelapse_interval) + 2)
 
-    return df_formatted_return
+        # If index of final timepoint is equal to number of timepoints for that cell, no points need to be interpolated
+        if final_tp_index == len(timepoint_data):
+            for i in range(len(timepoint_data)):
+                timepoint, x, y, z = timepoint_data[i]
+                interpolated_data.append([cell_id, timepoint, x, y, z])
+
+        else:
+            for i in range(len(timepoint_data)):
+                timepoint, x, y, z = timepoint_data[i]
+
+                # Add each existing timepoint to interpolated data
+                if [cell_id, timepoint, x, y, z] not in interpolated_data:
+                    interpolated_data.append([cell_id, timepoint, x, y, z])
+
+                # Skip first timepoint
+                elif i == 1:
+                    pass
+
+                else:
+                    # Calculate previous timepoint and different between timepoints
+                    timepoint_prev, x_prev, y_prev, z_prev = timepoint_data[i - 1]
+                    time_diff = timepoint - timepoint_prev
+
+                    # If difference in timepoints is greater than timelapse interval given, interpolate missing data
+                    if time_diff != timelapse_interval and time_diff != 0:
+                        x_interp = ((x - x_prev) / 2) + x_prev
+                        y_interp = ((y - y_prev) / 2) + y_prev
+                        z_interp = ((z - z_prev) / 2) + z_prev
+                        time_interp = timepoint_prev + timelapse_interval
+
+                        # Stop interpolating at final timepoint
+                        if time_interp > timepoint_data[-1][0]:
+                            pass
+
+                        # Add interpolated timepoint to data and sort
+                        else:
+                            interpolated_data.append([cell_id, time_interp, x_interp, y_interp, z_interp])
+                            timepoint_data.append((time_interp, x_interp, y_interp, z_interp))
+                            timepoint_data.sort()
+
+    # Create and return array of interpolated data
+    arr_segments_interpolated = np.array(interpolated_data)
+    return arr_segments_interpolated
