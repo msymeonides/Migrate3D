@@ -1,6 +1,6 @@
 # README
 
-Last Edited: January 12, 2024 (Migrate3D version 1.5)
+Last Edited: January 15, 2024 (Migrate3D version 1.5)
 
 # Migrate3D
 
@@ -10,7 +10,7 @@ These results can be used in downstream analyses to compare different conditions
 
 Migrate3D requires a .csv file input that contains data from cell movements through two- or three-dimensional space. Each row should include a unique cell identifier (ID), time, and X/Y/Z coordinates. While complete/uninterrupted tracks are ideal, the program can interpolate missing data if needed, as long as the different segments of the track belong to the same unique cell ID. A key limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
 
-Migrate3D has formatting functionality. If selected by the user, the program can account for multi-tracked timepoints, interpolate missing data points, and adjust for two-dimensional data. All **formatting functions do not alter original datafile** and will return a new .csv file of the formatted data.
+Migrate3D has formatting functionality. If selected by the user, the program can account for multi-tracked timepoints, interpolate missing data points, and adjust for two-dimensional data. **Formatting functions do not alter original datafile** and the reformatted data will be part of the results output.
 
 After execution, the program will return a .xlsx file with several worksheets, containing stepwise calculations done for each timepoint of each track, track-by-track summary metrics, and mean squared displacement analysis (both track-by-track and summary statistics). If the option is enabled, a separate .xlsx file will be returned with analysis of cell-cell contacts. Additionally, another .xlsx output will be generated if Principal Component Analysis (PCA) is performed. This will include detailed outputs, which can be further enhanced by providing categorization of the data as .csv file (simply listing the category for each cell ID). If a categorization file is given, the PCA results will be returned in their own .xlsx file. There is no guarantee that the PCA is performed in a statistically-sound way, that is left up to the user to ensure, but the library used to perform the PCA (sklearn) is widely used.
 
@@ -20,6 +20,8 @@ Migrate3D was developed by Matthew Kinahan, Emily Mynar, and Menelaos Symeonides
 
 ## Input Files
 
+Place your .csv input dataset in the Migrate3D folder you create during installation to make it easier to find in the GUI.
+
 ### Segments
 Segments input files should be a .csv with cell ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input.
 
@@ -27,38 +29,102 @@ Segments input files should be a .csv with cell ID, time, X, Y, and Z coordinate
 Categories input files should be a .csv with cell ID and cell category (No categories file is necessary to run the program).
 Please ensure that column headers are in the first row of the .csv file input. 
 
-## Dependencies
+## Installing and Running Migrate3D
 
-dearpygui, numpy, os, pandas, re, scikit_posthocs, scipy, sklearn, statistics, time, warnings, xlsxwriter
+### On Linux (tested in Ubuntu 23.10):
 
-## Running Migrate3D
-
-1. To run Migrate3D, first download the latest 3.x version of Python: https://www.python.org/downloads/ (Note: tested to be functional up to Python 3.11)
-2. Once Python is installed, create a folder where you would like to store Migrate3D.
-3. Now, go to the command prompt or an equivalent application and set the working directory to the folder you have just created.
-4. Download the code as a zip file from GitHub and move all files into the folder created in step 2.
-5. Now that you have set your working directory you will have to install the required packages. To do this, in the command prompt that you have just set to your working directory, type:
-
-On Windows:
+1. Python 3 is already installed in Ubuntu. Begin by checking the installed version of python:
 ```powershell
-py -3 -m pip install -r requirements.txt
+python3 --version
 ```
-On macOS:
+On a fresh installation of Ubuntu 23.10, that should return "Python 3.11.6".
+
+2. If you have not previously configured a python virtual environment (venv) or installed python packages using pip, you will first need to get set up to do that:
+Open a Terminal window and enter the following commands:
 ```powershell
-python3 -m pip install -r requirements.txt
+sudo apt update
+sudo apt upgrade
+sudo apt-get install python3-pip python3-venv
 ```
 
-6. To run Migrate3D, navigate to the PowerShell or an equivalent terminal program, change your working directory to where you stored all files, then run:
-
-On Windows:
+3. Make a new directory (e.g. named "Migrate3D") and create a venv in it:
 ```powershell
-py Migrate3D-main/main.py
+mkdir ~/Migrate3D
+python3 -m venv ~/Migrate3D
 ```
-On macOS:
-```powershell 
-python Migrate3D-main/main.py
+
+4. Download Migrate3D from GitHub and extract the ZIP file into the /home/Migrate3D directory you just created:
+```powershell
+wget https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
+unzip Migrate3D-main.zip -d ~/Migrate3D
 ```
-Place your .csv input dataset in the folder you created in step 2 to make it easier to find in the GUI. Output files will also be placed in this folder.
+
+5. You now need to activate the venv:
+```powershell
+source ~/Migrate3D/bin/activate
+```
+Note: if you would like to exit the venv, i.e. return to your normal Linux terminal, simply enter:
+```powershell
+deactivate
+```
+
+6. Install the required dependencies:
+```powershell
+pip install -r ~/Migrate3D/Migrate3D-main/requirements.txt
+```
+Note that these packages are only installed within the venv you just created and will not affect your python installation.
+
+7. Finally, to run Migrate3D:
+```powershell
+python3 ~/Migrate3D/Migrate3D-main/main.py
+```
+Note that the output result spreadsheets will be saved under ~/Migrate3D/Migrate3D-main/.
+
+### On macOS (tested in Catalina):
+
+< Work in progress >
+
+### On Windows (tested in Windows 11)
+
+1. First, download and install the latest version of Miniconda3 for Windows using all the default options during installation: https://docs.conda.io/projects/miniconda/en/latest/index.html
+
+2. From the Start menu, open the Anaconda Prompt that was just installed. Create a folder for Migrate3D and navigate to it:
+```powershell
+mkdir Migrate3D
+cd Migrate3D
+```
+
+3. Download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
+```powershell
+curl -LJO https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
+tar -xvzf Migrate3D-main.zip
+cd Migrate3D-main
+```
+
+4. Set up a virtual environment (venv) and activate it:
+```powershell
+conda update conda
+conda create --name Migrate3D
+conda activate Migrate3D
+```
+Note: if you would like to exit the venv, i.e. return to the base Anaconda prompt, simply enter:
+```powershell
+conda deactivate
+```
+
+6. Install the required dependencies:
+```powershell
+conda install pip
+pip install -r requirements.txt
+```
+Note that these packages are only installed within the venv you just created and will not affect your base python installation.
+
+7. Finally, to run Migrate3D:
+```powershell
+python main.py
+```
+Note that the output result spreadsheets will be saved under C:\Users\<username>\Migrate3D\Migrate3D-main\.
+
 
 ## Tunable Variables
 
