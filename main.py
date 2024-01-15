@@ -14,7 +14,7 @@ from formatting import multi_tracking, adjust_2D, interpolate_lazy
 
 # Welcome to Migrate3D version 1.5
 # Please see README.md before running this package
-# Migrate3D was developed by Emily Mynar, Matthew Kinahan, and Menelaos Symeonides at the University of Vermont,
+# Migrate3D was developed by Matthew Kinahan, Emily Mynar, and Menelaos Symeonides at the University of Vermont,
 # funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali)
 # For more information, see https://github.com/msymeonides/Migrate3D/
 
