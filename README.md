@@ -36,7 +36,8 @@ dearpygui, numpy, os, pandas, re, scikit_posthocs, scipy, sklearn, statistics, t
 1. To run Migrate3D, first download the latest 3.x version of Python: https://www.python.org/downloads/ (Note: tested to be functional up to Python 3.11)
 2. Once Python is installed, create a folder where you would like to store Migrate3D.
 3. Now, go to the command prompt or an equivalent application and set the working directory to the folder you have just created.
-4. Now that you have set your working directory you will have to install the required packages. To do this, in the command prompt that you have just set to your working directory, type:
+4. Download the code as a zip file from GitHub and move all files into the folder created in step 2.
+5. Now that you have set your working directory you will have to install the required packages. To do this, in the command prompt that you have just set to your working directory, type:
 
 On Windows:
 ```powershell
@@ -46,7 +47,7 @@ On macOS:
 ```powershell
 python3 -m pip install -r requirements.txt
 ```
-5. Download the code as a zip file from GitHub and move all files into the folder created in step 2.
+
 6. To run Migrate3D, navigate to the PowerShell or an equivalent terminal program, change your working directory to where you stored all files, then run:
 
 On Windows:
