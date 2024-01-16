@@ -31,6 +31,100 @@ Please ensure that column headers are in the first row of the .csv file input.
 
 ## Installing and Running Migrate3D
 
+These installation instructions involve the use of the command line. If you are not familiar with using the command line, just copy each line and paste into your prompt/terminal and press Enter. Once the process is complete, you will be able to paste in the next line and press Enter, and so on. If "sudo" is used, you will need to enter your account password to proceed.
+
+### On Windows (tested in Windows 11)
+
+1. First, download and install the latest version of Miniconda3 for Windows using all the default options during installation: https://docs.conda.io/projects/miniconda/en/latest/index.html
+
+2. From the Start menu, open the Anaconda Prompt that was just installed. Create a folder for Migrate3D and navigate to it:
+```powershell
+mkdir Migrate3D
+cd Migrate3D
+```
+
+3. Download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
+```powershell
+curl -LJO https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
+tar -xvzf Migrate3D-main.zip
+cd Migrate3D-main
+```
+
+4. Set up a virtual environment (venv) and activate it:
+```powershell
+conda update conda
+conda create --name Migrate3D
+conda activate Migrate3D
+```
+Note: if you would like to exit the venv, i.e. return to the base Anaconda prompt, simply enter:
+```powershell
+conda deactivate
+```
+
+5. Install the required dependencies:
+```powershell
+conda install pip
+pip install -r requirements.txt
+```
+Note that these packages are only installed within the venv you just created and will not affect your base python installation.
+
+6. Finally, to run Migrate3D:
+```powershell
+python %USERPROFILE%\Migrate3D\Migrate3D-main\main.py
+```
+Remember to open the Anaconda Prompt and activate the Migrate3D venv next time you want to run Migrate3D:
+```powershell
+conda activate Migrate3D
+python %USERPROFILE%\Migrate3D\Migrate3D-main\main.py
+```
+Note that the output result spreadsheets will be saved under C:\Users\your_username\Migrate3D\Migrate3D-main\.
+
+### On macOS (tested in Catalina 10.15.7):
+
+1. First, download and install the latest version of Miniconda3 for macOS (the pkg version will be easiest to install): https://docs.conda.io/projects/miniconda/en/latest/index.html
+
+2. Open a Terminal. Create a folder for Migrate3D and navigate to it:
+```powershell
+mkdir Migrate3D
+cd Migrate3D
+```
+
+3. Download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
+```powershell
+curl -LJO https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
+tar -xvzf Migrate3D-main.zip
+cd Migrate3D-main
+```
+
+4. Set up a virtual environment (venv) and activate it:
+```powershell
+conda create --name Migrate3D
+conda activate Migrate3D
+```
+Note: if you would like to exit the venv, i.e. return to the base Anaconda prompt, simply enter:
+```powershell
+conda deactivate
+```
+
+5. Install the required dependencies:
+```powershell
+sudo xcode-select --install
+conda install pip
+pip3 install -r requirements.txt
+```
+Note that these packages are only installed within the venv you just created and will not affect your base python installation.
+
+6. Finally, to run Migrate3D:
+```powershell
+python3 ~/Migrate3D/Migrate3D-main/main.py
+```
+Remember to first activate the Migrate3D venv next time you want to run Migrate3D before executing the main script:
+```powershell
+conda activate Migrate3D
+python3 ~/Migrate3D/Migrate3D-main/main.py
+```
+Note that the output result spreadsheets will be saved under /Users/your_username/Migrate3D/Migrate3D-main/.
+
 ### On Linux (tested in Ubuntu 23.10):
 
 1. Python 3 is already installed in Ubuntu. Begin by checking the installed version of python:
@@ -78,52 +172,12 @@ Note that these packages are only installed within the venv you just created and
 ```powershell
 python3 ~/Migrate3D/Migrate3D-main/main.py
 ```
+Remember to first activate the Migrate3D venv next time you want to run Migrate3D before executing the main script:
+```powershell
+source ~/Migrate3D/bin/activate
+python3 ~/Migrate3D/Migrate3D-main/main.py
+```
 Note that the output result spreadsheets will be saved under ~/Migrate3D/Migrate3D-main/.
-
-### On macOS (tested in Catalina):
-
-< Work in progress >
-
-### On Windows (tested in Windows 11)
-
-1. First, download and install the latest version of Miniconda3 for Windows using all the default options during installation: https://docs.conda.io/projects/miniconda/en/latest/index.html
-
-2. From the Start menu, open the Anaconda Prompt that was just installed. Create a folder for Migrate3D and navigate to it:
-```powershell
-mkdir Migrate3D
-cd Migrate3D
-```
-
-3. Download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
-```powershell
-curl -LJO https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
-tar -xvzf Migrate3D-main.zip
-cd Migrate3D-main
-```
-
-4. Set up a virtual environment (venv) and activate it:
-```powershell
-conda update conda
-conda create --name Migrate3D
-conda activate Migrate3D
-```
-Note: if you would like to exit the venv, i.e. return to the base Anaconda prompt, simply enter:
-```powershell
-conda deactivate
-```
-
-6. Install the required dependencies:
-```powershell
-conda install pip
-pip install -r requirements.txt
-```
-Note that these packages are only installed within the venv you just created and will not affect your base python installation.
-
-7. Finally, to run Migrate3D:
-```powershell
-python main.py
-```
-Note that the output result spreadsheets will be saved under C:\Users\<username>\Migrate3D\Migrate3D-main\.
 
 
 ## Tunable Variables
