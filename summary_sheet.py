@@ -132,11 +132,10 @@ def summary_sheet(arr_segments, df_all_calcs, unique_cells, tau_msd, parameters,
         single_angle_dict[cell] = single_angle
 
         instantaneous_displacement = list(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Instantaneous Displacement'])
-        instantaneous_displacement = [x for x in instantaneous_displacement if np.isnan(x) is False and x != 0]
+        instantaneous_displacement = [x for x in instantaneous_displacement if not (np.isnan(x) or x == 0)]
         time_under = [x for x in instantaneous_displacement if
                       x < parameters['arrest_limit']]
         arrest_coefficient = (len(time_under) * time_interval) / duration
-
         # Combine summary statistics for each cell and add to dictionary
         sum_[cell] = cell, duration, final_euclid, max_euclid, max_path, straightness, tc_straightness, \
                      displacement_ratio, outreach_ratio, velocity_mean, velocity_median, velocity_filtered_mean, \

@@ -74,14 +74,14 @@ def calculations(cell, cell_data, num_euclid_spaces, cell_id, parameters):
 
     mod = 3
     arrest_multiplier = 1
-    space = [s for s in range(num_euclid_spaces + 1) if s % 2 != 0]
+    space = [s for s in range(1, num_euclid_spaces + 1, 2)]
     num_tps = len(space)
 
     angle_array = np.zeros((num_tps, num_rows))
     filtered_angle_array = np.zeros((num_tps, num_rows))
 
     # Calculate angle and filtered angle
-    for back_angle in range(1, num_euclid_spaces - len(space) + 1):
+    for back_angle in range(num_tps):
         angle_tp = np.zeros(num_rows)
         filtered_angle_tp = np.zeros(num_rows)
         for index in range(num_rows):
