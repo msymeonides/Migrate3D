@@ -5,10 +5,12 @@ import time as tempo
 import os
 from warnings import simplefilter
 from datetime import date
+from xgboost import plot_importance
+from matplotlib import pyplot
 
 from calculations import calculations
 from summary_sheet import summary_sheet
-from contacts import contacts, contacts_alive, no_daughter_contacts
+from contacts import contacts, contacts_moving, no_daughter_contacts
 from formatting import multi_tracking, adjust_2D, interpolate_lazy
 
 
@@ -24,7 +26,7 @@ dpg.create_context()
 # Default parameters
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95,
               'tau_msd': 50, 'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
-              'cell_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate',
+              'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate',
               'z_col_name': 'Z Coordinate', 'parent_id2': 'Id', 'category_col': 'Code', 'interpolate': False,
               'multi_track': False, 'two_dim': False, 'contact': False, 'pca_filter': None, 'infile_tracks': False}
 
@@ -72,24 +74,24 @@ def migrate3D(param):
                 infile_segments = pd.read_csv(infile_name, sep=',')
                 savefile = parameters['savefile']
                 df_infile = pd.DataFrame(infile_segments)
-                parent_id = parameters['cell_id_col_name']
+                parent_id = parameters['object_id_col_name']
                 time_for = parameters['time_col_name']
                 x_for = parameters['x_col_name']
                 y_for = parameters['y_col_name']
                 z_for = parameters['z_col_name']
 
-                # Get data for each cell from segments file and add to list
-                cell_data_list = []
+                # Get data for each object from segments file and add to list
+                input_data_list = []
                 for row in df_infile.index:
-                    cell_id = df_infile[parent_id][row]
+                    object_id = df_infile[parent_id][row]
                     time_col = df_infile[time_for][row]
                     x_col = df_infile[x_for][row]
                     y_col = df_infile[y_for][row]
                     z_col = df_infile[z_for][row]
-                    cell_data_list.append([cell_id, time_col, x_col, y_col, z_col])
+                    input_data_list.append([object_id, time_col, x_col, y_col, z_col])
 
-                # Create array of all cells, timepoints, and coordinates
-                arr_segments = np.array(cell_data_list)
+                # Create array of all objects, timepoints, and coordinates
+                arr_segments = np.array(input_data_list)
 
                 # Create settings DF for Excel output
                 settings = {'Segments file': [os.path.basename(infile_name).split('/')[-1]],
@@ -101,12 +103,12 @@ def migrate3D(param):
                             'Contacts': [contact]}
                 df_settings = pd.DataFrame(data=settings)
 
-                # Sort segments array by time and cell ID
+                # Sort segments array by time and object ID
                 arr_segments = arr_segments[arr_segments[:, 1].argsort()]
                 arr_segments = arr_segments[arr_segments[:, 0].argsort(kind='mergesort')]
 
-                # Create array containing unique cell IDs
-                unique_cells = np.unique(arr_segments[:, 0])
+                # Create array containing unique object IDs
+                unique_objects = np.unique(arr_segments[:, 0])
 
                 tic = tempo.time()
 
@@ -118,10 +120,10 @@ def migrate3D(param):
                 if parameters['two_dim']:
                     arr_segments = adjust_2D(arr_segments)
                 if parameters['interpolate']:
-                    arr_segments = interpolate_lazy(arr_segments, timelapse_interval, unique_cells)
+                    arr_segments = interpolate_lazy(arr_segments, timelapse_interval, unique_objects)
 
                 # Create dataframe of formatted segments for later export to Excel file
-                df_segments = pd.DataFrame(arr_segments, columns=['Cell ID', 'Time', 'X', 'Y', 'Z'])
+                df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', 'Z'])
 
                 toc = tempo.time()
                 print('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
@@ -129,15 +131,15 @@ def migrate3D(param):
                 tic = tempo.time()
                 print('Calculating migration parameters...')
 
-                # Perform calculations on each unique cell
+                # Perform calculations on each unique object
                 all_calcs = []
-                for cell in unique_cells:
-                    cell_data = arr_segments[arr_segments[:, 0] == cell, :]
-                    cell_id = cell_data[0, 0]
-                    df_cell_calcs = calculations(cell, cell_data, tau_euclid, cell_id, parameters)
+                for object in unique_objects:
+                    object_data = arr_segments[arr_segments[:, 0] == object, :]
+                    object_id = object_data[0, 0]
+                    df_calcs = calculations(object, object_data, tau_euclid, object_id, parameters)
                     p_bar_increase += 0.0001
                     dpg.set_value('pbar', p_bar_increase)
-                    all_calcs.append(df_cell_calcs)
+                    all_calcs.append(df_calcs)
                 df_all_calcs = pd.concat(all_calcs)
                 mapping = {0: None}
 
@@ -154,10 +156,11 @@ def migrate3D(param):
                 # Create summary sheet of calculations
                 df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat = summary_sheet(arr_segments,
                                                                                                          df_all_calcs,
-                                                                                                         unique_cells,
+                                                                                                         unique_objects,
                                                                                                          parameters['tau_msd'],
                                                                                                          parameters,
                                                                                                          track_df, savefile)
+
 
                 p_bar_increase += 0.20
                 dpg.set_value('pbar', p_bar_increase)
@@ -168,15 +171,15 @@ def migrate3D(param):
                 else:
                     tic = tempo.time()
                     print('Detecting contacts...')
-                    df_cont = contacts(unique_cells, arr_segments, contact_length)
+                    df_cont = contacts(unique_objects, arr_segments, contact_length)
                     if len(df_cont) == 0:
                         pass
                     else:
                         df_contacts = pd.concat(df_cont, ignore_index=True)
-                        df_no_daughter_func = no_daughter_contacts(unique_cells, df_contacts)
+                        df_no_daughter_func = no_daughter_contacts(unique_objects, df_contacts)
                         df_no_daughter = pd.concat(df_no_daughter_func, ignore_index=True)
-                        df_alive, df_contact_sum = contacts_alive(df_sum, df_no_daughter,
-                                                                  arrested, time_interval)
+                        df_alive, df_contact_sum = contacts_moving(df_sum, df_no_daughter,
+                                                                   arrested, time_interval)
                     df_no_dead_ = pd.concat(df_alive, ignore_index=True)
                     with_contacts = []
                     for df in df_contact_sum:
@@ -192,9 +195,9 @@ def migrate3D(param):
                 df_all_calcs = df_all_calcs.replace(mapping)
                 df_sum = df_sum.replace(mapping)
 
-                # If categories are present, restore zeroes for Cell Type
+                # If categories are present, restore zeroes for category
                 if track_df.shape[0] > 0:
-                    df_sum['Cell Type'] = df_sum['Cell Type'].replace(np.nan, 0)
+                    df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
 
                 # restore zeros for Arrest Coefficient
                 df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
@@ -211,7 +214,7 @@ def migrate3D(param):
                 try:
                     with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
                         df_settings.to_excel(workbook, sheet_name='Settings', index=False)
-                        df_segments.to_excel(workbook, sheet_name='Cell Data', index=False)
+                        df_segments.to_excel(workbook, sheet_name='Object Data', index=False)
                         df_all_calcs.to_excel(workbook, sheet_name='Calculations', index=False)
                         df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
                         df_single.to_excel(workbook, sheet_name='Single Timepoint Medians', index=False)
@@ -225,7 +228,7 @@ def migrate3D(param):
                 except:
                     print('ExcelWriter has thrown an exception due to the output file being too large. Outputs will be in .CSV format.')
                     df_settings.to_csv(f'{savefile}_Settings.csv', index=False)
-                    df_segments.to_csv(f'{savefile}_Cell_Data.csv', index=False)
+                    df_segments.to_csv(f'{savefile}_Object_Data.csv', index=False)
                     df_all_calcs.to_csv(f'{savefile}_Calculations.csv', index=False)
                     df_sum.to_csv(f'{savefile}_Summary_Statistics.csv', index=False)
                     df_single.to_csv(f'{savefile}_Single_Timepoint_Medians.csv', index=False)
@@ -247,7 +250,7 @@ def migrate3D(param):
                             print('Saving contacts output to ' + savecontacts + '...')
                             with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
                                 df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
-                                df_no_daughter.to_excel(workbook, sheet_name='Contacts no Mitosis', index=False)
+                                df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
                                 df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
                                 df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
 
@@ -339,9 +342,9 @@ with dpg.window(label="Migrate3D", width=900, height=660) as Window:
                                               default_value=parameters['arrest_limit'], callback=float_return, tag='arrest_limit')
     moving = dpg.add_input_int(width=100, label='Minimum timepoints moving (number of recorded timepoints required for a track to be included in analysis)',
                                default_value=parameters['moving'], callback=input_return, tag='moving')
-    contact_length = dpg.add_input_float(width=100, label='Maximum contact length (maximum distance between cells that would be considered a contact)',
+    contact_length = dpg.add_input_float(width=100, label='Maximum contact length (maximum distance between objects that would be considered a contact)',
                                          default_value=parameters['contact_length'], callback=float_return, tag='contact_length')
-    arrested = dpg.add_input_float(width=100, label='Arrested/Dead: Cells with an Arrest Coefficient above this value will be considered to be "dead" during Contact detection',
+    arrested = dpg.add_input_float(width=100, label='Arrested/Dead: Objects with an Arrest Coefficient above this value will be considered to be "dead" during Contact detection',
                                    default_value=parameters['arrested'], callback=float_return, tag='arrested')
     tau_msd = dpg.add_input_int(width=100, label='Maximum tau value (time lags) for mean square displacement (MSD) calculations',
                                 default_value=parameters['tau_msd'], callback=input_return, tag='tau_msd')
@@ -349,8 +352,8 @@ with dpg.window(label="Migrate3D", width=900, height=660) as Window:
                                  default_value=parameters['tau_euclid'], callback=input_return, tag='tau_euclid')
     save_file = dpg.add_input_text(width=250, label='Output filename (.xlsx extension will be added, do not include!)',
                                    default_value=('{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results'), callback=input_return, tag='savefile')
-    parent_id = dpg.add_input_text(width=150, label='Column header name in input Segments file for cell identifiers',
-                                   default_value='Parent ID', callback=input_return, tag='cell_id_col_name')
+    parent_id = dpg.add_input_text(width=150, label='Column header name in input Segments file for object identifiers',
+                                   default_value='Parent ID', callback=input_return, tag='object_id_col_name')
     time_col = dpg.add_input_text(width=150, label='Column header name in input Segments file for Time data',
                                   default_value='Time', callback=input_return, tag='time_col_name')
     x_for = dpg.add_input_text(width=150, label='Column header name in input Segments file for X coordinates',
@@ -359,9 +362,9 @@ with dpg.window(label="Migrate3D", width=900, height=660) as Window:
                                default_value='Y Coordinate', callback=input_return, tag='y_col_name')
     z_for = dpg.add_input_text(width=150, label='Column header name in input Segments file for Z coordinates',
                                default_value='Z Coordinate', callback=input_return, tag='z_col_name')
-    parent_id2 = dpg.add_input_text(width=150, label='Column header name in input Categories file for cell identifiers',
+    parent_id2 = dpg.add_input_text(width=150, label='Column header name in input file for object identifiers',
                                     default_value='Id', callback=input_return, tag='parent_id2')
-    category_col = dpg.add_input_text(width=150, label="Column header name in input Categories file for cell category",
+    category_col = dpg.add_input_text(width=150, label="Column header name in input Categories file for object category",
                                       default_value='Code', callback=input_return, tag='category_col')
 
     interpolate_check = dpg.add_checkbox(label='Perform lazy interpolation for missing data points?',
@@ -370,9 +373,9 @@ with dpg.window(label="Migrate3D", width=900, height=660) as Window:
                                    callback=formatting_check, tag='multi_track')
     two_dim_check = dpg.add_checkbox(label='Adjust for 2D data? Check if input dataset is 2D, or to convert 3D data to 2D by '
                                            'ignoring Z coordinates.', callback=formatting_check, tag='two_dim')
-    contact = dpg.add_checkbox(label='Detect cell-cell contacts? (Warning: can significantly increase processing time!)',
+    contact = dpg.add_checkbox(label='Detect contacts? (Warning: can significantly increase processing time!)',
                                callback=run_contact)
-    pca_filter = dpg.add_input_text(width=250, label='To limit PCA analysis to certain cell types, enter them here '
+    pca_filter = dpg.add_input_text(width=250, label='To limit PCA analysis to certain categories, enter them here '
                                     'separated by a comma.', callback=input_return, tag='pca_filter')
 
     dpg.add_progress_bar(width=600, height=10, label='Progress Bar', tag='pbar')
