@@ -2,10 +2,10 @@ import numpy as np
 import pandas as pd
 
 
-def calculations(cell, cell_data, num_euclid_spaces, cell_id, parameters):
+def calculations(object, object_data, num_euclid_spaces, object_id, parameters):
 
-    # Get number of rows and columns in cell data
-    num_rows, num_cols = np.shape(cell_data)
+    # Get number of rows and columns in object data
+    num_rows, num_cols = np.shape(object_data)
 
     # Create empty arrays to hold results
     instantaneous_displacement = np.zeros(num_rows)
@@ -21,15 +21,15 @@ def calculations(cell, cell_data, num_euclid_spaces, cell_id, parameters):
         if index == 0:
             pass
         else:
-            x0 = cell_data[0, 2]
-            x_curr = cell_data[index, 2]
-            x_prev = cell_data[(index - 1), 2]
-            y0 = cell_data[0, 3]
-            y_curr = cell_data[index, 3]
-            y_prev = cell_data[(index - 1), 3]
-            z0 = cell_data[0, 4]
-            z_curr = cell_data[index, 4]
-            z_prev = cell_data[(index - 1), 4]
+            x0 = object_data[0, 2]
+            x_curr = object_data[index, 2]
+            x_prev = object_data[(index - 1), 2]
+            y0 = object_data[0, 3]
+            y_curr = object_data[index, 3]
+            y_prev = object_data[(index - 1), 3]
+            z0 = object_data[0, 4]
+            z_curr = object_data[index, 4]
+            z_prev = object_data[(index - 1), 4]
             pl = path_length[index - 1]
             sum_x = (x_curr - x_prev) ** 2
             sum_y = (y_curr - y_prev) ** 2
@@ -60,12 +60,12 @@ def calculations(cell, cell_data, num_euclid_spaces, cell_id, parameters):
             if num > index:
                 pass
             else:
-                x_curr = cell_data[index, 2]
-                x_prev = cell_data[(index - num), 2]
-                y_curr = cell_data[index, 3]
-                y_prev = cell_data[(index - num), 3]
-                z_curr = cell_data[index, 4]
-                z_prev = cell_data[(index - num), 4]
+                x_curr = object_data[index, 2]
+                x_prev = object_data[(index - num), 2]
+                y_curr = object_data[index, 3]
+                y_prev = object_data[(index - num), 3]
+                z_curr = object_data[index, 4]
+                z_prev = object_data[(index - num), 4]
                 x_val = (x_curr - x_prev) ** 2
                 y_val = (y_curr - y_prev) ** 2
                 z_val = (z_curr - z_prev) ** 2
@@ -89,16 +89,16 @@ def calculations(cell, cell_data, num_euclid_spaces, cell_id, parameters):
                 if back_angle * 2 > index:
                     continue
                 else:
-                    cell = cell
-                    x_curr = cell_data[index, 2]
-                    x_back = cell_data[(index - back_angle), 2]
-                    x_backsq = cell_data[(index - (back_angle * 2)), 2]
-                    y_curr = cell_data[index, 3]
-                    y_back = cell_data[(index - back_angle), 3]
-                    y_backsq = cell_data[(index - (back_angle * 2)), 3]
-                    z_curr = cell_data[index, 4]
-                    z_back = cell_data[(index - back_angle), 4]
-                    z_backsq = cell_data[(index - (back_angle * 2)), 4]
+                    object = object
+                    x_curr = object_data[index, 2]
+                    x_back = object_data[(index - back_angle), 2]
+                    x_backsq = object_data[(index - (back_angle * 2)), 2]
+                    y_curr = object_data[index, 3]
+                    y_back = object_data[(index - back_angle), 3]
+                    y_backsq = object_data[(index - (back_angle * 2)), 3]
+                    z_curr = object_data[index, 4]
+                    z_back = object_data[(index - back_angle), 4]
+                    z_backsq = object_data[(index - (back_angle * 2)), 4]
 
                     x_magnitude0 = x_curr - x_back
                     y_magnitude0 = y_curr - y_back
@@ -139,10 +139,10 @@ def calculations(cell, cell_data, num_euclid_spaces, cell_id, parameters):
         arrest_multiplier += 1
         mod += 2
 
-    # Create dictionary of cell calculations then convert to DataFrame
-    cell_calcs = {
-                    'Cell ID': cell_id,
-                    'Time': cell_data[:, 1],
+    # Create dictionary of object calculations then convert to DataFrame
+    object_calcs = {
+                    'Object ID': object_id,
+                    'Time': object_data[:, 1],
                     'Instantaneous Displacement': instantaneous_displacement,
                     'Total Displacement': total_displacement,
                     'Path Length': path_length,
@@ -151,20 +151,20 @@ def calculations(cell, cell_data, num_euclid_spaces, cell_id, parameters):
                     'Instantaneous Velocity Filtered': instantaneous_velocity_filtered,
                     'Instantaneous Acceleration Filtered': instantaneous_acceleration_filtered,
                 }
-    df_cell_calcs = pd.DataFrame.from_dict(cell_calcs)
+    df_object_calcs = pd.DataFrame.from_dict(object_calcs)
 
     # Add Euclidian angle, angle, and filtered angle to calculation DataFrame
     euclid_num = 1
     for x in euclid_array:
-        df_cell_calcs['Euclid ' + str(euclid_num) + ' TP'] = x
+        df_object_calcs['Euclid ' + str(euclid_num) + ' TP'] = x
         euclid_num += 1
     angle_num = 3
     for x in angle_array:
-        df_cell_calcs['Angle ' + str(angle_num) + ' TP'] = x
+        df_object_calcs['Angle ' + str(angle_num) + ' TP'] = x
         angle_num += 2
     filtered_angle_num = 3
     for x in filtered_angle_array:
-        df_cell_calcs['Filtered Angle ' + str(filtered_angle_num) + ' TP'] = x
+        df_object_calcs['Filtered Angle ' + str(filtered_angle_num) + ' TP'] = x
         filtered_angle_num += 2
 
-    return df_cell_calcs
+    return df_object_calcs

@@ -13,15 +13,15 @@ def pca(df, parameters, savefile):
         filter_ = filter_.split(sep=',')
         filter_ = [int(x) for x in filter_]
         print(f'Filtering categories for PCA to {filter_}...')
-        df = df[df['Cell Type'].isin(filter_)]
+        df = df[df['Object Type'].isin(filter_)]
 
     df = df.dropna()
     df_pca = df.drop(
-        labels=['Cell ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
+        labels=['Object ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
                 'Velocity Mean', 'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean',
                 'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
                 'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
-                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Cell Type'], axis=1)
+                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Object Type'], axis=1)
     df_pca.columns = df_pca.columns.str.strip()
     df_pca = df_pca.dropna()
     x = np.array(df_pca)
@@ -33,8 +33,8 @@ def pca(df, parameters, savefile):
     df_expl_var.index = ['PC1', 'PC2', 'PC3', 'PC4']
     df_PCscores = pd.DataFrame(PCscores)
     df_PCscores.columns = ['PC1', 'PC2', 'PC3', 'PC4']
-    df_PCscores['Cell ID'] = df['Cell ID'].values
-    df_PCscores['Category'] = df['Cell Type'].values
+    df_PCscores['Object ID'] = df['Object ID'].values
+    df_PCscores['Category'] = df['Object Type'].values
     df_features = pd.DataFrame(pca.components_)
     df_features.columns = df_pca.columns
     df_features.index = ['PC1', 'PC2', 'PC3', 'PC4']
@@ -79,10 +79,10 @@ def pca(df, parameters, savefile):
     format_white = workbook.add_format({'bg_color': 'white'})
     format_yellow = workbook.add_format({'bg_color': 'yellow'})
 
-    def highlight_cells(worksheet):
+    def highlight_objs(worksheet):
         worksheet.conditional_format('A1:ZZ100', {'type': 'blanks',
                                                   'format': format_white})
-        worksheet.conditional_format('B2:L12', {'type': 'cell',
+        worksheet.conditional_format('B2:L12', {'type': 'object',
                                                 'criteria': '<=',
                                                 'value': 0.05,
                                                 'format': format_yellow})
@@ -91,7 +91,7 @@ def pca(df, parameters, savefile):
 
     for i in sheets:
         worksheet = writer.sheets[i]
-        highlight_cells(worksheet)
+        highlight_objs(worksheet)
 
     writer.close()
     print('...PCA done.')
