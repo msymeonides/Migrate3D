@@ -9,7 +9,7 @@ from PCA import pca
 from xgb import xgboost
 
 
-def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, track_df, savefile):
+def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
 
     tic = tempo.time()
     print('Running Summary Sheet...')
@@ -24,6 +24,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     # Calculate summary statistics for each object
     for object in unique_objects:
         object_data = arr_segments[arr_segments[:, 0] == object, :]
+        object_id = object_data[:, 0]
         x_val = object_data[:, 2]
         y_val = object_data[:, 3]
         z_val = object_data[:, 4]
@@ -51,16 +52,24 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
                 msd_dict[object] = vals_msd
 
         # If categories DataFrame was given, add category to object statistics
-        if track_df.shape[0] > 0:
-            category = int(track_df.loc[track_df[parameters['parent_id2']] == object, parameters['category_col']].iloc[0])
+        if arr_tracks.shape[0] > 0:
+            category = ''
+            object_id_str = str(int(object_data[0, 0]))
+            matching_index = np.where(arr_tracks[:, 0] == object_id_str)[0]
+            if matching_index.size > 0:
+                # Pull the category corresponding to the matched ID
+                category = arr_tracks[matching_index[0], 1]
 
         # Calculate convex hull volume
         convex_coords = np.array([x_val, y_val, z_val]).transpose()
         if convex_coords.shape[0] < 4 or parameters['two_dim']:
             convex_hull_volume = 0
         else:
-            convex_hull = ConvexHull(convex_coords)
-            convex_hull_volume = convex_hull.volume
+            try:
+                convex_hull = ConvexHull(convex_coords)
+                convex_hull_volume = convex_hull.volume
+            except Exception as e:
+                convex_hull_volume = 0
 
         # Calculate summary statistics
         max_path = df_all_calcs.loc[df_all_calcs['Object ID'] == object, 'Path Length'].max()
@@ -94,7 +103,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             acceleration_median = 0
             accel_abs_mean = 0
             accel_abs_median = 0
-
         acceleration_filtered = np.array(df_all_calcs.loc[df_all_calcs['Object ID'] == object, 'Instantaneous Acceleration Filtered'])
         acceleration_filtered = [x for x in acceleration_filtered if np.isnan(x) == False and x != 0]
         if len(acceleration_filtered) >= parameters['moving']:
@@ -123,7 +131,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
                            df_all_calcs.columns[df_all_calcs.columns.str.contains('Filtered Angle')]])
         cols_euclidean = list(df_all_calcs.loc[df_all_calcs['Object ID'] == object,
                               df_all_calcs.columns[df_all_calcs.columns.str.contains('Euclid')]])
-
         # Calculate overall medians
         overall_euclidean_median, overall_angle_median, single_euclid, single_angle = overall_medians(object, df_all_calcs,
                                                                                                       cols_angles,
@@ -169,7 +176,8 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             msd_means_stdev_all[msd_col] = [np.nanmean(column_vals), np.nanstd(column_vals)]
 
     if parameters['infile_tracks']:
-        category_tracks = list(track_df.loc[:, parameters['category_col']])
+        print(arr_tracks[:5])
+        category_tracks = arr_tracks[:,1]
         df_msd["Category"] = category_tracks
         all_cat = list(df_msd.loc[:, 'Category'])
 
@@ -191,7 +199,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     df_msd_sum_all = pd.DataFrame.from_dict(msd_means_stdev_all)
     df_msd_sum_all.index = ["Average", 'Standard Deviation']
     df_msd_sum_all = df_msd_sum_all.transpose()
-    if track_df.shape[0] > 0:
+    if parameters['infile_tracks']:
         df_msd_sum_cat = pd.DataFrame.from_dict(msd_means_stdev_per_cat)
         df_msd_sum_cat.index = ['Average', 'Standard Deviation']
         df_msd_sum_cat = df_msd_sum_cat.transpose()
@@ -212,7 +220,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
 
 
     # If categories file is supplied, run PCA
-    if track_df.shape[0] > 0:
+    if parameters['infile_tracks']:
         print('Object category input required for PCA found! Running PCA...')
         pca(df_sum, parameters, savefile)
         type_xgb = xgboost(df_sum, parameters, savefile)
