@@ -151,7 +151,7 @@ def migrate3D(param):
                 # Create categories dataframe
                 track_df = pd.DataFrame()
                 track_input_list = []
-                object_id_2 = parameters['object_id_2']
+                object_id_2 = parameters['object_id_2_col']
                 category_col_name = parameters['category_col']
 
                 if parameters['infile_tracks']:

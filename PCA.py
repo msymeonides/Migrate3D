@@ -14,14 +14,13 @@ def pca(df, parameters, savefile):
         filter_ = [int(x) for x in filter_]
         print(f'Filtering categories for PCA to {filter_}...')
         df = df[df['Object Type'].isin(filter_)]
-
     df = df.dropna()
     df_pca = df.drop(
         labels=['Object ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
                 'Velocity Mean', 'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean',
                 'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
                 'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
-                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Object Type'], axis=1)
+                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Category'], axis=1)
     df_pca.columns = df_pca.columns.str.strip()
     df_pca = df_pca.dropna()
     x = np.array(df_pca)
@@ -34,11 +33,10 @@ def pca(df, parameters, savefile):
     df_PCscores = pd.DataFrame(PCscores)
     df_PCscores.columns = ['PC1', 'PC2', 'PC3', 'PC4']
     df_PCscores['Object ID'] = df['Object ID'].values
-    df_PCscores['Category'] = df['Object Type'].values
+    df_PCscores['Category'] = df['Category'].values
     df_features = pd.DataFrame(pca.components_)
     df_features.columns = df_pca.columns
     df_features.index = ['PC1', 'PC2', 'PC3', 'PC4']
-
     kruskal_result_list = []
 
     def kw_test(PC_kw):
@@ -50,18 +48,27 @@ def pca(df, parameters, savefile):
     for PC_kw_no in range(1, 5):
         PC_current = "{}{}".format('PC', PC_kw_no)
         kruskal_result_list.append(kw_test(PC_current))
-
     df_kruskal = pd.concat(kruskal_result_list)
     df_kruskal.index = ['PC1', 'PC2', 'PC3', 'PC4']
+    print('ugh 1')
     PC1_test = sp.posthoc_dunn(df_PCscores, val_col='PC1', group_col='Category', p_adjust='bonferroni')
+    print('ugh 2')
     PC2_test = sp.posthoc_dunn(df_PCscores, val_col='PC2', group_col='Category', p_adjust='bonferroni')
+    print('ugh 3')
     PC3_test = sp.posthoc_dunn(df_PCscores, val_col='PC3', group_col='Category', p_adjust='bonferroni')
+    print('ugh 4')
     PC4_test = sp.posthoc_dunn(df_PCscores, val_col='PC4', group_col='Category', p_adjust='bonferroni')
+    print('ugh 5')
     df_PC1 = pd.DataFrame(PC1_test)
+
     df_PC2 = pd.DataFrame(PC2_test)
+
     df_PC3 = pd.DataFrame(PC3_test)
+
     df_PC4 = pd.DataFrame(PC4_test)
+
     savePCA = savefile + '_PCA.xlsx'
+    print('ugh 6')
     print('Saving PCA output to ' + savePCA + '...')
     writer = pd.ExcelWriter(savePCA, engine='xlsxwriter')
     df.to_excel(writer, sheet_name='Full dataset', index=False)
@@ -78,7 +85,7 @@ def pca(df, parameters, savefile):
     workbook = writer.book
     format_white = workbook.add_format({'bg_color': 'white'})
     format_yellow = workbook.add_format({'bg_color': 'yellow'})
-
+    print('ugh 7')
     def highlight_objs(worksheet):
         worksheet.conditional_format('A1:ZZ100', {'type': 'blanks',
                                                   'format': format_white})
@@ -88,7 +95,7 @@ def pca(df, parameters, savefile):
                                                 'format': format_yellow})
 
     sheets = ['Kruskal-Wallis', 'PC1 tests', 'PC2 tests', 'PC3 tests', 'PC4 tests']
-
+    print('ugh 6')
     for i in sheets:
         worksheet = writer.sheets[i]
         highlight_objs(worksheet)
