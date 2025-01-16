@@ -176,6 +176,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             msd_means_stdev_all[msd_col] = [np.nanmean(column_vals), np.nanstd(column_vals)]
 
     if parameters['infile_tracks']:
+        print(arr_tracks[:5])
         category_tracks = arr_tracks[:,1]
         df_msd["Category"] = category_tracks
         all_cat = list(df_msd.loc[:, 'Category'])
