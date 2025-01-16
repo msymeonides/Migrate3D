@@ -161,6 +161,8 @@ def migrate3D(param):
                         category = track_df[category_col_name][row]
                         track_input_list.append([object_id2, category])
                     arr_tracks = np.array(track_input_list)
+                else:
+                    arr_tracks = np.zeros_like(arr_segments)
 
                 # Create summary sheet of calculations
                 df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat = summary_sheet(arr_segments,
