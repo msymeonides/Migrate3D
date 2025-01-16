@@ -50,15 +50,15 @@ def pca(df, parameters, savefile):
         kruskal_result_list.append(kw_test(PC_current))
     df_kruskal = pd.concat(kruskal_result_list)
     df_kruskal.index = ['PC1', 'PC2', 'PC3', 'PC4']
-    print('ugh 1')
+
     PC1_test = sp.posthoc_dunn(df_PCscores, val_col='PC1', group_col='Category', p_adjust='bonferroni')
-    print('ugh 2')
+
     PC2_test = sp.posthoc_dunn(df_PCscores, val_col='PC2', group_col='Category', p_adjust='bonferroni')
-    print('ugh 3')
+
     PC3_test = sp.posthoc_dunn(df_PCscores, val_col='PC3', group_col='Category', p_adjust='bonferroni')
-    print('ugh 4')
+
     PC4_test = sp.posthoc_dunn(df_PCscores, val_col='PC4', group_col='Category', p_adjust='bonferroni')
-    print('ugh 5')
+
     df_PC1 = pd.DataFrame(PC1_test)
 
     df_PC2 = pd.DataFrame(PC2_test)
@@ -68,7 +68,6 @@ def pca(df, parameters, savefile):
     df_PC4 = pd.DataFrame(PC4_test)
 
     savePCA = savefile + '_PCA.xlsx'
-    print('ugh 6')
     print('Saving PCA output to ' + savePCA + '...')
     writer = pd.ExcelWriter(savePCA, engine='xlsxwriter')
     df.to_excel(writer, sheet_name='Full dataset', index=False)
@@ -85,7 +84,8 @@ def pca(df, parameters, savefile):
     workbook = writer.book
     format_white = workbook.add_format({'bg_color': 'white'})
     format_yellow = workbook.add_format({'bg_color': 'yellow'})
-    print('ugh 7')
+
+
     def highlight_objs(worksheet):
         worksheet.conditional_format('A1:ZZ100', {'type': 'blanks',
                                                   'format': format_white})
@@ -95,7 +95,7 @@ def pca(df, parameters, savefile):
                                                 'format': format_yellow})
 
     sheets = ['Kruskal-Wallis', 'PC1 tests', 'PC2 tests', 'PC3 tests', 'PC4 tests']
-    print('ugh 6')
+
     for i in sheets:
         worksheet = writer.sheets[i]
         highlight_objs(worksheet)

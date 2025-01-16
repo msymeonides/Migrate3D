@@ -221,8 +221,10 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     # If categories file is supplied, run PCA
     if parameters['infile_tracks']:
         print('Object category input required for PCA found! Running PCA...')
-        pca(df_sum, parameters, savefile)
-        type_xgb = xgboost(df_sum, parameters, savefile)
+        # TODO: ADD PCA IN LOL
+        # pca(df_sum, parameters, savefile)
+        xgboost(df_sum, parameters, savefile)
+
 
     else:
         print('Object category input required for PCA not found. Skipping PCA.')
