@@ -14,7 +14,7 @@ from contacts import contacts, contacts_moving, no_daughter_contacts
 from formatting import multi_tracking, adjust_2D, interpolate_lazy
 
 
-# Welcome to Migrate3D version 1.5
+# Welcome to Migrate3D version 2.X DEVELOPMENT
 # Please see README.md before running this package
 # Migrate3D was developed by Matthew Kinahan, Emily Mynar, and Menelaos Symeonides at the University of Vermont,
 # funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali)
