@@ -27,7 +27,7 @@ dpg.create_context()
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95,
               'tau_msd': 50, 'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
               'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate',
-              'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Name', 'interpolate': False,
+              'z_col_name': 'Z Coordinate', 'parent_id2': 'Id', 'category_col': 'Code', 'interpolate': False,
               'multi_track': False, 'two_dim': False, 'contact': False, 'pca_filter': None, 'infile_tracks': False}
 
 
@@ -150,17 +150,8 @@ def migrate3D(param):
 
                 # Create categories dataframe
                 track_df = pd.DataFrame()
-                track_input_list = []
-                object_id_2 = parameters['object_id_2']
-                category_col_name = parameters['category_col']
-
                 if parameters['infile_tracks']:
                     track_df = pd.DataFrame(pd.read_csv(track_file))
-                    for row in track_df.index:
-                        object_id2 = track_df[object_id_2][row]
-                        category = track_df[category_col_name][row]
-                        track_input_list.append([object_id2, category])
-                    arr_tracks = np.array(track_input_list)
 
                 # Create summary sheet of calculations
                 df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat = summary_sheet(arr_segments,
@@ -168,7 +159,7 @@ def migrate3D(param):
                                                                                                          unique_objects,
                                                                                                          parameters['tau_msd'],
                                                                                                          parameters,
-                                                                                                         arr_tracks, savefile)
+                                                                                                         track_df, savefile)
 
 
                 p_bar_increase += 0.20
@@ -372,9 +363,10 @@ with dpg.window(label="Migrate3D", width=900, height=660) as Window:
     z_for = dpg.add_input_text(width=150, label='Column header name in input Segments file for Z coordinates',
                                default_value='Z Coordinate', callback=input_return, tag='z_col_name')
     parent_id2 = dpg.add_input_text(width=150, label='Column header name in input file for object identifiers',
-                                    default_value='ID', callback=input_return, tag='object_id_2')
+                                    default_value='Id', callback=input_return, tag='parent_id2')
     category_col = dpg.add_input_text(width=150, label="Column header name in input Categories file for object category",
-                                      default_value='Name', callback=input_return, tag='category_col')
+                                      default_value='Code', callback=input_return, tag='category_col')
+
     interpolate_check = dpg.add_checkbox(label='Perform lazy interpolation for missing data points?',
                                          callback=formatting_check, tag='interpolate')
     multi_check = dpg.add_checkbox(label='Average out any multi-tracked time points?',
