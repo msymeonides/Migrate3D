@@ -19,39 +19,39 @@ def align_time(time_base, time_comp):
     return base_index_advance, comp_index_advance
 
 
-def contacts(unique_objects, arr_segments, contact_length):
+def contacts(unique_cells, arr_segments, contact_length):
     df_of_contacts = []
     base_done = []
 
-    for object_base in unique_objects:
+    for cell_base in unique_cells:
         try:
-            # Get timepoint and coordinates for base object
-            object_data = arr_segments[arr_segments[:, 0] == object_base, :]
-            x_base = object_data[:, 2]
-            y_base = object_data[:, 3]
-            z_base = object_data[:, 4]
-            time_base = object_data[:, 1]
-            base_done.append(object_base)
+            # Get timepoint and coordinates for base cell
+            cell_data = arr_segments[arr_segments[:, 0] == cell_base, :]
+            x_base = cell_data[:, 2]
+            y_base = cell_data[:, 3]
+            z_base = cell_data[:, 4]
+            time_base = cell_data[:, 1]
+            base_done.append(cell_base)
 
-            for object_comp in unique_objects:
-                # Compare base object to other objects
-                if object_comp == object_base or object_comp in base_done:
+            for cell_comp in unique_cells:
+                # Compare base cell to other cells
+                if cell_comp == cell_base or cell_comp in base_done:
                     pass
                 else:
-                    # Get data for comparison object
-                    object_data_comp = arr_segments[arr_segments[:, 0] == object_comp, :]
-                    x_comp = object_data_comp[:, 2]
-                    y_comp = object_data_comp[:, 3]
-                    z_comp = object_data_comp[:, 4]
-                    time_comp = object_data_comp[:, 1]
+                    # Get data for comparison cell
+                    cell_data_comp = arr_segments[arr_segments[:, 0] == cell_comp, :]
+                    x_comp = cell_data_comp[:, 2]
+                    y_comp = cell_data_comp[:, 3]
+                    z_comp = cell_data_comp[:, 4]
+                    time_comp = cell_data_comp[:, 1]
 
                     # Align time vectors
                     base_index_advance, comp_index_advance = align_time(time_base, time_comp)
 
                     shortest_len = min(len(time_base), len(time_comp))
 
-                    object_base_list = []
-                    object_comp_list = []
+                    cell_base_list = []
+                    cell_comp_list = []
                     time_of_contact = []
 
                     # Check for contacts and add contacts to DataFrame
@@ -63,11 +63,11 @@ def contacts(unique_objects, arr_segments, contact_length):
                             if y_diff <= contact_length:
                                 z_diff = np.abs(z_base[i + base_index_advance] - z_comp[i + comp_index_advance])
                                 if z_diff <= contact_length:
-                                    object_base_list.append(object_base)
-                                    object_comp_list.append(object_comp)
+                                    cell_base_list.append(cell_base)
+                                    cell_comp_list.append(cell_comp)
                                     time_of_contact.append(time_b)
-                    df_c = pd.DataFrame({'Object ID': object_base_list,
-                                         'Object Compare': object_comp_list,
+                    df_c = pd.DataFrame({'Cell ID': cell_base_list,
+                                         'Cell Compare': cell_comp_list,
                                          'Time of Contact': time_of_contact})
                     if df_c.empty:
                         pass
@@ -77,31 +77,31 @@ def contacts(unique_objects, arr_segments, contact_length):
         except IndexError:
             pass
 
-    # Repeated loop with unique_objects reversed to find contacts in reversed order
-    for object_base in reversed(unique_objects):
+    # Repeated loop with unique_cells reversed to find contacts in reversed order
+    for cell_base in reversed(unique_cells):
         try:
-            object_data = arr_segments[arr_segments[:, 0] == object_base, :]
-            x_base = object_data[:, 2]
-            y_base = object_data[:, 3]
-            z_base = object_data[:, 4]
-            time_base = object_data[:, 1]
-            base_done.append(object_base)
-            for object_comp in unique_objects:
-                if object_comp == object_base or object_comp in base_done:
+            cell_data = arr_segments[arr_segments[:, 0] == cell_base, :]
+            x_base = cell_data[:, 2]
+            y_base = cell_data[:, 3]
+            z_base = cell_data[:, 4]
+            time_base = cell_data[:, 1]
+            base_done.append(cell_base)
+            for cell_comp in unique_cells:
+                if cell_comp == cell_base or cell_comp in base_done:
                     pass
                 else:
-                    object_data_comp = arr_segments[arr_segments[:, 0] == object_comp, :]
-                    x_comp = object_data_comp[:, 2]
-                    y_comp = object_data_comp[:, 3]
-                    z_comp = object_data_comp[:, 4]
-                    time_comp = object_data_comp[:, 1]
+                    cell_data_comp = arr_segments[arr_segments[:, 0] == cell_comp, :]
+                    x_comp = cell_data_comp[:, 2]
+                    y_comp = cell_data_comp[:, 3]
+                    z_comp = cell_data_comp[:, 4]
+                    time_comp = cell_data_comp[:, 1]
 
                     base_index_advance, comp_index_advance = align_time(time_base, time_comp)
 
                     shortest_len = min(len(time_base), len(time_comp))
 
-                    object_base_list = []
-                    object_comp_list = []
+                    cell_base_list = []
+                    cell_comp_list = []
                     time_of_contact = []
 
                     for i in range(shortest_len):
@@ -112,11 +112,11 @@ def contacts(unique_objects, arr_segments, contact_length):
                             if y_diff <= contact_length:
                                 z_diff = np.abs(z_base[i + base_index_advance] - z_comp[i + comp_index_advance])
                                 if z_diff <= contact_length:
-                                    object_base_list.append(object_base)
-                                    object_comp_list.append(object_comp)
+                                    cell_base_list.append(cell_base)
+                                    cell_comp_list.append(cell_comp)
                                     time_of_contact.append(time_b)
-                    df_c = pd.DataFrame({'Object ID': object_base_list,
-                                         'Object Compare': object_comp_list,
+                    df_c = pd.DataFrame({'Cell ID': cell_base_list,
+                                         'Cell Compare': cell_comp_list,
                                          'Time of Contact': time_of_contact})
                     if df_c.empty:
                         pass
@@ -129,23 +129,23 @@ def contacts(unique_objects, arr_segments, contact_length):
     return df_of_contacts
 
 
-def no_daughter_contacts(object_id, df):
-    # Remove contacts with potential daughter objects, e.g. daughter cells after mitosis
+def no_daughter_contacts(cell_id, df):
+    # Remove contacts with potential daughter cells
     list_of_df = []
-    for object_base in object_id:
-        object_comp_list = list(df.loc[df['Object ID'] == object_base, 'Object Compare'])
-        time_ = list(df.loc[df['Object ID'] == object_base, 'Time of Contact'])
-        updated_object_comp = []
-        for index_, object_comp in enumerate(object_comp_list):
-            # Check for adjacent objects
-            if np.abs(object_comp - object_base) == 1 and object_base != object_comp:
-                updated_object_comp.append(0)
+    for cell_base in cell_id:
+        cell_comp_list = list(df.loc[df['Cell ID'] == cell_base, 'Cell Compare'])
+        time_ = list(df.loc[df['Cell ID'] == cell_base, 'Time of Contact'])
+        updated_cell_comp = []
+        for index_, cell_comp in enumerate(cell_comp_list):
+            # Check for adjacent cells
+            if np.abs(cell_comp - cell_base) == 1 and cell_base != cell_comp:
+                updated_cell_comp.append(0)
             else:
-                updated_object_comp.append(object_comp)
+                updated_cell_comp.append(cell_comp)
 
-        # Create updated DataFrame with adjacent objects removed
-        df_no_daughters = pd.DataFrame({'Object ID': object_base,
-                                        'Object Compare': updated_object_comp,
+        # Create updated DataFrame with adjacent cells removed
+        df_no_daughters = pd.DataFrame({'Cell ID': cell_base,
+                                        'Cell Compare': updated_cell_comp,
                                         'Time of Contact': time_})
         if df_no_daughters.empty:
             pass
@@ -157,36 +157,33 @@ def no_daughter_contacts(object_id, df):
     return list_of_df
 
 
-"""
-do i want to say moving? not sure what the best way to phrase is
-"""
-def contacts_moving(df_arrest, df_no_daughter, arrested, time_interval):
-    # Filter out non-moving from contacts based on arrest coefficient, e.g. dead cells
-    objects_in_arrest = list(df_arrest.loc[:, 'Object ID'])
-    all_moving = []
+def contacts_alive(df_arrest, df_no_mitosis, arrested, time_interval):
+    # Filter out dead cells from contacts based on arrest coefficient
+    cells_in_arrest = list(df_arrest.loc[:, 'Cell ID'])
+    all_alive = []
     list_of_df_no_dead = []
     list_of_summary_df = []
-    for objects in objects_in_arrest:
-        # Check if objects are moving
-        arrest_coeffs = float(df_arrest.loc[df_arrest['Object ID'] == objects, 'Arrest Coefficient'].iloc[0])
+    for cells in cells_in_arrest:
+        # Check if cells are alive
+        arrest_coeffs = float(df_arrest.loc[df_arrest['Cell ID'] == cells, 'Arrest Coefficient'].iloc[0])
         if arrest_coeffs < arrested:
-            all_moving.append(objects)
+            all_alive.append(cells)
         else:
             pass
 
-    # Extract data for moving objects
-    for ind, object_m in enumerate(all_moving):
-        object_comp = list(df_no_daughter.loc[df_no_daughter['Object ID'] == object_m, 'Object Compare'])
-        time__ = list(df_no_daughter.loc[df_no_daughter['Object ID'] == object_m, 'Time of Contact'])
+    # Extract data for alive cells
+    for ind, cell_a in enumerate(all_alive):
+        cell_comp = list(df_no_mitosis.loc[df_no_mitosis['Cell ID'] == cell_a, 'Cell Compare'])
+        time__ = list(df_no_mitosis.loc[df_no_mitosis['Cell ID'] == cell_a, 'Time of Contact'])
         only_1_comp = []
-        for object in object_comp:
-            if object in only_1_comp:
+        for cell in cell_comp:
+            if cell in only_1_comp:
                 pass
             else:
-                only_1_comp.append(object)
+                only_1_comp.append(cell)
 
-        list_of_df_no_dead.append(pd.DataFrame({'Object ID': object_m,
-                                                'Object Compare': object_comp,
+        list_of_df_no_dead.append(pd.DataFrame({'Cell ID': cell_a,
+                                                'Cell Compare': cell_comp,
                                                 'Time of Contact': time__}))
 
         # Calculate median contact time
@@ -196,7 +193,7 @@ def contacts_moving(df_arrest, df_no_daughter, arrested, time_interval):
         else:
             med_time = None
 
-        sum_df = pd.DataFrame({'Object ID': [object_m],
+        sum_df = pd.DataFrame({'Cell ID': [cell_a],
                                'Number of Contacts': [len(only_1_comp)],
                                'Total Time Spent in Contact': [len(time__) * time_interval],
                                'Median Contact Duration': [med_time]})
