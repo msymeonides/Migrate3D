@@ -12,6 +12,7 @@ from calculations import calculations
 from summary_sheet import summary_sheet
 from contacts import contacts, contacts_moving, no_daughter_contacts
 from formatting import multi_tracking, adjust_2D, interpolate_lazy
+from attractants import attractants
 
 
 # Welcome to Migrate3D version 2.X DEVELOPMENT
@@ -172,6 +173,7 @@ def migrate3D(param):
                                                                                                          parameters,
                                                                                                          arr_tracks, savefile)
 
+                attractants(unique_objects, arr_segments)
 
                 p_bar_increase += 0.20
                 dpg.set_value('pbar', p_bar_increase)
