@@ -239,12 +239,18 @@ def detect_attractors(arr_segments, unique_objects):
                     continue
 
                 # Find closest time index in attractor's time list
-                t_idx = np.where(attractor_times == current_time)[0][0]
+                t_match = np.where(attractor_times == current_time)[0]
+                if len(t_match) == 0:
+                    continue  # Skip if no matching time found
+
+                t_idx = t_match[0]  # Get the first valid index
 
                 if within_threshold[idx, t_idx]:  # Check if within threshold
-                    direction = attractor_positions[t_idx] - attractor_positions[t_idx]
-                    unit_direction = direction / np.linalg.norm(direction)
-                    projection = np.dot(velocities[idx], unit_direction)
+                    direction = other_positions[idx] - attractor_positions[t_idx]
+                    direction = attractor_positions[idx] - attractor_positions[t_idx]
+                    if np.linalg.norm(direction) > 0:
+                        unit_direction = direction / np.linalg.norm(direction)
+                        projection = np.dot(velocities[idx], unit_direction)
 
                     if projection > speed_threshold:
                         attraction_chain.append((current_time, *other_positions[idx]))
@@ -253,7 +259,7 @@ def detect_attractors(arr_segments, unique_objects):
 
                     if len(attraction_chain) >= time_persistence:
                         attractor_events.append((attractor_id, other_id, attraction_chain))
-                        attraction_chain = []
+                        attraction_chain.clear()
 
     return attractor_events
 
