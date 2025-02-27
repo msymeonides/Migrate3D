@@ -6,7 +6,7 @@ import warnings
 from scipy.spatial import ConvexHull
 from overall_medians import overall_medians
 from PCA import pca
-from xgb import xgboost
+#from xgb import xgboost
 
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):

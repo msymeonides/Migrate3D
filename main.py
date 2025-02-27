@@ -5,7 +5,7 @@ import time as tempo
 import os
 from warnings import simplefilter
 from datetime import date
-from xgboost import plot_importance
+#from xgboost import plot_importance
 from matplotlib import pyplot
 
 from calculations import calculations
@@ -173,7 +173,11 @@ def migrate3D(param):
                                                                                                          parameters,
                                                                                                          arr_tracks, savefile)
 
+                tic = tempo.time()
+                print('Detecting attractants...')
                 attractants(unique_objects, arr_segments)
+                toc = tempo.time()
+                print('...Attractants done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
                 p_bar_increase += 0.20
                 dpg.set_value('pbar', p_bar_increase)
