@@ -4,7 +4,14 @@ import statistics
 
 
 def align_time(time_base, time_comp):
-    # Align time vectors to find matching timepoints
+    """
+    Aligns two time vectors to find matching timepoints.
+    Args:
+        time_base (numpy.ndarray): Time vector for the base object.
+        time_comp (numpy.ndarray): Time vector for the comparison object.
+    Returns:
+        tuple: Indices to advance in the base and comparison time vectors to align them.
+    """
     base_index_advance = 0
     comp_index_advance = 0
     while base_index_advance < len(time_base) and comp_index_advance < len(time_comp):
@@ -20,6 +27,15 @@ def align_time(time_base, time_comp):
 
 
 def contacts(unique_objects, arr_segments, contact_length):
+    """
+        Detects contacts between objects based on their coordinates and a specified contact length.
+        Args:
+            unique_objects (numpy.ndarray): Array of unique object IDs.
+            arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
+            contact_length (float): The maximum distance between objects to be considered in contact.
+        Returns:
+            list: A list of DataFrames, each containing the contacts detected for a pair of objects.
+        """
     df_of_contacts = []
     base_done = []
 
@@ -130,7 +146,14 @@ def contacts(unique_objects, arr_segments, contact_length):
 
 
 def no_daughter_contacts(object_id, df):
-    # Remove contacts with potential daughter objects, e.g. daughter cells after mitosis
+    """
+        Removes contacts with potential daughter objects, e.g., daughter cells after mitosis.
+        Args:
+            object_id (numpy.ndarray): Array of unique object IDs.
+            df (pandas.DataFrame): DataFrame containing contact information.
+        Returns:
+            list: A list of DataFrames with contacts involving daughter objects removed.
+        """
     list_of_df = []
     for object_base in object_id:
         object_comp_list = list(df.loc[df['Object ID'] == object_base, 'Object Compare'])
@@ -157,11 +180,18 @@ def no_daughter_contacts(object_id, df):
     return list_of_df
 
 
-"""
-do i want to say moving? not sure what the best way to phrase is
-"""
 def contacts_moving(df_arrest, df_no_daughter, arrested, time_interval):
-    # Filter out non-moving from contacts based on arrest coefficient, e.g. dead cells
+    """
+        Filters out non-moving objects (e.g. dead cells) from contacts based on the arrest coefficient and calculates contact statistics.
+        Args:
+            df_arrest (pandas.DataFrame): DataFrame containing arrest coefficients for objects.
+            df_no_daughter (pandas.DataFrame): DataFrame containing contact information with daughter objects removed.
+            arrested (float): Threshold for the arrest coefficient to consider an object as moving.
+            time_interval (float): Time interval between timepoints.
+
+        Returns:
+            tuple: A list of DataFrames with non-moving objects removed and a list of summary DataFrames with contact statistics.
+        """
     objects_in_arrest = list(df_arrest.loc[:, 'Object ID'])
     all_moving = []
     list_of_df_no_dead = []

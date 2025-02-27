@@ -92,6 +92,11 @@ def pca(df, parameters, savefile):
 
 
     def highlight_objs(worksheet):
+        """
+        Applies conditional formatting to the given worksheet to highlight specific cells.
+        Args:
+            worksheet: The worksheet to apply the formatting to.
+        """
         worksheet.conditional_format('A1:ZZ100', {'type': 'blanks',
                                                   'format': format_white})
         worksheet.conditional_format('B2:L12', {'type': 'object',

@@ -10,7 +10,20 @@ from PCA import pca
 
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
-
+    """
+    Generates a summary sheet with various migration parameters and statistics for each object.
+    Args:
+        arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
+        df_all_calcs (pandas.DataFrame): DataFrame containing all calculated migration parameters.
+        unique_objects (numpy.ndarray): Array of unique object IDs.
+        tau_msd (int): The maximum time differential for mean squared displacement (MSD) calculation.
+        parameters (dict): Dictionary containing user-defined parameters for the analysis.
+        arr_tracks (numpy.ndarray): Array of tracks with columns [object_id, category].
+        savefile (str): Path to save the output files.
+    Returns:
+        tuple: DataFrames containing summary statistics, time interval, single timepoint medians, MSD values,
+               MSD summaries for all objects, and MSD summaries per category.
+    """
     tic = tempo.time()
     print('Running Summary Sheet...')
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")

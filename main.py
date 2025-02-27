@@ -33,6 +33,12 @@ parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length'
 
 
 def migrate3D(param):
+    """
+        Main function to run the Migrate3D analysis. It sets parameters according to user input and calls the main function.
+        Args:
+            param (dict): Dictionary containing user-defined parameters for the analysis.
+    """
+
     # Set parameters according to user input
     timelapse_interval = round((parameters['timelapse']), 3)
     arrest_limit = parameters['arrest_limit']
@@ -64,7 +70,12 @@ def migrate3D(param):
     else:
         contact = 'Off'
 
+
     def main():
+        """
+            Main processing function for Migrate3D. It reads input files, checks column names, processes data, performs calculations,
+            and saves the results to an Excel file.
+        """
         bigtic = tempo.time()
         try:
             p_bar_increase = 0.10
@@ -81,6 +92,28 @@ def migrate3D(param):
                 x_for = parameters['x_col_name']
                 y_for = parameters['y_col_name']
                 z_for = parameters['z_col_name']
+
+                # Check if the segements file column names match
+                expected_columns = [parent_id, time_for, x_for, y_for, z_for]
+                for col in expected_columns:
+                    if col not in df_infile.columns:
+                        print(f"Error: Column '{col}' not found in Segments input file. Please fix the column names.")
+                        return
+
+                # Check if the column names match in infile_tracks
+                if parameters['infile_tracks']:
+                    df_tracks = pd.read_csv(track_file, sep=',')
+                    object_id_2 = parameters['object_id_2_col']
+                    category_col_name = parameters['category_col']
+                    expected_track_columns = [object_id_2, category_col_name]
+                    for col in expected_track_columns:
+                        if col not in df_tracks.columns:
+                            print(f"Error: Column '{col}' not found in Tracks input file. Please fix the column names.")
+                            return
+
+                # Add a blank 'Z' column if it doesn't exist
+                if z_for not in df_infile.columns:
+                    df_infile[z_for] = 0
 
                 # Get data for each object from segments file and add to list
                 input_data_list = []
@@ -125,7 +158,7 @@ def migrate3D(param):
                     arr_segments = interpolate_lazy(arr_segments, timelapse_interval, unique_objects)
 
                 # Create dataframe of formatted segments for later export to Excel file
-                df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', 'Z'])
+                df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', z_for])
 
                 toc = tempo.time()
                 print('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
@@ -299,6 +332,12 @@ def migrate3D(param):
 
 
 def formatting_check(sender, app_data):
+    """
+        Callback function to handle formatting check based on user input in the GUI.
+        Args:
+            sender: The sender of the event.
+            app_data: Additional data associated with the event.
+    """
     if dpg.get_value(sender) is True:
         parameters[sender] = True
     else:
@@ -306,6 +345,12 @@ def formatting_check(sender, app_data):
 
 
 def run_contact(sender, app_data):
+    """
+        Callback function to handle contact detection based on user input in the GUI.
+        Args:
+            sender: The sender of the event.
+            app_data: Additional data associated with the event.
+    """
     if dpg.get_value(sender) is True:
         parameters['contact'] = True
     else:
@@ -313,24 +358,54 @@ def run_contact(sender, app_data):
 
 
 def callback_file_segs(sender, app_data):
+    """
+        Callback function to handle file selection for the segments file.
+        Args:
+            sender: The sender of the event.
+            app_data: Additional data associated with the event.
+    """
     infile = str(app_data['file_path_name'])
     parameters['infile_segments'] = infile
 
 
 def callback_file_cats(sender, app_data):
+    """
+        Callback function to handle file selection for the categories file.
+        Args:
+            sender: The sender of the event.
+            app_data: Additional data associated with the event.
+    """
     infile = str(app_data['file_path_name'])
     parameters['infile_tracks'] = infile
 
 
 def input_return(sender, app_data):
+    """
+       Callback function to handle text input return in the GUI.
+       Args:
+           sender: The sender of the event.
+           app_data: Additional data associated with the event.
+   """
     parameters[sender] = app_data
 
 
 def float_return(sender, app_data):
+    """
+        Callback function to handle float input return in the GUI.
+        Args:
+            sender: The sender of the event.
+            app_data: Additional data associated with the event.
+        """
     parameters[sender] = app_data
 
 
 def start_migrate(sender, app_data):
+    """
+        Callback function to start the Migrate3D analysis when the 'Run' button is clicked in the GUI.
+        Args:
+            sender: The sender of the event.
+            app_data: Additional data associated with the event.
+        """
     migrate3D(parameters)
 
 
