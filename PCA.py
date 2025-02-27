@@ -13,7 +13,7 @@ def pca(df, parameters, savefile):
         filter_ = filter_.split(sep=',')
         filter_ = [int(x) for x in filter_]
         print(f'Filtering categories for PCA to {filter_}...')
-        df = df[df['Object Type'].isin(filter_)]
+        df = df[df['Category'].isin(filter_)]
     df = df.dropna()
     df_pca = df.drop(
         labels=['Object ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',

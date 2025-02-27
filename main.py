@@ -12,7 +12,7 @@ from calculations import calculations
 from summary_sheet import summary_sheet
 from contacts import contacts, contacts_moving, no_daughter_contacts
 from formatting import multi_tracking, adjust_2D, interpolate_lazy
-from attractants import attractants
+from attract import attract
 
 
 # Welcome to Migrate3D version 2.X DEVELOPMENT
@@ -28,7 +28,7 @@ dpg.create_context()
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95,
               'tau_msd': 50, 'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
               'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate',
-              'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Name', 'interpolate': False,
+              'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Category', 'interpolate': False,
               'multi_track': False, 'two_dim': False, 'contact': False, 'pca_filter': None, 'infile_tracks': False}
 
 
@@ -174,10 +174,12 @@ def migrate3D(param):
                                                                                                          arr_tracks, savefile)
 
                 tic = tempo.time()
-                print('Detecting attractants...')
-                attractants(unique_objects, arr_segments)
+                print('Detecting attractors...')
+                # Create a mapping from object IDs to cell types
+                cell_types = dict(zip(track_df[parameters['object_id_2_col']], track_df[parameters['category_col']]))
+                attract(unique_objects, arr_segments, cell_types)
                 toc = tempo.time()
-                print('...Attractants done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+                print('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
                 p_bar_increase += 0.20
                 dpg.set_value('pbar', p_bar_increase)
@@ -382,7 +384,7 @@ with dpg.window(label="Migrate3D", width=900, height=660) as Window:
     parent_id2 = dpg.add_input_text(width=150, label='Column header name in input file for object identifiers',
                                     default_value='ID', callback=input_return, tag='object_id_2')
     category_col = dpg.add_input_text(width=150, label="Column header name in input Categories file for object category",
-                                      default_value='Name', callback=input_return, tag='category_col')
+                                      default_value='Category', callback=input_return, tag='category_col')
     interpolate_check = dpg.add_checkbox(label='Perform lazy interpolation for missing data points?',
                                          callback=formatting_check, tag='interpolate')
     multi_check = dpg.add_checkbox(label='Average out any multi-tracked time points?',
