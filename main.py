@@ -42,6 +42,7 @@ def migrate3D(param):
     tau_euclid = parameters['tau_euclid']
     contact_parameter = parameters['contact']
     track_file = parameters['infile_tracks']
+
     if parameters['multi_track']:
         multi_track = 'On'
     else:
@@ -216,7 +217,7 @@ def migrate3D(param):
 
                 # If categories are present, restore zeroes for category
                 if track_df.shape[0] > 0:
-                    df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
+                    df_sum[category_col_name] = df_sum[category_col_name].replace(np.nan, 0)
 
                 # restore zeros for Arrest Coefficient
                 df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))

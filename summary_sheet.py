@@ -5,7 +5,7 @@ import time as tempo
 import warnings
 from scipy.spatial import ConvexHull
 from overall_medians import overall_medians
-#from PCA import pca
+from PCA import pca
 #from xgb import xgboost
 
 
@@ -55,7 +55,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         if arr_tracks.shape[0] > 0:
             category = ''
             object_id_str = str(int(object_data[0, 0]))
-            matching_index = np.where(arr_tracks[:, 0] == object_id_str)[0]
+            matching_index = np.where(arr_tracks[:, 0].astype(str) == object_id_str)[0]
             if matching_index.size > 0:
                 # Pull the category corresponding to the matched ID
                 category = arr_tracks[matching_index[0], 1]
@@ -213,20 +213,20 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
                       'Absolute Acceleration Filtered Mean', 'Absolute Acceleration Filtered Median',
                       'Absolute Acceleration Filtered Standard Deviation',
                       'Arrest Coefficient', 'Overall Angle Median', 'Overall Euclidean Median',
-                      'Convex Hull Volume', 'Time Corrected Convex Hull Volume', 'Category']
+                      'Convex Hull Volume', 'Time Corrected Convex Hull Volume', parameters['category_col']]
     toc = tempo.time()
     print('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
 
     # If categories file is supplied, run PCA
-    '''if parameters['infile_tracks']:
+    if parameters['infile_tracks']:
         print('Object category input required for PCA found! Running PCA...')
         pca(df_sum, parameters, savefile)
-        xgboost(df_sum, parameters, savefile)
+        # xgboost(df_sum, parameters, savefile)
 
 
     else:
-        print('Object category input required for PCA not found. Skipping PCA.')'''
+        print('Object category input required for PCA not found. Skipping PCA.')
 
 
     return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat
