@@ -2,11 +2,12 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
-distance_threshold = 100
-min_speed_attracted = 1
-max_speed_attractor = 8
-time_persistence = 4
+distance_threshold = 200
+min_speed_attracted = 0
+max_speed_attractor = 50
+time_persistence = 6
 timelapse = 4  # Should be set to the actual timelapse interval from main.py
+max_gaps = 4  # Number of timepoint gaps allowed before chain is broken
 allowed_attractor_types = [5, 6, 8]
 allowed_attracted_types = [2, 4]
 
@@ -50,7 +51,7 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
             within_threshold = distances < distance_threshold
 
             chain = []
-            gap_count = 0  # Allows one timepoint gap.
+            gap_count = 0  # Allows up to max_gaps timepoint gaps.
             matching_time_idxs = np.where(np.isin(other_times, attractor_times))[0]
             for idx in matching_time_idxs:
                 current_time = other_times[idx]
@@ -64,16 +65,11 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
                 # Check attractor instantaneous velocity.
                 attractor_velocity = velocity_dict[attractor_id][t_idx]
                 if np.linalg.norm(attractor_velocity) >= max_speed_attractor:
-                    if len(chain) >= time_persistence:
-                        attractor_events.append((attractor_id, other_id, chain.copy()))
                     chain.clear()
                     gap_count = 0
                     continue
 
                 if not within_threshold[idx, t_idx]:
-                    # Not within threshold: end chain if already in progress.
-                    if len(chain) >= time_persistence:
-                        attractor_events.append((attractor_id, other_id, chain.copy()))
                     chain.clear()
                     gap_count = 0
                     continue
@@ -81,8 +77,6 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
                 direction = other_positions[idx] - attractor_positions[t_idx]
                 distance = np.linalg.norm(direction)
                 if distance == 0:
-                    if len(chain) >= time_persistence:
-                        attractor_events.append((attractor_id, other_id, chain.copy()))
                     chain.clear()
                     gap_count = 0
                     continue
@@ -90,8 +84,6 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
                 unit_direction = direction / distance
                 projection = np.dot(other_velocities[idx], unit_direction)
                 if projection <= min_speed_attracted:
-                    if len(chain) >= time_persistence:
-                        attractor_events.append((attractor_id, other_id, chain.copy()))
                     chain.clear()
                     gap_count = 0
                     continue
@@ -105,28 +97,39 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
                         chain.append((current_time, *other_positions[idx], distance))
                         gap_count = 0
                     else:
-                        # Allow a single gap
-                        if gap_count == 0:
-                            gap_count = 1
+                        if gap_count < max_gaps:
+                            chain.append((current_time, *other_positions[idx], distance))  # Append gap
+                            gap_count += 1
                         else:
-                            if len(chain) >= time_persistence:
-                                attractor_events.append((attractor_id, other_id, chain.copy()))
                             chain = [(current_time, *other_positions[idx], distance)]
                             gap_count = 0
+
             if len(chain) >= time_persistence:
-                attractor_events.append((attractor_id, other_id, chain.copy()))
+                start_distance = chain[0][-1]
+                end_distance = chain[-1][-1]
+                if start_distance > end_distance:
+                    attractor_events.append((attractor_id, other_id, chain.copy()))
+
     return attractor_events
 
-def attract(unique_objects, arr_segments, cell_types):
-    events = detect_attractors(arr_segments, unique_objects, cell_types)
-    save_results(events, "attraction_events.csv")
-
 def save_results(attractor_events, output_file):
-    """Saves attraction events to CSV."""
+    """Saves attraction events to XLSX."""
     rows = []
     for attractor_id, other_id, events in attractor_events:
         for time, x, y, z, distance in events:
             rows.append([attractor_id, other_id, time, x, y, z, distance])
 
     df = pd.DataFrame(rows, columns=["Attractor_ID", "Attracted_Cell_ID", "Time", "X", "Y", "Z", "Distance"])
-    df.to_csv(output_file, index=False)
+
+    # Save to XLSX file with number format for Distance column
+    with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Attractors')
+        workbook = writer.book
+        worksheet = writer.sheets['Attractors']
+        distance_format = workbook.add_format({'num_format': '0.00'})
+        worksheet.set_column('G:G', None, distance_format)
+
+
+def attract(unique_objects, arr_segments, cell_types):
+    events = detect_attractors(arr_segments, unique_objects, cell_types)
+    save_results(events, "attraction_events.xlsx")
