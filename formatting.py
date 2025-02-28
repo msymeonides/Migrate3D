@@ -2,6 +2,13 @@ import numpy as np
 
 
 def multi_tracking(arr_segments):
+    """
+    Averages out coordinates for multitracked timepoints in the given array of segments.
+    Args:
+        arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
+    Returns:
+        numpy.ndarray: Array with averaged coordinates for multitracked timepoints.
+    """
     instances = {}
 
     # Get unique combinations of object ID and timepoint
@@ -35,12 +42,28 @@ def multi_tracking(arr_segments):
 
 
 def adjust_2D(arr_segments):
+    """
+        Sets the Z coordinate to zero for all timepoints in the given array of segments.
+        Args:
+            arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
+        Returns:
+            numpy.ndarray: Array with Z coordinates set to zero.
+        """
     # Set Z coordinate to zero for all timepoints
     arr_segments[:, 4] = 0
     return arr_segments
 
 
 def interpolate_lazy(arr_segments, timelapse_interval, unique_objects):
+    """
+        Performs lazy interpolation for missing data points in the given array of segments.
+        Args:
+            arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
+            timelapse_interval (float): The interval between timepoints.
+            unique_objects (numpy.ndarray): Array of unique object IDs.
+        Returns:
+            numpy.ndarray: Array with interpolated data points.
+        """
     object_data_dict = {}
 
     # Create dictionary of object IDs with list of timepoint, x, y, and z as values

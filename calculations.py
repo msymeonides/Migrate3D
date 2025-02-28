@@ -3,7 +3,15 @@ import pandas as pd
 
 
 def calculations(object, object_data, num_euclid_spaces, object_id, parameters):
-
+    """
+    Calculates various migration parameters for a given object's data.
+    Args:
+        object_data (numpy.ndarray): Array of object data with columns [object_id, timepoint, x, y, z].
+        parameters (dict): Dictionary containing user-defined parameters for the analysis.
+    Returns:
+        pandas.DataFrame: DataFrame containing calculated migration parameters for the object.
+    """
+    
     # Get number of rows and columns in object data
     num_rows, num_cols = np.shape(object_data)
 
