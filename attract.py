@@ -12,12 +12,29 @@ allowed_attractor_types = [5, 6, 8]
 allowed_attracted_types = [2, 4]
 
 def compute_velocity(positions, times):
+    """
+        Computes the velocity of objects.
+        Args:
+            positions (numpy.ndarray): Array of positions with columns [x, y, z].
+            times (numpy.ndarray): Array of timepoints.
+        Returns:
+            numpy.ndarray: Array of velocities with the same number of rows as positions.
+        """
     diffs = np.diff(positions, axis=0)
     time_diffs = np.diff(times, axis=0).reshape(-1, 1)
     velocities = diffs / time_diffs
     return np.vstack((velocities, np.zeros((1, 3))))
 
 def detect_attractors(arr_segments, unique_objects, cell_types):
+    """
+      Detects attractor events between objects based on their positions, velocities, and cell types.
+      Args:
+          arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
+          unique_objects (numpy.ndarray): Array of unique object IDs.
+          cell_types (dict): Dictionary mapping object IDs to their cell types.
+      Returns:
+          list: A list of tuples containing attractor events.
+      """
     # Precompute positions, times, and velocities for each object
     obj_mask = {obj: arr_segments[:, 0] == obj for obj in unique_objects}
     velocity_dict = {
@@ -113,7 +130,12 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
     return attractor_events
 
 def save_results(attractor_events, output_file):
-    """Saves attraction events to XLSX."""
+    """
+    Saves the detected attractor events to a XLSX file.
+    Args:
+        attractor_events (list): List of tuples containing attractor events.
+        output_file (str): Path to the output XLSX file.
+    """
     rows = []
     for attractor_id, other_id, events in attractor_events:
         for time, x, y, z, distance in events:
@@ -131,5 +153,12 @@ def save_results(attractor_events, output_file):
 
 
 def attract(unique_objects, arr_segments, cell_types):
+    """
+        Main function to detect attractor events and save the results to a XLSX file.
+        Args:
+            unique_objects (numpy.ndarray): Array of unique object IDs.
+            arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
+            cell_types (dict): Dictionary mapping object IDs to their cell types.
+        """
     events = detect_attractors(arr_segments, unique_objects, cell_types)
     save_results(events, "attraction_events.xlsx")
