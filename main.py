@@ -211,7 +211,7 @@ def migrate3D(param):
                 print('Detecting attractors...')
                 # Create a mapping from object IDs to cell types
                 cell_types = dict(zip(track_df[parameters['object_id_2_col']], track_df[parameters['category_col']]))
-                attract(unique_objects, arr_segments, cell_types)
+                attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile)
                 toc = tempo.time()
                 print('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
