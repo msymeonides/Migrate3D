@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import LabelEncoder
-from multiprocessing import Pool
+# from multiprocessing import Pool
 from itertools import product
 import traceback
 
