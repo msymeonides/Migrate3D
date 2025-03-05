@@ -148,7 +148,7 @@ def migrate3D(param):
 
                 # Format dataset
                 print('Formatting input dataset:\n' + infile_name + '...')
-                formatting_dfs = {}
+
                 if parameters['multi_track']:
                     arr_segments = multi_tracking(arr_segments)
                 if parameters['two_dim']:
@@ -170,7 +170,7 @@ def migrate3D(param):
                 for object in unique_objects:
                     object_data = arr_segments[arr_segments[:, 0] == object, :]
                     object_id = object_data[0, 0]
-                    df_calcs = calculations(object, object_data, tau_euclid, object_id, parameters)
+                    df_calcs = calculations(object_data, tau_euclid, object_id, parameters)
                     p_bar_increase += 0.0001
                     dpg.set_value('pbar', p_bar_increase)
                     all_calcs.append(df_calcs)

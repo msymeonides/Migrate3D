@@ -99,7 +99,7 @@ def pca(df, parameters, savefile):
         """
         worksheet.conditional_format('A1:ZZ100', {'type': 'blanks',
                                                   'format': format_white})
-        worksheet.conditional_format('B2:L12', {'type': 'object',
+        worksheet.conditional_format('B2:L12', {'type': 'cell',
                                                 'criteria': '<=',
                                                 'value': 0.05,
                                                 'format': format_yellow})
