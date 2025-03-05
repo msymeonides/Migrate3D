@@ -2,14 +2,13 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
-distance_threshold = 200 # Maximum distance between attractor and attracted objects
-approach_ratio = 0.75 # Minimum ratio of start distance to end distance
-min_proximity = 20 # Minimum proximity of attracted object at any timepoint in a chain
-time_persistence = 6 # Minimum number of consecutive timepoints for a chain to be reported
-max_gaps = 3  # Number of consecutive timepoint gaps allowed before chain is broken
+distance_threshold = 100 # Maximum distance between attractor and attracted objects to be considered
+approach_ratio = 0.5 # Ratio of end distance to start distance must be less than this value
+min_proximity = 20 # Attracted objects must get at least this close to attractors for at least one timepoint
+time_persistence = 6 # Minimum number of consecutive timepoints for a chain to be included in results
+max_gaps = 4  # Number of consecutive timepoints of increasing distance allowed before chain is broken
 allowed_attractor_types = [5, 6, 8] # Cell types allowed to be attractors
 allowed_attracted_types = [2, 4] # Cell types allowed to be attracted
-timelapse = 4  # Should be set to the actual timelapse interval from main.py
 
 def detect_attractors(arr_segments, unique_objects, cell_types):
     """
