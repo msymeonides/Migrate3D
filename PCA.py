@@ -7,20 +7,23 @@ from scipy import stats
 
 
 def pca(df, parameters, savefile):
+    # Use dynamic column name from parameters
+    category_col = parameters['category_col']
+
     # Filter PCA if specific categories are given
     filter_ = parameters['pca_filter']
     if filter_ is not None:
         filter_ = filter_.split(sep=',')
         filter_ = [int(x) for x in filter_]
         print(f'Filtering categories for PCA to {filter_}...')
-        df = df[df['Object Type'].isin(filter_)]
+        df = df[df[category_col].isin(filter_)]
     df = df.dropna()
     df_pca = df.drop(
         labels=['Object ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
                 'Velocity Mean', 'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean',
                 'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
                 'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
-                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Category'], axis=1)
+                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', category_col], axis=1)
     df_pca.columns = df_pca.columns.str.strip()
     df_pca = df_pca.dropna()
     x = np.array(df_pca)
@@ -32,18 +35,20 @@ def pca(df, parameters, savefile):
     df_expl_var.index = ['PC1', 'PC2', 'PC3', 'PC4']
     df_PCscores = pd.DataFrame(PCscores)
     df_PCscores.columns = ['PC1', 'PC2', 'PC3', 'PC4']
-    df_PCscores['Object ID'] = df['Object ID'].values
-    df_PCscores['Category'] = df['Category'].values
+    df_PCscores["Object ID"] = df['Object ID'].values
+    df_PCscores[category_col] = df[category_col].values
     df_features = pd.DataFrame(pca.components_)
     df_features.columns = df_pca.columns
     df_features.index = ['PC1', 'PC2', 'PC3', 'PC4']
     kruskal_result_list = []
 
     def kw_test(PC_kw):
-        kruskal = stats.kruskal(*[group[PC_kw].values for name, group in df_PCscores.groupby('Category')],
-                                nan_policy='omit')
+        kruskal = stats.kruskal(*[group[PC_kw].values for name, group in df_PCscores.groupby(category_col)],
+                               nan_policy='omit')
         df_result = pd.DataFrame({kruskal})
         return df_result
+
+
 
     for PC_kw_no in range(1, 5):
         PC_current = "{}{}".format('PC', PC_kw_no)
@@ -51,13 +56,13 @@ def pca(df, parameters, savefile):
     df_kruskal = pd.concat(kruskal_result_list)
     df_kruskal.index = ['PC1', 'PC2', 'PC3', 'PC4']
 
-    PC1_test = sp.posthoc_dunn(df_PCscores, val_col='PC1', group_col='Category', p_adjust='bonferroni')
+    PC1_test = sp.posthoc_dunn(df_PCscores, val_col='PC1', group_col=category_col, p_adjust='bonferroni')
 
-    PC2_test = sp.posthoc_dunn(df_PCscores, val_col='PC2', group_col='Category', p_adjust='bonferroni')
+    PC2_test = sp.posthoc_dunn(df_PCscores, val_col='PC2', group_col=category_col, p_adjust='bonferroni')
 
-    PC3_test = sp.posthoc_dunn(df_PCscores, val_col='PC3', group_col='Category', p_adjust='bonferroni')
+    PC3_test = sp.posthoc_dunn(df_PCscores, val_col='PC3', group_col=category_col, p_adjust='bonferroni')
 
-    PC4_test = sp.posthoc_dunn(df_PCscores, val_col='PC4', group_col='Category', p_adjust='bonferroni')
+    PC4_test = sp.posthoc_dunn(df_PCscores, val_col='PC4', group_col=category_col, p_adjust='bonferroni')
 
     df_PC1 = pd.DataFrame(PC1_test)
 
@@ -87,9 +92,14 @@ def pca(df, parameters, savefile):
 
 
     def highlight_objs(worksheet):
+        """
+        Applies conditional formatting to the given worksheet to highlight specific cells.
+        Args:
+            worksheet: The worksheet to apply the formatting to.
+        """
         worksheet.conditional_format('A1:ZZ100', {'type': 'blanks',
                                                   'format': format_white})
-        worksheet.conditional_format('B2:L12', {'type': 'object',
+        worksheet.conditional_format('B2:L12', {'type': 'cell',
                                                 'criteria': '<=',
                                                 'value': 0.05,
                                                 'format': format_yellow})

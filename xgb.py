@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import LabelEncoder
-from multiprocessing import Pool
+# from multiprocessing import Pool
 from itertools import product
 import traceback
 
@@ -57,10 +57,12 @@ def aggregate_correlated_features(df, feature_groups):
     #return aggregated_df, feature_mapping
 
 
-def preprocess_features(df):
+def preprocess_features(df, parameters):
     """
     Preprocesses the feature data (log transformation and correlation grouping)
 """
+    category_col = parameters['category_col']
+    object_id_col = parameters['object_id_col_name']
     df_features = df.drop(['Category', 'Object ID'], axis=1)
     y = df['Category']
 
