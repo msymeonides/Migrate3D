@@ -3,6 +3,8 @@ import dearpygui.dearpygui as dpg
 import pandas as pd
 import time as tempo
 import os
+import parallel_contacts
+import asyncio
 from warnings import simplefilter
 from datetime import date
 #from xgboost import plot_importance
@@ -224,6 +226,19 @@ def migrate3D(param):
                 else:
                     tic = tempo.time()
                     print('Detecting contacts...')
+
+                    df_contacts, df_no_daughter, df_no_dead_, df_contact_summary = asyncio.run(
+                        parallel_contacts.main(unique_objects, arr_segments, parameters['contact_length'], df_sum,
+                                               parameters['arrested'], timelapse_interval)
+                    )
+                    toc = tempo.time()
+                    print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+                # Check if contacts parameter is true and if so call contacts functions
+                """if contact_parameter is False:
+                    pass
+                else:
+                    tic = tempo.time()
+                    print('Detecting contacts...')
                     df_cont = contacts(unique_objects, arr_segments, contact_length)
                     if len(df_cont) == 0:
                         pass
@@ -242,7 +257,7 @@ def migrate3D(param):
                     df_contact_summary = df_contact_summary.replace(mapping)
                     df_contact_summary = df_contact_summary.dropna()
                     toc = tempo.time()
-                    print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+                    print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))"""
 
                 # Replace zero with None
                 df_all_calcs = df_all_calcs.replace(mapping)
@@ -296,16 +311,16 @@ def migrate3D(param):
                 finally:
                     if contact_parameter is False:
                         pass
+                        """else:
+                            if len(df_cont) == 0:
+                                pass"""
                     else:
-                        if len(df_cont) == 0:
-                            pass
-                        else:
-                            print('Saving contacts output to ' + savecontacts + '...')
-                            with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
-                                df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
-                                df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
-                                df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
-                                df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
+                        print('Saving contacts output to ' + savecontacts + '...')
+                        with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
+                            df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
+                            df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
+                            df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
+                            df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
 
                 p_bar_increase += 0.20
                 dpg.set_value('pbar', p_bar_increase)
