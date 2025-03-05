@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import statistics
 
 
 def align_time(time_base, time_comp):
@@ -180,59 +179,41 @@ def no_daughter_contacts(object_id, df):
     return list_of_df
 
 
+# language: python
 def contacts_moving(df_arrest, df_no_daughter, arrested, time_interval):
     """
-        Filters out non-moving objects (e.g. dead cells) from contacts based on the arrest coefficient and calculates contact statistics.
-        Args:
-            df_arrest (pandas.DataFrame): DataFrame containing arrest coefficients for objects.
-            df_no_daughter (pandas.DataFrame): DataFrame containing contact information with daughter objects removed.
-            arrested (float): Threshold for the arrest coefficient to consider an object as moving.
-            time_interval (float): Time interval between timepoints.
+    Filters out non-moving objects (e.g. dead cells) from the contacts data based on the arrest coefficient.
+    This function no longer performs duration or summary calculations.
 
-        Returns:
-            tuple: A list of DataFrames with non-moving objects removed and a list of summary DataFrames with contact statistics.
-        """
-    objects_in_arrest = list(df_arrest.loc[:, 'Object ID'])
+    Args:
+        df_arrest (pandas.DataFrame): DataFrame containing arrest coefficients for objects.
+        df_no_daughter (pandas.DataFrame): DataFrame containing contact information with daughter objects removed.
+        arrested (float): Threshold for the arrest coefficient to consider an object as moving.
+        time_interval (float): Time interval between timepoints (retained for potential downstream use).
+
+    Returns:
+        list: A list of DataFrames with contacts for moving objects.
+    """
+    objects_in_arrest = list(df_arrest.loc[:, "Object ID"])
     all_moving = []
     list_of_df_no_dead = []
-    list_of_summary_df = []
-    for objects in objects_in_arrest:
-        # Check if objects are moving
-        arrest_coeffs = float(df_arrest.loc[df_arrest['Object ID'] == objects, 'Arrest Coefficient'].iloc[0])
-        if arrest_coeffs < arrested:
-            all_moving.append(objects)
-        else:
-            pass
 
-    # Extract data for moving objects
-    for ind, object_m in enumerate(all_moving):
-        object_comp = list(df_no_daughter.loc[df_no_daughter['Object ID'] == object_m, 'Object Compare'])
-        time__ = list(df_no_daughter.loc[df_no_daughter['Object ID'] == object_m, 'Time of Contact'])
-        only_1_comp = []
-        for object in object_comp:
-            if object in only_1_comp:
-                pass
-            else:
-                only_1_comp.append(object)
+    # Determine moving objects based on the arrest coefficient.
+    for obj in objects_in_arrest:
+        arrest_coeff = float(df_arrest.loc[df_arrest["Object ID"] == obj, "Arrest Coefficient"].iloc[0])
+        if arrest_coeff < arrested:
+            all_moving.append(obj)
 
-        list_of_df_no_dead.append(pd.DataFrame({'Object ID': object_m,
-                                                'Object Compare': object_comp,
-                                                'Time of Contact': time__}))
+    # Extract contact data for each moving object.
+    for obj in all_moving:
+        object_comp = list(df_no_daughter.loc[df_no_daughter["Object ID"] == obj, "Object Compare"])
+        time_points = list(df_no_daughter.loc[df_no_daughter["Object ID"] == obj, "Time of Contact"])
+        list_of_df_no_dead.append(
+            pd.DataFrame({
+                "Object ID": obj,
+                "Object Compare": object_comp,
+                "Time of Contact": time_points
+            })
+        )
 
-        # Calculate median contact time
-        if len(time__) > 2:
-            time_actual = [x * time_interval for x in range(len(time__))]
-            med_time = statistics.median(time_actual)
-        else:
-            med_time = None
-
-        sum_df = pd.DataFrame({'Object ID': [object_m],
-                               'Number of Contacts': [len(only_1_comp)],
-                               'Total Time Spent in Contact': [len(time__) * time_interval],
-                               'Median Contact Duration': [med_time]})
-        if sum_df.empty:
-            pass
-        else:
-            list_of_summary_df.append(sum_df)
-
-    return list_of_df_no_dead, list_of_summary_df
+    return list_of_df_no_dead

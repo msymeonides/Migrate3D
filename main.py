@@ -4,7 +4,7 @@ import pandas as pd
 import time as tempo
 import os
 import parallel_contacts
-import asyncio
+import statistics
 from warnings import simplefilter
 from datetime import date
 # from xgboost import plot_importance
@@ -225,38 +225,27 @@ def migrate3D(param):
                 else:
                     tic = tempo.time()
                     print('Detecting contacts...')
-
-                    df_contacts, df_no_daughter, df_no_dead_, df_contact_summary = asyncio.run(
-                        parallel_contacts.main(unique_objects, arr_segments, parameters['contact_length'], df_sum,
-                                               parameters['arrested'], timelapse_interval)
+                    # Extract the timepoints from arr_segments (column index 1) and get unique values
+                    unique_timepoints = np.unique(arr_segments[:, 1])
+                    # Then pass unique_timepoints to parallel_contacts.main instead of unique_objects
+                    df_contacts, df_no_daughter, df_no_dead_ = parallel_contacts.main(
+                        unique_timepoints,  # using timepoints for chunking
+                        arr_segments,
+                        parameters['contact_length'],
+                        df_sum,
+                        parameters['arrested'],
+                        timelapse_interval
                     )
+
+                    if not df_contacts.empty:
+                        df_contact_summary = summarize_contacts(df_contacts, timelapse_interval)
+                        print(f"Contact summary created with {len(df_contact_summary)} rows.")
+                    else:
+                        df_contact_summary = pd.DataFrame()
+                        print("No valid contacts detected; skipping summary processing.")
+
                     toc = tempo.time()
                     print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-                # Check if contacts parameter is true and if so call contacts functions
-                """if contact_parameter is False:
-                    pass
-                else:
-                    tic = tempo.time()
-                    print('Detecting contacts...')
-                    df_cont = contacts(unique_objects, arr_segments, contact_length)
-                    if len(df_cont) == 0:
-                        pass
-                    else:
-                        df_contacts = pd.concat(df_cont, ignore_index=True)
-                        df_no_daughter_func = no_daughter_contacts(unique_objects, df_contacts)
-                        df_no_daughter = pd.concat(df_no_daughter_func, ignore_index=True)
-                        df_alive, df_contact_sum = contacts_moving(df_sum, df_no_daughter,
-                                                                   arrested, time_interval)
-                    df_no_dead_ = pd.concat(df_alive, ignore_index=True)
-                    with_contacts = []
-                    for df in df_contact_sum:
-                        if df['Median Contact Duration'].notna().any():
-                            with_contacts.append(df)
-                    df_contact_summary = pd.concat(with_contacts, ignore_index=True)
-                    df_contact_summary = df_contact_summary.replace(mapping)
-                    df_contact_summary = df_contact_summary.dropna()
-                    toc = tempo.time()
-                    print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))"""
 
                 # Replace zero with None
                 df_all_calcs = df_all_calcs.replace(mapping)
@@ -307,18 +296,12 @@ def migrate3D(param):
                 if contact_parameter is False:
                     pass
                 else:
-                    if len(df_cont) == 0:
-                        pass
-                        """else:
-                            if len(df_cont) == 0:
-                                pass"""
-                    else:
-                        print('Saving contacts output to ' + savecontacts + '...')
-                        with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
-                            df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
-                            df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
-                            df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
-                            df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
+                    print('Saving contacts output to ' + savecontacts + '...')
+                    with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
+                        df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
+                        df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
+                        df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
+                        df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
 
                 p_bar_increase += 0.20
                 dpg.set_value('pbar', p_bar_increase)
@@ -342,6 +325,32 @@ def migrate3D(param):
 
     simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
     main()
+
+
+def summarize_contacts(df_contacts, time_interval):
+    summary_list = []
+    for object_id, group in df_contacts.groupby("Object ID"):
+        unique_contacts = group["Object Compare"].unique()
+        num_contacts = len(unique_contacts)
+        total_time = len(group) * time_interval
+        n = len(group)
+        # Use 1-indexed durations to represent duration of each contact.
+        durations = [(i + 1) * time_interval for i in range(n)]
+        if n == 1:
+            med_time = durations[0]
+        elif n == 2:
+            med_time = sum(durations) / 2
+        else:
+            import statistics
+            med_time = statistics.median(durations)
+
+        summary_list.append({
+            "Object ID": object_id,
+            "Number of Contacts": num_contacts,
+            "Total Time Spent in Contact": total_time,
+            "Median Contact Duration": med_time
+        })
+    return pd.DataFrame(summary_list)
 
 
 def formatting_check(sender, app_data):
