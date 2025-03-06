@@ -11,7 +11,7 @@ def calculations(object, object_data, num_euclid_spaces, object_id, parameters):
     Returns:
         pandas.DataFrame: DataFrame containing calculated migration parameters for the object.
     """
-    
+
     # Get number of rows and columns in object data
     num_rows, num_cols = np.shape(object_data)
 
