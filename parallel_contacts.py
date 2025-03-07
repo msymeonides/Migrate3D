@@ -3,7 +3,7 @@ import numpy as np
 import queue
 import threading
 from contacts import contacts, contacts_moving, no_daughter_contacts
-# import multiprocessing        # needed for max_processes calculation but right now we're not using it
+import multiprocessing        # needed for max_processes calculation but right now we're not using it
 import time
 
 def worker(input_queue: queue.Queue, output_queue: queue.Queue, worker_id: int):
@@ -47,7 +47,7 @@ def process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arreste
         df_no_daughter = pd.concat(df_no_daughter_func, ignore_index=True)
 
     # Update: Remove unpacking as contacts_moving now returns a single value.
-    df_alive = contacts_moving(df_sum, df_no_daughter, arrested, time_interval)
+    df_alive = contacts_moving(df_sum, df_no_daughter, arrested)
     if not df_alive or all(len(df) == 0 for df in df_alive):
         df_no_dead_ = pd.DataFrame()
     else:
@@ -55,14 +55,15 @@ def process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arreste
 
     return df_contacts, df_no_daughter, df_no_dead_
 
+
 def main(timepoints, arr_segments, contact_length, df_sum, arrested, time_interval):
     """
     Synchronous main function that distributes work among multiple worker threads.
     """
     input_queue = queue.Queue()
     output_queue = queue.Queue()
-    # max_processes = max(1, min(61, multiprocessing.cpu_count() - 1))      # Leaving this here in case things improve later and we can use more threads
-    num_workers = 3     # 3 threads is currently the sweet spot for performance improvement
+    max_processes = max(1, min(61, multiprocessing.cpu_count() - 1))      # Leaving this here in case things improve later and we can use more threads
+    num_workers = 3    # 3 threads is currently the sweet spot for performance improvement
     threads = []
 
     for i in range(num_workers):
@@ -102,6 +103,6 @@ def main(timepoints, arr_segments, contact_length, df_sum, arrested, time_interv
 
     return df_contacts, df_no_daughter, df_no_dead_
 
+'''
 if __name__ == '__main__':
-    # Replace the arguments below with your actual parameters
-    main(timepoints=[], arr_segments=np.array([]), contact_length=0, df_sum=pd.DataFrame(), arrested=0, time_interval=0)
+    main(timepoints=[], arr_segments=np.array([]), contact_length=0, df_sum=pd.DataFrame(), arrested=0, time_interval=0)'''

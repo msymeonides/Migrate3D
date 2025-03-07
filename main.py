@@ -4,14 +4,12 @@ import pandas as pd
 import time as tempo
 import os
 import parallel_contacts
-import statistics
 from warnings import simplefilter
 from datetime import date
 # from xgboost import plot_importance
 
 from calculations import calculations
 from summary_sheet import summary_sheet
-from contacts import contacts, contacts_moving, no_daughter_contacts
 from formatting import multi_tracking, adjust_2D, interpolate_lazy
 from attract import attract
 
@@ -237,8 +235,8 @@ def migrate3D(param):
                         timelapse_interval
                     )
 
-                    if not df_contacts.empty:
-                        df_contact_summary = summarize_contacts(df_contacts, timelapse_interval)
+                    if not df_no_dead_.empty:
+                        df_contact_summary = summarize_contacts(df_no_dead_, timelapse_interval)
                         print(f"Contact summary created with {len(df_contact_summary)} rows.")
                     else:
                         df_contact_summary = pd.DataFrame()
@@ -327,9 +325,9 @@ def migrate3D(param):
     main()
 
 
-def summarize_contacts(df_contacts, time_interval):
+def summarize_contacts(df_contacts_final, time_interval):
     summary_list = []
-    for object_id, group in df_contacts.groupby("Object ID"):
+    for object_id, group in df_contacts_final.groupby("Object ID"):
         unique_contacts = group["Object Compare"].unique()
         num_contacts = len(unique_contacts)
         total_time = len(group) * time_interval
