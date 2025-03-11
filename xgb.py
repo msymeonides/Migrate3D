@@ -8,6 +8,8 @@ from sklearn.feature_selection import mutual_info_classif,SelectKBest
 # from multiprocessing import Pool
 from itertools import product
 import traceback
+import shap
+import matplotlib.pyplot as plt
 
 
 def signed_log_transformation(x):
@@ -92,7 +94,6 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, params):
     Trains XGBoost model and evaluates performance
     """
     model = xgb.XGBClassifier(
-        use_label_encoder=False,
         objective='multi:softmax',
         eval_metric='mlogloss',
         num_class=len(np.unique(y_train)),
@@ -116,6 +117,14 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, params):
     # Confusion matrix
     # cm = confusion_matrix(y_test, y_pred, labels=model.classes_)
     # cm_df = pd.DataFrame(cm, index=model.classes_, columns=model.classes_)
+
+    # Calculate SHAP values
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_test)
+
+    # Plot summary plot
+    shap.summary_plot(shap_values, X_test, plot_type="bar")
+    plt.show()
 
     return accuracy, model
 
@@ -150,21 +159,24 @@ def optimize_hyperparameters(X_train, y_train):
     Uses RandomizedSearchCV for hyperparameter tuning
     """
     param_grid = {
-        'n_estimators': [100, 200, 300],
-        'learning_rate': [0.01, 0.05, 0.1],
-        'max_depth': [3, 5, 7],
-        'gamma': [0.0, 0.1, 0.2],
-        'subsample': [0.7, 0.8, 0.9],
-        'colsample_bytree': [0.7, 0.8, 0.9],
-        'min_child_weight': [1, 3, 5],
+        'n_estimators': [50, 100, 200, 300, 400, 500],
+        'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3],
+        'max_depth': [3, 5, 7, 9, 11],
+        'gamma': [0.0, 0.05, 0.1, 0.2, 0.3],
+        'subsample': [0.6, 0.7, 0.8, 0.9, 1.0],
+        'colsample_bytree': [0.6, 0.7, 0.8, 0.9, 1.0],
+        'min_child_weight': [1, 3, 5, 7],
         'reg_alpha': [0.0, 0.1, 0.5],
         'reg_lambda': [0.0, 0.1, 0.5]
     }
-    model = xgb.XGBClassifier(use_label_encoder=False, objective='multi:softmax', n_jobs=-1)
+    model = xgb.XGBClassifier(objective='multi:softmax',
+                              eval_metric='mlogloss',
+                              num_class=len(np.unique(y_train)),
+                              n_jobs=-1)
 
     random_search = RandomizedSearchCV(
         model, param_distributions=param_grid,
-        n_iter=25,  # Reduce the number of combinations
+        #n_iter=25,  # Reduce the number of combinations
         cv=3, scoring='accuracy', verbose=1, n_jobs=-1, random_state=42
     )
 
@@ -234,7 +246,7 @@ def xgboost(df_sum, parameters, output_file):
         {'n_estimators': [100, 200, 300, 400, 500], 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3]},
         {'max_depth': [3, 5, 7, 9], 'gamma': [0.0, 0.05, 0.1, 0.2]},
         {'subsample': [0.6, 0.7, 0.8, 0.9, 1.0], 'colsample_bytree': [0.7, 0.8, 0.9, 1.0]},
-        {'min_child_weight': [1, 3, 5], 'reg_alpha': [0.0, 0.1, 0.5, 1.0], 'reg_lambda': [0.0, 0.1, 0.5, 1.0]}]
+        {'min_child_weight': [1, 3, 5], 'reg_alpha': [0.0, 0.1, 0.5], 'reg_lambda': [0.0, 0.1, 0.5, 1.0]}]
 
     feature_importance = process_and_train_with_gridsearch(df_sum, param_spaces, parameters)
 
