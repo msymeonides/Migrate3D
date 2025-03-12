@@ -123,8 +123,8 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, params):
     shap_values = explainer.shap_values(X_test)
 
     # Plot summary plot
-    shap.summary_plot(shap_values, X_test, plot_type="bar")
-    plt.show()
+    #shap.summary_plot(shap_values, X_test, plot_type="bar")
+    #plt.show()
 
     return accuracy, model
 
