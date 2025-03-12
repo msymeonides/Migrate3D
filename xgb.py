@@ -97,6 +97,7 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, params):
         objective='multi:softmax',
         eval_metric='mlogloss',
         num_class=len(np.unique(y_train)),
+        early_stopping_rounds=15,
         n_jobs=-1,
         **params
     )
@@ -107,7 +108,6 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, params):
     model.fit(
         X_train, y_train,
         eval_set=eval_set,
-        early_stopping_rounds=15,
         verbose=False)
 
     # Predict and evaluate
