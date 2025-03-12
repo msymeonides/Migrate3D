@@ -15,6 +15,17 @@ import matplotlib.pyplot as plt
 def signed_log_transformation(x):
     return np.sign(x) * np.log(np.abs(x) + 1)
 
+def select_categories(df, parameters):
+    category_col = parameters['category_col']
+    # Filter if specific categories are given
+    filter_ = parameters['pca_filter']
+    if filter_ is not None:
+        filter_ = filter_.split(sep=',')
+        filter_ = [int(x) for x in filter_]
+        print(f'Filtering categories for XGBoost to {filter_}...')
+        df = df[df[category_col].isin(filter_)]
+    return df
+
 # def select_important_features(X, y, k=20):
 #     """
 #     Selects the top k most informative features using mutual information.
@@ -187,12 +198,13 @@ def optimize_hyperparameters(X_train, y_train):
     #return grid_search.best_params_
 
 
-def process_and_train_with_gridsearch(df_sum, param_spaces, parameters):
+def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
     """
     Main function for processing data, training model, and saving results
     """
     try:
-        df_xgb = df_sum.copy()
+        df_xgb = select_categories(df_xgb, parameters)
+
         X, y, feature_mapping = preprocess_features(df_xgb, parameters)
 
 
