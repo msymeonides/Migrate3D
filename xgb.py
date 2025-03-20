@@ -24,6 +24,15 @@ def select_categories(df, parameters):
         filter_ = [int(x) for x in filter_]
         print(f'Filtering categories for XGBoost to {filter_}...')
         df = df[df[category_col].isin(filter_)]
+    print(df.columns)
+    df = df.dropna()
+    df = df.drop(
+        labels=['Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
+                'Velocity Mean', 'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean',
+                'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
+                'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
+                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume'], axis=1)
+    print(df.columns)
     return df
 
 # def select_important_features(X, y, k=20):
