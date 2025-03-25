@@ -1,5 +1,5 @@
 import numpy as np
-import dearpygui.dearpygui as dpg
+# import dearpygui.dearpygui as dpg
 import pandas as pd
 import time as tempo
 import os
@@ -14,22 +14,37 @@ from formatting import multi_tracking, adjust_2D, interpolate_lazy
 from attract import attract
 
 
-# Welcome to Migrate3D version 2.X TEST
+# Welcome to Migrate3D version 2.X DEVELOPMENT (NO GUI)
 # Please see README.md before running this package
 # Migrate3D was developed by Matthew Kinahan, Emily Mynar, Jonah Harris, and Menelaos Symeonides
 # at the University of Vermont, funded by NIH R56-AI172486 and NIH R01-AI172486 (PI: Markus Thali)
 # For more information, see https://github.com/msymeonides/Migrate3D/
 
 
-dpg.create_context()
+# dpg.create_context()
 
 # Default parameters
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
               'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
               'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate',
               'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Category', 'interpolate': False,
-              'multi_track': False, 'two_dim': False, 'contact': False, 'pca_filter': None, 'infile_tracks': False}
+              'multi_track': True, 'two_dim': False, 'contact': True, 'pca_filter': '4, 5, 8', 'infile_tracks': 'Huge-w-weird_V11_tracks.csv'}
 
+# Build the content folder path
+content_folder = os.path.join(os.getcwd())
+
+# Specify the file name you want to reference
+file_name = 'Huge-w-weird_V11_segments.csv'
+
+# Construct the full file path
+infile_path = os.path.join(content_folder, file_name)
+
+# Assign the file path to parameters (update key as needed)
+parameters['infile_segments'] = infile_path
+
+# Now you can reference the file using:
+infile_name = parameters['infile_segments']
+print(f"File path: {infile_name}")
 
 def migrate3D(param):
     """
@@ -76,250 +91,243 @@ def migrate3D(param):
             and saves the results to an Excel file.
         """
         bigtic = tempo.time()
-        try:
-            p_bar_increase = 0.10
-            while p_bar_increase < 1:
-                dpg.set_value('pbar', p_bar_increase)
+        p_bar_increase = 0.10
+        while p_bar_increase < 1:
+            # dpg.set_value('pbar', p_bar_increase)
 
-                # Get parameters
-                infile_name = parameters['infile_segments']
-                infile_segments = pd.read_csv(infile_name, sep=',')
-                savefile = parameters['savefile']
-                df_infile = pd.DataFrame(infile_segments)
-                parent_id = parameters['object_id_col_name']
-                time_for = parameters['time_col_name']
-                x_for = parameters['x_col_name']
-                y_for = parameters['y_col_name']
-                z_for = parameters['z_col_name']
+            # Get parameters
+            infile_name = parameters['infile_segments']
+            infile_segments = pd.read_csv(infile_name, sep=',')
+            savefile = parameters['savefile']
+            df_infile = pd.DataFrame(infile_segments)
+            parent_id = parameters['object_id_col_name']
+            time_for = parameters['time_col_name']
+            x_for = parameters['x_col_name']
+            y_for = parameters['y_col_name']
+            z_for = parameters['z_col_name']
 
-                # Check if the segements file column names match
-                expected_columns = [parent_id, time_for, x_for, y_for, z_for]
-                for col in expected_columns:
-                    if col not in df_infile.columns:
-                        print(f"Error: Column '{col}' not found in Segments input file. Please fix the column names.")
-                        return
+            # Check if the segements file column names match
+            expected_columns = [parent_id, time_for, x_for, y_for, z_for]
+            for col in expected_columns:
+                if col not in df_infile.columns:
+                    print(f"Error: Column '{col}' not found in Segments input file. Please fix the column names.")
+                    return
 
-                # Check if the column names match in infile_tracks
-                if parameters['infile_tracks']:
-                    df_tracks = pd.read_csv(track_file, sep=',')
-                    object_id_2 = parameters['object_id_2_col']
-                    category_col_name = parameters['category_col']
-                    expected_track_columns = [object_id_2, category_col_name]
-                    for col in expected_track_columns:
-                        if col not in df_tracks.columns:
-                            print(f"Error: Column '{col}' not found in Tracks input file. Please fix the column names.")
-                            return
-
-                # Add a blank 'Z' column if it doesn't exist
-                if z_for not in df_infile.columns:
-                    df_infile[z_for] = 0
-
-                # Get data for each object from segments file and add to list
-                input_data_list = []
-                for row in df_infile.index:
-                    object_id = df_infile[parent_id][row]
-                    time_col = df_infile[time_for][row]
-                    x_col = df_infile[x_for][row]
-                    y_col = df_infile[y_for][row]
-                    z_col = df_infile[z_for][row]
-                    input_data_list.append([object_id, time_col, x_col, y_col, z_col])
-
-                # Create array of all objects, timepoints, and coordinates
-                arr_segments = np.array(input_data_list)
-
-                # Create settings DF for Excel output
-                settings = {'Segments file': [os.path.basename(infile_name).split('/')[-1]],
-                            'Categories file': [os.path.basename(infile_tracks).split('/')[-1]],
-                            'Timelapse Interval': [timelapse_interval], 'Arrest Limit': [arrest_limit],
-                            'Min. TP Moving': [num_of_tp_moving], 'Max. Contact Length': [contact_length],
-                            'Arrested': [arrested], 'Tau (MSD)': [parameters['tau_msd']], 'Tau (Euclid/Angle)': [tau_euclid],
-                            'Interpolation': [interpolate], 'Multitracking': [multi_track], 'Adjust to 2D': [two_dim],
-                            'Contacts': [contact]}
-                df_settings = pd.DataFrame(data=settings)
-
-                # Sort segments array by time and object ID
-                arr_segments = arr_segments[arr_segments[:, 1].argsort()]
-                arr_segments = arr_segments[arr_segments[:, 0].argsort(kind='mergesort')]
-
-                # Create array containing unique object IDs
-                unique_objects = np.unique(arr_segments[:, 0])
-
-                tic = tempo.time()
-
-                # Format dataset
-                print('Formatting input dataset:\n' + infile_name + '...')
-
-                if parameters['multi_track']:
-                    arr_segments = multi_tracking(arr_segments)
-                if parameters['two_dim']:
-                    arr_segments = adjust_2D(arr_segments)
-                if parameters['interpolate']:
-                    arr_segments = interpolate_lazy(arr_segments, timelapse_interval, unique_objects)
-
-                # Create dataframe of formatted segments for later export to Excel file
-                df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', z_for])
-
-                toc = tempo.time()
-                print('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-
-                tic = tempo.time()
-                print('Calculating migration parameters...')
-
-                # Perform calculations on each unique object
-                all_calcs = []
-                for object in unique_objects:
-                    object_data = arr_segments[arr_segments[:, 0] == object, :]
-                    object_id = object_data[0, 0]
-                    df_calcs = calculations(object_data, tau_euclid, object_id, parameters)
-                    p_bar_increase += 0.0001
-                    dpg.set_value('pbar', p_bar_increase)
-                    all_calcs.append(df_calcs)
-                df_all_calcs = pd.concat(all_calcs)
-                mapping = {0: None}
-
-                toc = tempo.time()
-                print('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-                p_bar_increase += 0.20
-                dpg.set_value('pbar', p_bar_increase)
-
-                # Create categories dataframe
-                track_df = pd.DataFrame()
-                track_input_list = []
+            # Check if the column names match in infile_tracks
+            if parameters['infile_tracks']:
+                df_tracks = pd.read_csv(track_file, sep=',')
                 object_id_2 = parameters['object_id_2_col']
                 category_col_name = parameters['category_col']
+                expected_track_columns = [object_id_2, category_col_name]
+                for col in expected_track_columns:
+                    if col not in df_tracks.columns:
+                        print(f"Error: Column '{col}' not found in Tracks input file. Please fix the column names.")
+                        return
 
-                if parameters['infile_tracks']:
-                    track_df = pd.DataFrame(pd.read_csv(track_file))
-                    for row in track_df.index:
-                        object_id2 = track_df[object_id_2][row]
-                        category = track_df[category_col_name][row]
-                        track_input_list.append([object_id2, category])
-                    arr_tracks = np.array(track_input_list)
-                else:
-                    arr_tracks = np.zeros_like(arr_segments)
+            # Add a blank 'Z' column if it doesn't exist
+            if z_for not in df_infile.columns:
+                df_infile[z_for] = 0
 
-                # Create summary sheet of calculations
-                df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat = summary_sheet(arr_segments,
-                                                                                                         df_all_calcs,
-                                                                                                         unique_objects,
-                                                                                                         parameters['tau_msd'],
-                                                                                                         parameters,
-                                                                                                         arr_tracks, savefile)
+            # Get data for each object from segments file and add to list
+            input_data_list = []
+            for row in df_infile.index:
+                object_id = df_infile[parent_id][row]
+                time_col = df_infile[time_for][row]
+                x_col = df_infile[x_for][row]
+                y_col = df_infile[y_for][row]
+                z_col = df_infile[z_for][row]
+                input_data_list.append([object_id, time_col, x_col, y_col, z_col])
 
+            # Create array of all objects, timepoints, and coordinates
+            arr_segments = np.array(input_data_list)
+
+            # Create settings DF for Excel output
+            settings = {'Segments file': [os.path.basename(infile_name).split('/')[-1]],
+                        'Categories file': [os.path.basename(infile_tracks).split('/')[-1]],
+                        'Timelapse Interval': [timelapse_interval], 'Arrest Limit': [arrest_limit],
+                        'Min. TP Moving': [num_of_tp_moving], 'Max. Contact Length': [contact_length],
+                        'Arrested': [arrested], 'Tau (MSD)': [parameters['tau_msd']], 'Tau (Euclid/Angle)': [tau_euclid],
+                        'Interpolation': [interpolate], 'Multitracking': [multi_track], 'Adjust to 2D': [two_dim],
+                        'Contacts': [contact]}
+            df_settings = pd.DataFrame(data=settings)
+
+            # Sort segments array by time and object ID
+            arr_segments = arr_segments[arr_segments[:, 1].argsort()]
+            arr_segments = arr_segments[arr_segments[:, 0].argsort(kind='mergesort')]
+
+            # Create array containing unique object IDs
+            unique_objects = np.unique(arr_segments[:, 0])
+
+            tic = tempo.time()
+
+            # Format dataset
+            print('Formatting input dataset:\n' + infile_name + '...')
+
+            if parameters['multi_track']:
+                arr_segments = multi_tracking(arr_segments)
+            if parameters['two_dim']:
+                arr_segments = adjust_2D(arr_segments)
+            if parameters['interpolate']:
+                arr_segments = interpolate_lazy(arr_segments, timelapse_interval, unique_objects)
+
+            # Create dataframe of formatted segments for later export to Excel file
+            df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', z_for])
+
+            toc = tempo.time()
+            print('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+
+            tic = tempo.time()
+            print('Calculating migration parameters...')
+
+            # Perform calculations on each unique object
+            all_calcs = []
+            for object in unique_objects:
+                object_data = arr_segments[arr_segments[:, 0] == object, :]
+                object_id = object_data[0, 0]
+                df_calcs = calculations(object_data, tau_euclid, object_id, parameters)
+                p_bar_increase += 0.0001
+                # dpg.set_value('pbar', p_bar_increase)
+                all_calcs.append(df_calcs)
+            df_all_calcs = pd.concat(all_calcs)
+            mapping = {0: None}
+
+            toc = tempo.time()
+            print('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+            p_bar_increase += 0.20
+            # dpg.set_value('pbar', p_bar_increase)
+
+            # Create categories dataframe
+            track_df = pd.DataFrame()
+            track_input_list = []
+            object_id_2 = parameters['object_id_2_col']
+            category_col_name = parameters['category_col']
+
+            if parameters['infile_tracks']:
+                track_df = pd.DataFrame(pd.read_csv(track_file))
+                for row in track_df.index:
+                    object_id2 = track_df[object_id_2][row]
+                    category = track_df[category_col_name][row]
+                    track_input_list.append([object_id2, category])
+                arr_tracks = np.array(track_input_list)
+            else:
+                arr_tracks = np.zeros_like(arr_segments)
+
+            # Create summary sheet of calculations
+            df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat = summary_sheet(arr_segments,
+                                                                                                     df_all_calcs,
+                                                                                                     unique_objects,
+                                                                                                     parameters['tau_msd'],
+                                                                                                     parameters,
+                                                                                                     arr_tracks, savefile)
+
+            tic = tempo.time()
+            print('Detecting attractors...')
+            # Create a mapping from object IDs to cell types
+            cell_types = dict(zip(track_df[parameters['object_id_2_col']], track_df[parameters['category_col']]))
+            attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile)
+            toc = tempo.time()
+            print('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+
+            p_bar_increase += 0.20
+            # dpg.set_value('pbar', p_bar_increase)
+
+            # Check if contacts parameter is true and if so call contacts functions
+            if contact_parameter is False:
+                pass
+            else:
                 tic = tempo.time()
-                print('Detecting attractors...')
-                # Create a mapping from object IDs to cell types
-                cell_types = dict(zip(track_df[parameters['object_id_2_col']], track_df[parameters['category_col']]))
-                attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile)
+                print('Detecting contacts...')
+                # Extract the timepoints from arr_segments (column index 1) and get unique values
+                unique_timepoints = np.unique(arr_segments[:, 1])
+                # Then pass unique_timepoints to parallel_contacts.main instead of unique_objects
+                df_contacts, df_no_daughter, df_no_dead_ = parallel_contacts.main(
+                    unique_timepoints,  # using timepoints for chunking
+                    arr_segments,
+                    parameters['contact_length'],
+                    df_sum,
+                    parameters['arrested'],
+                    timelapse_interval
+                )
+
+                if not df_no_dead_.empty:
+                    df_contact_summary = summarize_contacts(df_no_dead_, timelapse_interval)
+                    print(f"Contact summary created with {len(df_contact_summary)} rows.")
+                else:
+                    df_contact_summary = pd.DataFrame()
+                    print("No valid contacts detected; skipping summary processing.")
+
                 toc = tempo.time()
-                print('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+                print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
-                p_bar_increase += 0.20
-                dpg.set_value('pbar', p_bar_increase)
+            # Replace zero with None
+            df_all_calcs = df_all_calcs.replace(mapping)
+            df_sum = df_sum.replace(mapping)
 
-                # Check if contacts parameter is true and if so call contacts functions
-                if contact_parameter is False:
-                    pass
-                else:
-                    tic = tempo.time()
-                    print('Detecting contacts...')
-                    # Extract the timepoints from arr_segments (column index 1) and get unique values
-                    unique_timepoints = np.unique(arr_segments[:, 1])
-                    # Then pass unique_timepoints to parallel_contacts.main instead of unique_objects
-                    df_contacts, df_no_daughter, df_no_dead_ = parallel_contacts.main(
-                        unique_timepoints,  # using timepoints for chunking
-                        arr_segments,
-                        parameters['contact_length'],
-                        df_sum,
-                        parameters['arrested'],
-                        timelapse_interval
-                    )
+            # If categories are present, restore zeroes for category
+            if track_df.shape[0] > 0:
+                df_sum[category_col_name] = df_sum[category_col_name].replace(np.nan, 0)
 
-                    if not df_no_dead_.empty:
-                        df_contact_summary = summarize_contacts(df_no_dead_, timelapse_interval)
-                        print(f"Contact summary created with {len(df_contact_summary)} rows.")
+            # restore zeros for Arrest Coefficient
+            df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
+
+            p_bar_increase += 0.20
+            # dpg.set_value('pbar', p_bar_increase)
+
+            # Create file path
+            savepath = savefile + '.xlsx'
+            print('Saving main output to ' + savepath + '...')
+            savecontacts = savefile + '_Contacts.xlsx'
+
+            # Save results to Excel file
+            if parameters['verbose']: # Save all data to Excel file
+                with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
+                    df_settings.to_excel(workbook, sheet_name='Settings', index=False)
+                    df_segments.to_excel(workbook, sheet_name='Object Data', index=False)
+                    df_all_calcs.to_excel(workbook, sheet_name='Calculations', index=False)
+                    df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
+                    df_single.to_excel(workbook, sheet_name='Single Timepoint Medians', index=False)
+                    df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
+                    df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summaries All', index=True)
+                    if parameters['infile_tracks']:
+                        df_msd_sum_cat.to_excel(workbook, sheet_name='MSD Per Category', index=True)
                     else:
-                        df_contact_summary = pd.DataFrame()
-                        print("No valid contacts detected; skipping summary processing.")
+                        pass
+            else: # Save only summary data to Excel file
+                with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
+                    df_settings.to_excel(workbook, sheet_name='Settings', index=False)
+                    df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
+                    df_single.to_excel(workbook, sheet_name='Single Timepoint Medians', index=False)
+                    df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
+                    df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summaries All', index=True)
+                    if parameters['infile_tracks']:
+                        df_msd_sum_cat.to_excel(workbook, sheet_name='MSD Per Category', index=True)
+                    else:
+                        pass
 
-                    toc = tempo.time()
-                    print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+            # If contacts were detected, save contacts to separate Excel file
+            if contact_parameter is False:
+                pass
+            else:
+                print('Saving contacts output to ' + savecontacts + '...')
+                with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
+                    df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
+                    df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
+                    df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
+                    df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
 
-                # Replace zero with None
-                df_all_calcs = df_all_calcs.replace(mapping)
-                df_sum = df_sum.replace(mapping)
+            p_bar_increase += 0.20
+            # dpg.set_value('pbar', p_bar_increase)
 
-                # If categories are present, restore zeroes for category
-                if track_df.shape[0] > 0:
-                    df_sum[category_col_name] = df_sum[category_col_name].replace(np.nan, 0)
+            print("Migrate3D done!")
+            bigtoc = tempo.time()
 
-                # restore zeros for Arrest Coefficient
-                df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
-
-                p_bar_increase += 0.20
-                dpg.set_value('pbar', p_bar_increase)
-
-                # Create file path
-                savepath = savefile + '.xlsx'
-                print('Saving main output to ' + savepath + '...')
-                savecontacts = savefile + '_Contacts.xlsx'
-
-                # Save results to Excel file
-                if parameters['verbose']: # Save all data to Excel file
-                    with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
-                        df_settings.to_excel(workbook, sheet_name='Settings', index=False)
-                        df_segments.to_excel(workbook, sheet_name='Object Data', index=False)
-                        df_all_calcs.to_excel(workbook, sheet_name='Calculations', index=False)
-                        df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
-                        df_single.to_excel(workbook, sheet_name='Single Timepoint Medians', index=False)
-                        df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
-                        df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summaries All', index=True)
-                        if parameters['infile_tracks']:
-                            df_msd_sum_cat.to_excel(workbook, sheet_name='MSD Per Category', index=True)
-                        else:
-                            pass
-                else: # Save only summary data to Excel file
-                    with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
-                        df_settings.to_excel(workbook, sheet_name='Settings', index=False)
-                        df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
-                        df_single.to_excel(workbook, sheet_name='Single Timepoint Medians', index=False)
-                        df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
-                        df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summaries All', index=True)
-                        if parameters['infile_tracks']:
-                            df_msd_sum_cat.to_excel(workbook, sheet_name='MSD Per Category', index=True)
-                        else:
-                            pass
-
-                # If contacts were detected, save contacts to separate Excel file
-                if contact_parameter is False:
-                    pass
-                else:
-                    print('Saving contacts output to ' + savecontacts + '...')
-                    with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
-                        df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
-                        df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
-                        df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
-                        df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
-
-                p_bar_increase += 0.20
-                dpg.set_value('pbar', p_bar_increase)
-
-                print("Migrate3D done!")
-                bigtoc = tempo.time()
-
-                # Display total runtime
-                total_time_sec = (int(round((bigtoc - bigtic), 1)))
-                total_time_min = round((total_time_sec / 60), 1)
-                if total_time_sec < 180:
-                    print('Total time taken = {:.0f} seconds.'.format(total_time_sec))
-                else:
-                    print('Total time taken = {:.1f} minutes.'.format(total_time_min))
-
-                dpg.destroy_context()
-        except IndentationError:
-            with dpg.window(label='ERROR', width=400, height=600) as err_win:
-                dpg.add_input_text(default_value='Input error, please ensure all inputs are correct', width=400)
-                dpg.set_value('pbar', 0)
+            # Display total runtime
+            total_time_sec = (int(round((bigtoc - bigtic), 1)))
+            total_time_min = round((total_time_sec / 60), 1)
+            if total_time_sec < 180:
+                print('Total time taken = {:.0f} seconds.'.format(total_time_sec))
+            else:
+                print('Total time taken = {:.1f} minutes.'.format(total_time_min))
 
     simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
     main()
@@ -358,11 +366,7 @@ def formatting_check(sender, app_data):
             sender: The sender of the event.
             app_data: Additional data associated with the event.
     """
-    if dpg.get_value(sender) is True:
-        parameters[sender] = True
-    else:
-        parameters[sender] = False
-
+    parameters[sender] = True
 
 def run_contact(sender, app_data):
     """
@@ -371,10 +375,7 @@ def run_contact(sender, app_data):
             sender: The sender of the event.
             app_data: Additional data associated with the event.
     """
-    if dpg.get_value(sender) is True:
-        parameters['contact'] = True
-    else:
-        parameters['contact'] = False
+    parameters['contact'] = True
 
 
 def callback_file_segs(sender, app_data):
@@ -384,7 +385,7 @@ def callback_file_segs(sender, app_data):
             sender: The sender of the event.
             app_data: Additional data associated with the event.
     """
-    infile = str(app_data['file_path_name'])
+    infile = str(app_data['Huge-w-weird_V11_segments.csv'])
     parameters['infile_segments'] = infile
 
 
@@ -418,17 +419,9 @@ def float_return(sender, app_data):
         """
     parameters[sender] = app_data
 
+migrate3D(parameters)
 
-def start_migrate(sender, app_data):
-    """
-        Callback function to start the Migrate3D analysis when the 'Run' button is clicked in the GUI.
-        Args:
-            sender: The sender of the event.
-            app_data: Additional data associated with the event.
-        """
-    migrate3D(parameters)
-
-
+'''
 with dpg.file_dialog(width=700, height=550, directory_selector=False, show=False, callback=callback_file_segs,
                      file_count=3,
                      tag="segs_dialog_tag"):
@@ -503,4 +496,4 @@ dpg.setup_dearpygui()
 dpg.show_viewport()
 dpg.start_dearpygui()
 
-dpg.destroy_context()
+dpg.destroy_context()'''
