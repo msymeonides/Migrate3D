@@ -5,6 +5,7 @@ import time as tempo
 import os
 from warnings import simplefilter
 from datetime import date
+from scipy.stats import mode
 # from xgboost import plot_importance
 
 from calculations import calculations
@@ -24,7 +25,7 @@ from attract import attract
 dpg.create_context()
 
 # Default parameters
-parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
+parameters = {'timelapse': 4.0, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
               'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
               'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate',
               'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Category', 'interpolate': False,
@@ -92,8 +93,22 @@ def migrate3D(param):
                 y_for = parameters['y_col_name']
                 z_for = parameters['z_col_name']
 
+                # # Detect timelapse interval
+                # if parameters['timelapse'] != 0:
+                #     timelapse_interval = round((parameters['timelapse']), 3)
+                # else:
+                #     time_data = df_infile[time_for].values
+                #     time_diffs = np.diff(time_data)
+                #     print(time_diffs)
+                #     timelapse_interval = mode(time_diffs).mode[0]
+                #     print(timelapse_interval)
+
+                # Detect 2D data
+                if (z_for == '') | (z_for not in df_infile.columns):
+                    print('2D dataset detected. If your dataset is 3D, check your Z column name.')
+
                 # Check if the segements file column names match
-                expected_columns = [parent_id, time_for, x_for, y_for, z_for]
+                expected_columns = [parent_id, time_for, x_for, y_for]
                 for col in expected_columns:
                     if col not in df_infile.columns:
                         print(f"Error: Column '{col}' not found in Segments input file. Please fix the column names.")

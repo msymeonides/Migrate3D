@@ -70,7 +70,6 @@ def aggregate_correlated_features(df, feature_groups):
     feature_mapping = {}
 
     for i, group in enumerate(feature_groups):
-        group_name = f"Group_{i + 1}"  # Create a name for each feature group
         group_features_label = ", ".join(group)  # Concatenate original names for labels
         aggregated_data.append(df[list(group)].mean(axis=1))  # Aggregate the group (mean)
         feature_mapping[group_features_label] = list(group)  # Store the original feature names for the group
@@ -274,5 +273,8 @@ def xgboost(df_sum, parameters, output_file):
     # Save or print the results
     saveXGB = output_file + '_XGB.xlsx'
     print('Saving XGB output to ' + saveXGB + '...')
-    with pd.ExcelWriter(saveXGB, engine='xlsxwriter') as workbook:
-        feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
+    try:
+        with pd.ExcelWriter(saveXGB, engine='xlsxwriter') as workbook:
+            feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
+    except Exception as e:
+        print('Not enough objects for XGBoost analysis.')
