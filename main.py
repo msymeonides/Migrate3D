@@ -28,7 +28,7 @@ from attract import attract
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
               'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
               'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate',
-              'z_col_name': 'Z Coordinate', 'object_id_2_col': 'Id', 'category_col': 'Code', 'interpolate': False,
+              'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Category', 'interpolate': False,
               'multi_track': True, 'two_dim': False, 'contact': True, 'pca_filter': '4, 5, 8', 'infile_tracks': 'Huge-w-weird_V11_tracks.csv'}
 
 # Build the content folder path
