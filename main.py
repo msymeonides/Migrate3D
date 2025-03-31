@@ -1,386 +1,230 @@
-import numpy as np
-import dearpygui.dearpygui as dpg
+from dash import Dash
+from dash import dcc, html, Input, Output, State, exceptions
 import pandas as pd
-import time as tempo
+import base64
+import io
 import os
+import numpy as np
 from warnings import simplefilter
 from datetime import date
-
-from calculations import calculations
-from summary_sheet import summary_sheet
-from contacts import contacts, contacts_alive, no_daughter_contacts
 from formatting import multi_tracking, adjust_2D, interpolate_lazy
+from run_migrate import migrate3D
+from openpyxl import load_workbook
+from graph_all_segments import graph_sorted_segments
+from generate_PCA import generate_PCA
+
+parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
+              'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
+              'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate',
+              'y_col_name': 'Y Coordinate',
+              'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Category', 'interpolate': False,
+              'multi_track': True, 'two_dim': False, 'contact': False, 'pca_filter': '4, 5, 8', 'infile_tracks': False}
+
+# initialize the app
+file_storing = {}
+app = Dash(__name__)
+
+app.layout = (
+    html.Div(
+        children=[
+            html.H1(children='Migrate3D'),  # title
+            html.Hr(),
+            # start of file inputs here
+            html.Div(id='Segments',
+                     children=["Segments input files should be a .csv with cell ID, time, X, Y, and Z coordinates. "
+                               "Please ensure that column headers are in the first row of the .csv file input.",
+                               html.Div(className='segment_div',
+                                        id='segment_div',
+                                        children=[
+                                            dcc.Upload(id='segments_upload',
+                                                       children='Enter your segments .csv file here by clicking or '
+                                                                'dropping: ',
+                                                       style={'width': '100%',
+                                                              'height': '60px',
+                                                              'lineHeight': '60px',
+                                                              'borderWidth': '1px',
+                                                              'borderStyle': 'dashed',
+                                                              'borderRadius': '5px',
+                                                              'textAlign': 'center',
+                                                              'margin': '10px'})])]),  # end segment upload div
+            html.Hr(),
+            html.Div(id="Categories",
+                     children=['Categories input files should be a .csv with cell ID and cell category (No categories '
+                               'file is necessary to run the program). Please ensure that column headers are in the '
+                               'first row of the .csv file input.',
+                               html.Div(className='categories_div', id='categories_div',
+                                        children=[
+                                            dcc.Upload(id='category_upload',
+                                                       children='Enter your category .csv file here by clicking or '
+                                                                'dropping:',
+                                                       style={'width': '100%',
+                                                              'height': '60px',
+                                                              'lineHeight': '60px',
+                                                              'borderWidth': '1px',
+                                                              'borderStyle': 'dashed',
+                                                              'borderRadius': '5px',
+                                                              'textAlign': 'center',
+                                                              'margin': '10px'})])]),  # End Categories Div
+
+            html.Div(id='column_populate_segments',
+                     children=[html.H4('Select Column Identifiers for segments file'),
+                               dcc.Dropdown(id='parent_id', placeholder='Select ID column'),
+                               dcc.Dropdown(id='time_formatting', placeholder='Select time column'),
+                               dcc.Dropdown(id='x_axis', placeholder='Select x-coordinate column'),
+                               dcc.Dropdown(id='y_axis', placeholder='Select y-coordinate column'),
+                               dcc.Dropdown(id='z_axis', placeholder='Select z-coordinate column')]),
+
+            html.Div(id='Categories_dropdown',
+                     children=[html.H4('Enter Column Identifiers for tracks (optional)'),
+                               dcc.Dropdown(id='parent_id2', placeholder='Select ID column'),
+                               dcc.Dropdown(id='category_col', placeholder='Column header name in input Categories file'
+                                                                           'for object category'),
+                               ]),
+            html.Hr(),
+            html.Div(id='Parmeters',
+                     children=[
+                         html.H4(children=['Enter Timelapse interval']),
+                         dcc.Input(id='Timelapse', value=4),
+                         html.Hr(),
+                         html.H4(children=['Enter arrest limit']),
+                         dcc.Input(id='arrest_limit', value=3.0),
+                         html.Hr(),
+                         html.H4(children=['Enter moving']),
+                         dcc.Input(id='moving', value=4),
+                         html.Hr(),
+                         html.H4(children=['Enter Contact length']),
+                         dcc.Input(id='contact_length', value=12),
+                         html.Hr(),
+                         html.H4(children=['Enter arrested']),
+                         dcc.Input(id='arrested', value=0.95),
+                         html.Hr(),
+                         html.H4(children=['Enter tau MSD']),
+                         dcc.Input(id='tau_msd', value=50),
+                         html.Hr(),
+                         html.H4(children=['Enter tau euclid']),
+                         dcc.Input(id='tau_euclid', value=25),
+                         html.Hr(),
+                         html.H4(children=['Select formatting options if needed']),
+                         dcc.Checklist(id='formatting_options',
+                                       options=['Multitrack', 'Two-dimensional', 'Interpolate', 'Verbose', 'Contacts']),
+                         html.Hr(),
+                         html.H4(children=['Save results as:']),
+                         dcc.Input(id='save_file',
+                                   placeholder='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
+                                   value='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results'),
+                         html.Hr(),
+                         html.Button('Run Migrate3D', id='Run_migrate', n_clicks=0)
+                     ]),
+            html.Div(id='PCA'),
+            html.Div(id='tracks')
+        ]))
 
 
-# Welcome to Migrate3D version 1.5
-# Please see README.md before running this package
-# Migrate3D was developed by Matthew Kinahan, Emily Mynar, and Menelaos Symeonides at the University of Vermont,
-# funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali)
-# For more information, see https://github.com/msymeonides/Migrate3D/
-
-
-dpg.create_context()
-
-# Default parameters
-parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95,
-              'tau_msd': 50, 'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
-              'cell_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate',
-              'z_col_name': 'Z Coordinate', 'parent_id2': 'Id', 'category_col': 'Code', 'interpolate': False,
-              'multi_track': False, 'two_dim': False, 'contact': False, 'pca_filter': None, 'infile_tracks': False}
-
-
-def migrate3D(param):
-    # Set parameters according to user input
-    timelapse_interval = round((parameters['timelapse']), 3)
-    arrest_limit = parameters['arrest_limit']
-    num_of_tp_moving = parameters['moving']
-    contact_length = parameters['contact_length']
-    arrested = parameters['arrested']
-    tau_euclid = parameters['tau_euclid']
-    contact_parameter = parameters['contact']
-    track_file = parameters['infile_tracks']
-    if parameters['multi_track']:
-        multi_track = 'On'
+@app.callback(
+    Output(component_id='tracks', component_property='children'),
+    Output(component_id='PCA', component_property='children'),
+    Input(component_id='parent_id', component_property='value'),
+    Input(component_id='time_formatting', component_property='value'),
+    Input(component_id='x_axis', component_property='value'),
+    Input(component_id='y_axis', component_property='value'),
+    Input(component_id='z_axis', component_property='value'),
+    Input(component_id='Timelapse', component_property='value'),
+    Input(component_id='arrest_limit', component_property='value'),
+    Input(component_id='moving', component_property='value'),
+    Input(component_id='contact_length', component_property='value'),
+    Input(component_id='arrested', component_property='value'),
+    Input(component_id='tau_msd', component_property='value'),
+    Input(component_id='tau_euclid', component_property='value'),
+    Input(component_id='formatting_options', component_property='value'),
+    Input(component_id='save_file', component_property='value'),
+    Input(component_id='segments_upload', component_property='children'),
+    Input(component_id='category_upload', component_property='children'),
+    Input(component_id='parent_id2', component_property='value'),
+    Input(component_id='category_col', component_property='value'),
+    Input(component_id='Run_migrate', component_property='n_clicks'),
+    prevent_initial_call=True)
+def run_migrate(*vals):
+    (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving, contact_length, arrested, tau_msd,
+     tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2, category_col_name,
+     run_button) = vals
+    if run_button == 0:
+        raise exceptions.PreventUpdate
     else:
-        multi_track = 'Off'
-    if parameters['two_dim']:
-        two_dim = 'On'
-    else:
-        two_dim = 'Off'
-    if parameters['interpolate']:
-        interpolate = 'On'
-    else:
-        interpolate = 'Off'
-    if parameters['infile_tracks']:
-        infile_tracks = parameters['infile_tracks']
-    else:
-        infile_tracks = 'None'
-    if parameters['contact']:
-        contact = 'On'
-    else:
-        contact = 'Off'
+        df_segments, df_sum, df_pca = migrate3D(parent_id, time_for, x_for, y_for, z_for, int(timelapse), float(arrest_limit),
+                                        int(moving),
+                                        int(contact_length), float(arrested), int(tau_msd), int(tau_euclid),
+                                        formatting_options,
+                                        savefile, segments_file_name, tracks_file,
+                                        parent_id2, category_col_name, parameters)
 
-    def main():
-        bigtic = tempo.time()
+        fig_segments = graph_sorted_segments(df_segments, df_sum)
+        fig_pca = generate_PCA(df_pca)
+
+        return dcc.Graph(figure=fig_segments), dcc.Graph(figure=fig_pca)
+
+
+
+# callback for segments file
+@app.callback(
+    Output(component_id='segments_upload', component_property='children'),
+    Output(component_id='parent_id', component_property='options'),
+    Output(component_id='time_formatting', component_property='options'),
+    Output(component_id='x_axis', component_property='options'),
+    Output(component_id='y_axis', component_property='options'),
+    Output(component_id='z_axis', component_property='options'),
+    Input(component_id='segments_upload', component_property='contents'),
+    State(component_id='segments_upload', component_property='filename'),
+    prevent_initial_call=True)
+def get_file(contents, filename):
+    if contents is None:
+        raise exceptions.PreventUpdate
+
+    elif contents is not None:
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
         try:
-            p_bar_increase = 0.10
-            while p_bar_increase < 1:
-                dpg.set_value('pbar', p_bar_increase)
+            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
 
-                # Get parameters
-                infile_name = parameters['infile_segments']
-                infile_segments = pd.read_csv(infile_name, sep=',')
-                savefile = parameters['savefile']
-                df_infile = pd.DataFrame(infile_segments)
-                parent_id = parameters['cell_id_col_name']
-                time_for = parameters['time_col_name']
-                x_for = parameters['x_col_name']
-                y_for = parameters['y_col_name']
-                z_for = parameters['z_col_name']
+        except Exception as e:
+            return html.Div([
+                'There was an error processing this file.'
+            ])
 
-                # Get data for each cell from segments file and add to list
-                cell_data_list = []
-                for row in df_infile.index:
-                    cell_id = df_infile[parent_id][row]
-                    time_col = df_infile[time_for][row]
-                    x_col = df_infile[x_for][row]
-                    y_col = df_infile[y_for][row]
-                    z_col = df_infile[z_for][row]
-                    cell_data_list.append([cell_id, time_col, x_col, y_col, z_col])
+        file_storing['Segments'] = df
+        return filename, list(df.columns), list(df.columns), list(df.columns), list(df.columns), list(df.columns)
 
-                # Create array of all cells, timepoints, and coordinates
-                arr_segments = np.array(cell_data_list)
-
-                # Create settings DF for Excel output
-                settings = {'Segments file': [os.path.basename(infile_name).split('/')[-1]],
-                            'Categories file': [os.path.basename(infile_tracks).split('/')[-1]],
-                            'Timelapse Interval': [timelapse_interval], 'Arrest Limit': [arrest_limit],
-                            'Min. TP Moving': [num_of_tp_moving], 'Max. Contact Length': [contact_length],
-                            'Arrested': [arrested], 'Tau (MSD)': [parameters['tau_msd']], 'Tau (Euclid/Angle)': [tau_euclid],
-                            'Interpolation': [interpolate], 'Multitracking': [multi_track], 'Adjust to 2D': [two_dim],
-                            'Contacts': [contact]}
-                df_settings = pd.DataFrame(data=settings)
-
-                # Sort segments array by time and cell ID
-                arr_segments = arr_segments[arr_segments[:, 1].argsort()]
-                arr_segments = arr_segments[arr_segments[:, 0].argsort(kind='mergesort')]
-
-                # Create array containing unique cell IDs
-                unique_cells = np.unique(arr_segments[:, 0])
-
-                tic = tempo.time()
-
-                # Format dataset
-                print('Formatting input dataset:\n' + infile_name + '...')
-                formatting_dfs = {}
-                if parameters['multi_track']:
-                    arr_segments = multi_tracking(arr_segments)
-                if parameters['two_dim']:
-                    arr_segments = adjust_2D(arr_segments)
-                if parameters['interpolate']:
-                    arr_segments = interpolate_lazy(arr_segments, timelapse_interval, unique_cells)
-
-                # Create dataframe of formatted segments for later export to Excel file
-                df_segments = pd.DataFrame(arr_segments, columns=['Cell ID', 'Time', 'X', 'Y', 'Z'])
-
-                toc = tempo.time()
-                print('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-
-                tic = tempo.time()
-                print('Calculating migration parameters...')
-
-                # Perform calculations on each unique cell
-                all_calcs = []
-                for cell in unique_cells:
-                    cell_data = arr_segments[arr_segments[:, 0] == cell, :]
-                    cell_id = cell_data[0, 0]
-                    df_cell_calcs = calculations(cell, cell_data, tau_euclid, cell_id, parameters)
-                    p_bar_increase += 0.0001
-                    dpg.set_value('pbar', p_bar_increase)
-                    all_calcs.append(df_cell_calcs)
-                df_all_calcs = pd.concat(all_calcs)
-                mapping = {0: None}
-
-                toc = tempo.time()
-                print('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-                p_bar_increase += 0.20
-                dpg.set_value('pbar', p_bar_increase)
-
-                # Create categories dataframe
-                track_df = pd.DataFrame()
-                if parameters['infile_tracks']:
-                    track_df = pd.DataFrame(pd.read_csv(track_file))
-
-                # Create summary sheet of calculations
-                df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat = summary_sheet(arr_segments,
-                                                                                                         df_all_calcs,
-                                                                                                         unique_cells,
-                                                                                                         parameters['tau_msd'],
-                                                                                                         parameters,
-                                                                                                         track_df, savefile)
-
-                p_bar_increase += 0.20
-                dpg.set_value('pbar', p_bar_increase)
-
-                # Check if contacts parameter is true and if so call contacts functions
-                if contact_parameter is False:
-                    pass
-                else:
-                    tic = tempo.time()
-                    print('Detecting contacts...')
-                    df_cont = contacts(unique_cells, arr_segments, contact_length)
-                    if len(df_cont) == 0:
-                        pass
-                    else:
-                        df_contacts = pd.concat(df_cont, ignore_index=True)
-                        df_no_daughter_func = no_daughter_contacts(unique_cells, df_contacts)
-                        df_no_daughter = pd.concat(df_no_daughter_func, ignore_index=True)
-                        df_alive, df_contact_sum = contacts_alive(df_sum, df_no_daughter,
-                                                                  arrested, time_interval)
-                    df_no_dead_ = pd.concat(df_alive, ignore_index=True)
-                    with_contacts = []
-                    for df in df_contact_sum:
-                        if df['Median Contact Duration'].notna().any():
-                            with_contacts.append(df)
-                    df_contact_summary = pd.concat(with_contacts, ignore_index=True)
-                    df_contact_summary = df_contact_summary.replace(mapping)
-                    df_contact_summary = df_contact_summary.dropna()
-                    toc = tempo.time()
-                    print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-
-                # Replace zero with None
-                df_all_calcs = df_all_calcs.replace(mapping)
-                df_sum = df_sum.replace(mapping)
-
-                # If categories are present, restore zeroes for Cell Type
-                if track_df.shape[0] > 0:
-                    df_sum['Cell Type'] = df_sum['Cell Type'].replace(np.nan, 0)
-
-                # restore zeros for Arrest Coefficient
-                df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
-
-                p_bar_increase += 0.20
-                dpg.set_value('pbar', p_bar_increase)
-
-                # Create file path
-                savepath = savefile + '.xlsx'
-                print('Saving main output to ' + savepath + '...')
-                savecontacts = savefile + '_Contacts.xlsx'
-
-                # Save results to Excel file
-                try:
-                    with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
-                        df_settings.to_excel(workbook, sheet_name='Settings', index=False)
-                        df_segments.to_excel(workbook, sheet_name='Cell Data', index=False)
-                        df_all_calcs.to_excel(workbook, sheet_name='Calculations', index=False)
-                        df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
-                        df_single.to_excel(workbook, sheet_name='Single Timepoint Medians', index=False)
-                        df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
-                        df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summaries All', index=True)
-                        if parameters['infile_tracks']:
-                            df_msd_sum_cat.to_excel(workbook, sheet_name='MSD Per Category', index=True)
-                        else:
-                            pass
-                # if Excel export fails, save results to CSV
-                except:
-                    print('ExcelWriter has thrown an exception due to the output file being too large. Outputs will be in .CSV format.')
-                    df_settings.to_csv(f'{savefile}_Settings.csv', index=False)
-                    df_segments.to_csv(f'{savefile}_Cell_Data.csv', index=False)
-                    df_all_calcs.to_csv(f'{savefile}_Calculations.csv', index=False)
-                    df_sum.to_csv(f'{savefile}_Summary_Statistics.csv', index=False)
-                    df_single.to_csv(f'{savefile}_Single_Timepoint_Medians.csv', index=False)
-                    df_msd.to_csv(f'{savefile}_Mean_Squared_Displacements.csv', index=False)
-                    df_msd_sum_all.to_csv(f'{savefile}_MSD_Summaries_All', index=True)
-                    if parameters['infile_tracks']:
-                        df_msd_sum_cat.to_csv(f'{savefile}_MSD_Per_Category', index=True)
-                    else:
-                        pass
-
-                # If contacts were detected, save contacts to separate Excel file
-                finally:
-                    if contact_parameter is False:
-                        pass
-                    else:
-                        if len(df_cont) == 0:
-                            pass
-                        else:
-                            print('Saving contacts output to ' + savecontacts + '...')
-                            with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
-                                df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
-                                df_no_daughter.to_excel(workbook, sheet_name='Contacts no Mitosis', index=False)
-                                df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
-                                df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
-
-                p_bar_increase += 0.20
-                dpg.set_value('pbar', p_bar_increase)
-
-                print("Migrate3D done!")
-                bigtoc = tempo.time()
-
-                # Display total runtime
-                total_time_sec = (int(round((bigtoc - bigtic), 1)))
-                total_time_min = round((total_time_sec / 60), 1)
-                if total_time_sec < 180:
-                    print('Total time taken = {:.0f} seconds.'.format(total_time_sec))
-                else:
-                    print('Total time taken = {:.1f} minutes.'.format(total_time_min))
-
-                dpg.destroy_context()
-        except IndentationError:
-            with dpg.window(label='ERROR', width=400, height=600) as err_win:
-                dpg.add_input_text(default_value='Input error, please ensure all inputs are correct', width=400)
-                dpg.set_value('pbar', 0)
-
-    simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
-    main()
-
-
-def formatting_check(sender, app_data):
-    if dpg.get_value(sender) is True:
-        parameters[sender] = True
     else:
-        parameters[sender] = False
+        pass
 
 
-def run_contact(sender, app_data):
-    if dpg.get_value(sender) is True:
-        parameters['contact'] = True
+@app.callback(
+    Output(component_id='category_upload', component_property='children'),
+    Output(component_id='parent_id2', component_property='options'),
+    Output(component_id='category_col', component_property='options'),
+    Input(component_id='category_upload', component_property='contents'),
+    State(component_id='category_upload', component_property='filename'),
+    prevent_initial_call=True)
+def get_file(contents, filename):
+    if contents is None:
+        raise exceptions.PreventUpdate
+
+    elif contents is not None:
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        try:
+            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+
+        except Exception as e:
+            return html.Div([
+                'There was an error processing this file.'
+            ])
+
+        file_storing['Categories'] = df
+        return filename, list(df.columns), list(df.columns)
+
     else:
-        parameters['contact'] = False
+        pass
 
 
-def callback_file_segs(sender, app_data):
-    infile = str(app_data['file_path_name'])
-    parameters['infile_segments'] = infile
-
-
-def callback_file_cats(sender, app_data):
-    infile = str(app_data['file_path_name'])
-    parameters['infile_tracks'] = infile
-
-
-def input_return(sender, app_data):
-    parameters[sender] = app_data
-
-
-def float_return(sender, app_data):
-    parameters[sender] = app_data
-
-
-def start_migrate(sender, app_data):
-    migrate3D(parameters)
-
-
-with dpg.file_dialog(width=700, height=550, directory_selector=False, show=False, callback=callback_file_segs,
-                     file_count=3,
-                     tag="segs_dialog_tag"):
-    dpg.add_file_extension("", color=(255, 99, 71, 255))
-    dpg.add_file_extension(".csv", color=(0, 150, 255, 255))
-    dpg.add_file_extension(".*")
-    dpg.add_file_extension(".xlsx", color=(255, 219, 88, 255))
-    dpg.add_file_extension(".py", color=(147, 197, 114, 255))
-
-with dpg.file_dialog(width=700, height=550, directory_selector=False, show=False, callback=callback_file_cats,
-                     file_count=3,
-                     tag="cats_dialog_tag"):
-    dpg.add_file_extension("", color=(255, 99, 71, 255))
-    dpg.add_file_extension(".csv", color=(0, 150, 255, 255))
-    dpg.add_file_extension(".*")
-    dpg.add_file_extension(".xlsx", color=(255, 219, 88, 255))
-    dpg.add_file_extension(".py", color=(147, 197, 114, 255))
-
-with dpg.window(label="Migrate3D", width=900, height=660) as Window:
-    dpg.add_button(width=140, label="Open Segments File", callback=lambda: dpg.show_item("segs_dialog_tag"))
-    dpg.add_button(width=155, label="Open Categories File", callback=lambda: dpg.show_item("cats_dialog_tag"))
-
-    timelapse = dpg.add_input_float(width=100, label='Timelapse interval (in same units as Time data in input dataset)',
-                                    default_value=parameters['timelapse'], callback=input_return, tag='timelapse')
-    arrest_limit = dpg.add_input_float(width=100, label="Arrest limit (in same units as XYZ coordinates in input dataset)",
-                                              default_value=parameters['arrest_limit'], callback=float_return, tag='arrest_limit')
-    moving = dpg.add_input_int(width=100, label='Minimum timepoints moving (number of recorded timepoints required for a track to be included in analysis)',
-                               default_value=parameters['moving'], callback=input_return, tag='moving')
-    contact_length = dpg.add_input_float(width=100, label='Maximum contact length (maximum distance between cells that would be considered a contact)',
-                                         default_value=parameters['contact_length'], callback=float_return, tag='contact_length')
-    arrested = dpg.add_input_float(width=100, label='Arrested/Dead: Cells with an Arrest Coefficient above this value will be considered to be "dead" during Contact detection',
-                                   default_value=parameters['arrested'], callback=float_return, tag='arrested')
-    tau_msd = dpg.add_input_int(width=100, label='Maximum tau value (time lags) for mean square displacement (MSD) calculations',
-                                default_value=parameters['tau_msd'], callback=input_return, tag='tau_msd')
-    tau_euclid = dpg.add_input_int(width=100, label='Maximum tau value (time lags) for Euclidean Distance and Turning Angle calculations',
-                                 default_value=parameters['tau_euclid'], callback=input_return, tag='tau_euclid')
-    save_file = dpg.add_input_text(width=250, label='Output filename (.xlsx extension will be added, do not include!)',
-                                   default_value=('{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results'), callback=input_return, tag='savefile')
-    parent_id = dpg.add_input_text(width=150, label='Column header name in input Segments file for cell identifiers',
-                                   default_value='Parent ID', callback=input_return, tag='cell_id_col_name')
-    time_col = dpg.add_input_text(width=150, label='Column header name in input Segments file for Time data',
-                                  default_value='Time', callback=input_return, tag='time_col_name')
-    x_for = dpg.add_input_text(width=150, label='Column header name in input Segments file for X coordinates',
-                               default_value='X Coordinate', callback=input_return, tag='x_col_name')
-    y_for = dpg.add_input_text(width=150, label='Column header name in input Segments file for Y coordinates',
-                               default_value='Y Coordinate', callback=input_return, tag='y_col_name')
-    z_for = dpg.add_input_text(width=150, label='Column header name in input Segments file for Z coordinates',
-                               default_value='Z Coordinate', callback=input_return, tag='z_col_name')
-    parent_id2 = dpg.add_input_text(width=150, label='Column header name in input Categories file for cell identifiers',
-                                    default_value='Id', callback=input_return, tag='parent_id2')
-    category_col = dpg.add_input_text(width=150, label="Column header name in input Categories file for cell category",
-                                      default_value='Code', callback=input_return, tag='category_col')
-
-    interpolate_check = dpg.add_checkbox(label='Perform lazy interpolation for missing data points?',
-                                         callback=formatting_check, tag='interpolate')
-    multi_check = dpg.add_checkbox(label='Average out any multi-tracked time points?',
-                                   callback=formatting_check, tag='multi_track')
-    two_dim_check = dpg.add_checkbox(label='Adjust for 2D data? Check if input dataset is 2D, or to convert 3D data to 2D by '
-                                           'ignoring Z coordinates.', callback=formatting_check, tag='two_dim')
-    contact = dpg.add_checkbox(label='Detect cell-cell contacts? (Warning: can significantly increase processing time!)',
-                               callback=run_contact)
-    pca_filter = dpg.add_input_text(width=250, label='To limit PCA analysis to certain cell types, enter them here '
-                                    'separated by a comma.', callback=input_return, tag='pca_filter')
-
-    dpg.add_progress_bar(width=600, height=10, label='Progress Bar', tag='pbar')
-    dpg.add_button(width=100, label='Run', callback=start_migrate)
-    dpg.create_viewport(title='Migrate3D', width=900, height=700)
-
-dpg.setup_dearpygui()
-dpg.show_viewport()
-dpg.start_dearpygui()
-
-dpg.destroy_context()
+if __name__ == '__main__':
+    app.run(port=5555, debug=True)
