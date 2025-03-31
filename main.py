@@ -158,7 +158,10 @@ def run_migrate(*vals):
                                         parent_id2, category_col_name, parameters)
 
         fig_segments = graph_sorted_segments(df_segments, df_sum)
-        fig_pca = generate_PCA(df_pca)
+        if df_pca.empty:
+            fig_pca = None
+        else:
+            fig_pca = generate_PCA(df_pca)
 
         return dcc.Graph(figure=fig_segments), dcc.Graph(figure=fig_pca)
 
