@@ -62,7 +62,9 @@ def process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arreste
 
 def main(timepoints, arr_segments, contact_length, df_sum, arrested, time_interval):
     # Determine the number of CPU cores available for parallel processing
-    num_workers = mp.cpu_count()
+    max_processes = max(1, min(61, mp.cpu_count() - 1))
+    num_workers = max_processes
+    # num_workers = mp.cpu_count()
 
     # Get the unique timepoints from the provided timepoints
     unique_timepoints = np.unique(timepoints)
