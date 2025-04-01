@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 all_colors = ['Blue', 'Red', 'Black', 'Orange', 'Purple', 'Green', 'Pink', 'Brown', 'Gray', 'teal', 'Navy']
-def graph_sorted_segments(df, df_sum):
+def graph_sorted_segments(df, df_sum, cat_provided):
     """
     Takes in sorted segments from Object Data sheet in results, then graphs the 3D tracks
     :param df: pandas dataframe
@@ -19,7 +19,10 @@ def graph_sorted_segments(df, df_sum):
     traces_ = []
     for object_ in unique_ids:
         df_object = df.loc[df['Object ID'] == object_]
-        cat = int(df_sum.loc[df_sum['Object ID'] == object_, 'Category'])
+        if cat_provided:
+            cat = int(df_sum.loc[df_sum['Object ID'] == object_, 'Category'])
+        else:
+            cat = 0
         time_data = list(df_object.loc[:, 'Time'])
         time_data = [f'Time point {x} Category {cat}' for x in time_data]
         x_data = list(df_object.loc[:, 'X'])

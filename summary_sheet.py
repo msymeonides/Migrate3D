@@ -225,5 +225,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         df_pca = pca(df_sum, parameters, savefile)
     else:
         print('Object category input required for PCA not found. Skipping PCA.')
+        df_pca = None
 
     return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat, df_pca

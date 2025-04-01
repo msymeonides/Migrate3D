@@ -105,6 +105,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     arr_segments = np.array(input_data_list)
 
     df_settings = pd.DataFrame.from_dict(parameters, orient='index')
+    df_settings = df_settings.transpose()
+    df_settings.columns = list(parameters.keys())
+    print(df_settings)
+
 
     # Sort segments array by time and object ID
     arr_segments = arr_segments[arr_segments[:, 1].argsort()]

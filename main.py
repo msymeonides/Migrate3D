@@ -157,8 +157,8 @@ def run_migrate(*vals):
                                         savefile, segments_file_name, tracks_file,
                                         parent_id2, category_col_name, parameters)
 
-        fig_segments = graph_sorted_segments(df_segments, df_sum)
-        if df_pca.empty:
+        fig_segments = graph_sorted_segments(df_segments, df_sum, parameters['infile_tracks'])
+        if df_pca is None:
             fig_pca = None
         else:
             fig_pca = generate_PCA(df_pca)
