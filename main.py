@@ -115,14 +115,11 @@ app.layout = (
                          html.Hr(),
                          html.Button('Run Migrate3D', id='Run_migrate', n_clicks=0)
                      ]),
-            html.Div(id='PCA'),
-            html.Div(id='tracks')
+
         ]))
 
 
 @app.callback(
-    Output(component_id='tracks', component_property='children'),
-    Output(component_id='PCA', component_property='children'),
     Input(component_id='parent_id', component_property='value'),
     Input(component_id='time_formatting', component_property='value'),
     Input(component_id='x_axis', component_property='value'),
@@ -158,12 +155,15 @@ def run_migrate(*vals):
                                         parent_id2, category_col_name, parameters)
 
         fig_segments = graph_sorted_segments(df_segments, df_sum, parameters['infile_tracks'])
+        fig_segments.write_html(f'{savefile}_Segments_visualized.html')
         if df_pca is None:
             fig_pca = None
         else:
             fig_pca = generate_PCA(df_pca)
+            fig_pca.write_html(f'{savefile}_PCA_Visualization.html')
 
-        return dcc.Graph(figure=fig_segments), dcc.Graph(figure=fig_pca)
+
+
 
 
 
