@@ -116,10 +116,12 @@ app.layout = (
                          html.Button('Run Migrate3D', id='Run_migrate', n_clicks=0)
                      ]),
 
+        html.Div(id='dummy', style={'display': 'none'})
         ]))
 
 
 @app.callback(
+    Output(component_id='dummy', component_property='children'),
     Input(component_id='parent_id', component_property='value'),
     Input(component_id='time_formatting', component_property='value'),
     Input(component_id='x_axis', component_property='value'),
@@ -162,9 +164,8 @@ def run_migrate(*vals):
             fig_pca = generate_PCA(df_pca)
             fig_pca.write_html(f'{savefile}_PCA_Visualization.html')
 
-
-
-
+    # Dummy return to satisfy the output
+    return "Migrate3D run completed"
 
 
 # callback for segments file
