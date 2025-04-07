@@ -9,7 +9,9 @@ def generate_PCA(df):
     :return: 3D scatter plot of PCA
     """
 
-    all_colors = ['Blue', 'Red', 'Black', 'Orange', 'Purple', 'Green', 'Pink', 'Brown', 'Gray', 'teal', 'Navy']
+    all_colors = ['Black', 'Blue', 'Red', 'Purple', 'Orange', 'Green', 'Pink', 'Navy', 'Grey', 'Cyan',
+              'darkgray', 'aqua', 'crimson', 'darkviolet', 'orangered', 'darkolivegreen', 'darksalmon', 'Blue', 'Black',
+              'lightseagreen']
 
     # get all rows
     all_objects = list(df.loc[:, 'Object ID'])
@@ -24,6 +26,7 @@ def generate_PCA(df):
         traces_.append(go.Scatter3d(x=[pc1], y=[pc2], z=[pc3], name=i, marker_color=all_colors[cat],
                                     hovertext=f'Category {cat}'))
     fig = go.Figure(data=traces_)
+    fig.update_layout(title='PCA', plot_bgcolor='white')
 
     return fig
 

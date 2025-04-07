@@ -12,13 +12,14 @@ from run_migrate import migrate3D
 from openpyxl import load_workbook
 from graph_all_segments import graph_sorted_segments
 from generate_PCA import generate_PCA
+from summary_statistics_figures import generate_figures
 
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
               'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
               'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate',
               'y_col_name': 'Y Coordinate',
               'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Category', 'interpolate': False,
-              'multi_track': True, 'two_dim': False, 'contact': False, 'pca_filter': '4, 5, 8', 'infile_tracks': False}
+              'multi_track': True, 'two_dim': False, 'contact': False, 'pca_filter': None, 'infile_tracks': False}
 
 # initialize the app
 file_storing = {}
@@ -106,8 +107,10 @@ app.layout = (
                          html.Hr(),
                          html.H4(children=['Select formatting options if needed']),
                          dcc.Checklist(id='formatting_options',
-                                       options=['Multitrack', 'Two-dimensional', 'Interpolate', 'Verbose', 'Contacts']),
+                                       options=['Multitrack', 'Two-dimensional', 'Interpolate', 'Verbose', 'Contacts', 'Generate Figures']),
                          html.Hr(),
+                         html.H4(children='Enter subset of categories for PCA analysis (separated by space)'),
+                         dcc.Input(id='PCA_filter', placeholder='ex: 4 5 6',),
                          html.H4(children=['Save results as:']),
                          dcc.Input(id='save_file',
                                    placeholder='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
@@ -140,29 +143,48 @@ app.layout = (
     Input(component_id='category_upload', component_property='children'),
     Input(component_id='parent_id2', component_property='value'),
     Input(component_id='category_col', component_property='value'),
+    Input(component_id='PCA_filter', component_property='value'),
     Input(component_id='Run_migrate', component_property='n_clicks'),
     prevent_initial_call=True)
 def run_migrate(*vals):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving, contact_length, arrested, tau_msd,
-     tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2, category_col_name,
+     tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2, category_col_name, pca_filter,
      run_button) = vals
     if run_button == 0:
         raise exceptions.PreventUpdate
     else:
+        if pca_filter is None:
+            pass
+        else:
+            pca_filter = pca_filter.split(sep=' ')
+            print(type(pca_filter))
+
         df_segments, df_sum, df_pca = migrate3D(parent_id, time_for, x_for, y_for, z_for, int(timelapse), float(arrest_limit),
                                         int(moving),
                                         int(contact_length), float(arrested), int(tau_msd), int(tau_euclid),
                                         formatting_options,
                                         savefile, segments_file_name, tracks_file,
-                                        parent_id2, category_col_name, parameters)
-
-        fig_segments = graph_sorted_segments(df_segments, df_sum, parameters['infile_tracks'])
-        fig_segments.write_html(f'{savefile}_Segments_visualized.html')
-        if df_pca is None:
-            fig_pca = None
+                                        parent_id2, category_col_name, parameters, pca_filter)
+        if formatting_options is None:
+            pass
         else:
-            fig_pca = generate_PCA(df_pca)
-            fig_pca.write_html(f'{savefile}_PCA_Visualization.html')
+            if 'Generate Figures' in formatting_options:
+                fig_segments = graph_sorted_segments(df_segments, df_sum, parameters['infile_tracks'], savefile)
+                sum_fig = generate_figures(df_sum)
+                sum_fig.append(fig_segments)
+
+                if df_pca is None:
+                    fig_pca = None
+                    with open(f'{savefile}_figures.html', 'a') as f:
+                        for i in sum_fig:
+                            f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
+
+                else:
+                    fig_pca = generate_PCA(df_pca)
+                    sum_fig.append(fig_pca)
+                    with open(f'{savefile}_figures.html', 'a') as f:
+                        for i in sum_fig:
+                            f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
 
     # Dummy return to satisfy the output
     return "Migrate3D run completed"

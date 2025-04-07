@@ -1,19 +1,20 @@
 import pandas as pd
 import plotly.graph_objects as go
 
-all_colors = ['Blue', 'Red', 'Black', 'Orange', 'Purple', 'Green', 'Pink', 'Brown', 'Gray', 'teal', 'Navy']
-def graph_sorted_segments(df, df_sum, cat_provided):
+
+def graph_sorted_segments(df, df_sum, cat_provided, save_file):
     """
     Takes in sorted segments from Object Data sheet in results, then graphs the 3D tracks
     :param df: pandas dataframe
     :return: 3D scatter plot
     """
-
+    all_colors =['Black', 'Blue', 'Red', 'Purple', 'Orange', 'Green', 'Pink', 'Navy', 'Grey', 'Cyan',
+              'darkgray', 'aqua', 'crimson', 'darkviolet', 'orangered', 'darkolivegreen', 'darksalmon', 'Blue', 'Black',
+              'lightseagreen']
     # get all unique object ID
     all_ids = list(df.loc[:, 'Object ID'])
     unique_ids = []
     [unique_ids.append(x) for x in all_ids if x not in unique_ids]
-    print(unique_ids)
 
     # iterate through and add to scatter plot
     traces_ = []
@@ -32,4 +33,6 @@ def graph_sorted_segments(df, df_sum, cat_provided):
                                     marker=dict(size=12), marker_color=all_colors[cat]))
 
     fig = go.Figure(traces_)
+    fig.update_layout(title=f'{save_file} Tracks',
+                      plot_bgcolor='white')
     return fig

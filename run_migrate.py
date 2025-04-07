@@ -13,7 +13,7 @@ from summarize_contacts import summarize_contacts
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
               arrested,
               tau_msd, tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
-              category_col_name, parameters):
+              category_col_name, parameters, pca_filter):
     bigtic = tempo.time()
     print(parent_id, time_for, x_for, y_for, z_for)
     # update param dict
@@ -31,6 +31,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     parameters['arrested'] = arrested
     parameters['tau_msd'] = tau_msd
     parameters['tau_euclid'] = tau_euclid
+    parameters['pca_filter'] = pca_filter
 
     # formatting options for param update
     if formatting_options is None:
@@ -104,10 +105,14 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     # Create array of all objects, timepoints, and coordinates
     arr_segments = np.array(input_data_list)
 
-    df_settings = pd.DataFrame.from_dict(parameters, orient='index')
-    df_settings = df_settings.transpose()
-    df_settings.columns = list(parameters.keys())
-    print(df_settings)
+    settings = {'Segments file': [os.path.basename(infile_name).split('/')[-1]],
+                'Categories file': [os.path.basename(tracks_file).split('/')[-1]],
+                'Timelapse Interval': [timelapse_interval], 'Arrest Limit': [arrest_limit],
+                'Min. TP Moving': parameters['moving'], 'Max. Contact Length': [contact_length],
+                'Arrested': [arrested], 'Tau (MSD)': [parameters['tau_msd']], 'Tau (Euclid/Angle)': [tau_euclid],
+                'Interpolation': parameters['interpolate'], 'Multitracking': [parameters['multi_track']], 'Adjust to 2D': parameters['two_dim'],
+                'Contacts': parameters['contact']}
+    df_settings = pd.DataFrame(data=settings)
 
 
     # Sort segments array by time and object ID

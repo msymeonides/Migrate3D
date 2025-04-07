@@ -13,7 +13,6 @@ def pca(df, parameters, savefile):
     # Filter PCA if specific categories are given
     filter_ = parameters['pca_filter']
     if filter_ is not None:
-        filter_ = filter_.split(sep=',')
         filter_ = [int(x) for x in filter_]
         print(f'Filtering categories for PCA to {filter_}...')
         df = df[df[category_col].isin(filter_)]
