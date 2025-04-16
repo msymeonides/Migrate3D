@@ -4,142 +4,71 @@ import pandas as pd
 
 def align_time(time_base, time_comp):
     """
-    Aligns two time vectors to find matching timepoints.
-    Args:
-        time_base (numpy.ndarray): Time vector for the base object.
-        time_comp (numpy.ndarray): Time vector for the comparison object.
+    Computes the intersection of time points so that only exactly matching timepoints are compared.
     Returns:
-        tuple: Indices to advance in the base and comparison time vectors to align them.
+        common_times: numpy.ndarray of timepoints common to both vectors.
+        base_indices: indices in time_base corresponding to the common times.
+        comp_indices: indices in time_comp corresponding to the common times.
     """
-    base_index_advance = 0
-    comp_index_advance = 0
-    while base_index_advance < len(time_base) and comp_index_advance < len(time_comp):
-        time_base_check = time_base[base_index_advance]
-        time_comp_check = time_comp[comp_index_advance]
-        if time_base_check < time_comp_check:
-            base_index_advance += 1
-        elif time_comp_check < time_base_check:
-            comp_index_advance += 1
-        else:
-            break
-    return base_index_advance, comp_index_advance
-
+    common_times = np.intersect1d(time_base, time_comp)
+    base_indices = np.nonzero(np.in1d(time_base, common_times))[0]
+    comp_indices = np.nonzero(np.in1d(time_comp, common_times))[0]
+    return common_times, base_indices, comp_indices
 
 def contacts(unique_objects, arr_segments, contact_length):
     """
-    Detects contacts between objects based on their coordinates and a specified contact length.
-    Args:
-        unique_objects (numpy.ndarray): Array of unique object IDs.
-        arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
-        contact_length (float): The maximum distance between objects to be considered in contact.
-    Returns:
-        list: A list of DataFrames, each containing the contacts detected for a pair of objects.
+    Detects contacts between objects by comparing their coordinates at exactly matching timepoints.
     """
     df_of_contacts = []
-    base_done = []
+    processed = set()
 
-    for object_base in unique_objects:
+    for obj_base in unique_objects:
         try:
-            # Get and sort data for base object by time (column index 1)
-            object_data = arr_segments[arr_segments[:, 0] == object_base, :]
-            order = np.argsort(object_data[:, 1])
-            object_data = object_data[order]
-            x_base = object_data[:, 2]
-            y_base = object_data[:, 3]
-            z_base = object_data[:, 4]
-            time_base = object_data[:, 1]
-            base_done.append(object_base)
+            data_base = arr_segments[arr_segments[:, 0] == obj_base]
+            order = np.argsort(data_base[:, 1])
+            data_base = data_base[order]
+            x_base = data_base[:, 2]
+            y_base = data_base[:, 3]
+            z_base = data_base[:, 4]
+            time_base = data_base[:, 1]
+            processed.add(obj_base)
 
-            for object_comp in unique_objects:
-                if object_comp == object_base or object_comp in base_done:
+            for obj_comp in unique_objects:
+                if obj_comp == obj_base or obj_comp in processed:
                     continue
-                else:
-                    # Get and sort data for comparison object by time
-                    object_data_comp = arr_segments[arr_segments[:, 0] == object_comp, :]
-                    order_comp = np.argsort(object_data_comp[:, 1])
-                    object_data_comp = object_data_comp[order_comp]
-                    x_comp = object_data_comp[:, 2]
-                    y_comp = object_data_comp[:, 3]
-                    z_comp = object_data_comp[:, 4]
-                    time_comp = object_data_comp[:, 1]
+                data_comp = arr_segments[arr_segments[:, 0] == obj_comp]
+                order_comp = np.argsort(data_comp[:, 1])
+                data_comp = data_comp[order_comp]
+                x_comp = data_comp[:, 2]
+                y_comp = data_comp[:, 3]
+                z_comp = data_comp[:, 4]
+                time_comp = data_comp[:, 1]
 
-                    # Align time vectors
-                    base_index_advance, comp_index_advance = align_time(time_base, time_comp)
-                    shortest_len = min(len(time_base) - base_index_advance, len(time_comp) - comp_index_advance)
+                # Find common timepoints and corresponding indices
+                common_times, base_idx, comp_idx = align_time(time_base, time_comp)
+                object_base_list = []
+                object_comp_list = []
+                time_of_contact = []
 
-                    object_base_list = []
-                    object_comp_list = []
-                    time_of_contact = []
+                for i, t in enumerate(common_times):
+                    if (abs(x_base[base_idx[i]] - x_comp[comp_idx[i]]) <= contact_length and
+                        abs(y_base[base_idx[i]] - y_comp[comp_idx[i]]) <= contact_length and
+                        abs(z_base[base_idx[i]] - z_comp[comp_idx[i]]) <= contact_length):
+                        object_base_list.append(obj_base)
+                        object_comp_list.append(obj_comp)
+                        time_of_contact.append(t)
 
-                    for i in range(shortest_len):
-                        time_b = time_base[i + base_index_advance]
-                        x_diff = np.abs(x_base[i + base_index_advance] - x_comp[i + comp_index_advance])
-                        if x_diff <= contact_length:
-                            y_diff = np.abs(y_base[i + base_index_advance] - y_comp[i + comp_index_advance])
-                            if y_diff <= contact_length:
-                                z_diff = np.abs(z_base[i + base_index_advance] - z_comp[i + comp_index_advance])
-                                if z_diff <= contact_length:
-                                    object_base_list.append(object_base)
-                                    object_comp_list.append(object_comp)
-                                    time_of_contact.append(time_b)
-                    df_c = pd.DataFrame({'Object ID': object_base_list,
-                                         'Object Compare': object_comp_list,
-                                         'Time of Contact': time_of_contact})
-                    if not df_c.empty:
-                        df_of_contacts.append(df_c)
+                if object_base_list:
+                    df_c = pd.DataFrame({
+                        "Object ID": object_base_list,
+                        "Object Compare": object_comp_list,
+                        "Time of Contact": time_of_contact
+                    })
+                    df_of_contacts.append(df_c)
 
-        except IndexError:
-            pass
-
-    # Reversed loop to check for remaining contacts.
-    for object_base in reversed(unique_objects):
-        try:
-            object_data = arr_segments[arr_segments[:, 0] == object_base, :]
-            order = np.argsort(object_data[:, 1])
-            object_data = object_data[order]
-            x_base = object_data[:, 2]
-            y_base = object_data[:, 3]
-            z_base = object_data[:, 4]
-            time_base = object_data[:, 1]
-            base_done.append(object_base)
-            for object_comp in unique_objects:
-                if object_comp == object_base or object_comp in base_done:
-                    continue
-                else:
-                    object_data_comp = arr_segments[arr_segments[:, 0] == object_comp, :]
-                    order_comp = np.argsort(object_data_comp[:, 1])
-                    object_data_comp = object_data_comp[order_comp]
-                    x_comp = object_data_comp[:, 2]
-                    y_comp = object_data_comp[:, 3]
-                    z_comp = object_data_comp[:, 4]
-                    time_comp = object_data_comp[:, 1]
-
-                    base_index_advance, comp_index_advance = align_time(time_base, time_comp)
-                    shortest_len = min(len(time_base) - base_index_advance, len(time_comp) - comp_index_advance)
-
-                    object_base_list = []
-                    object_comp_list = []
-                    time_of_contact = []
-
-                    for i in range(shortest_len):
-                        time_b = time_base[i + base_index_advance]
-                        x_diff = np.abs(x_base[i + base_index_advance] - x_comp[i + comp_index_advance])
-                        if x_diff <= contact_length:
-                            y_diff = np.abs(y_base[i + base_index_advance] - y_comp[i + comp_index_advance])
-                            if y_diff <= contact_length:
-                                z_diff = np.abs(z_base[i + base_index_advance] - z_comp[i + comp_index_advance])
-                                if z_diff <= contact_length:
-                                    object_base_list.append(object_base)
-                                    object_comp_list.append(object_comp)
-                                    time_of_contact.append(time_b)
-                    df_c = pd.DataFrame({'Object ID': object_base_list,
-                                         'Object Compare': object_comp_list,
-                                         'Time of Contact': time_of_contact})
-                    if not df_c.empty:
-                        df_of_contacts.append(df_c)
-
-        except IndexError:
-            pass
+        except Exception:
+            # It is advisable to catch specific exceptions or log errors instead of a blanket exception.
+            continue
 
     return df_of_contacts
 
