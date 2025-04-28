@@ -5,6 +5,7 @@ import base64
 import io
 import os
 import numpy as np
+import threading
 from warnings import simplefilter
 from datetime import date
 from formatting import multi_tracking, adjust_2D, interpolate_lazy
@@ -24,6 +25,10 @@ parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length'
 # initialize the app
 file_storing = {}
 app = Dash(__name__)
+
+progress_status = ""
+
+stop_event = threading.Event()
 
 app.layout = (
     html.Div(
@@ -118,6 +123,17 @@ app.layout = (
                          html.Hr(),
                          html.Button('Run Migrate3D', id='Run_migrate', n_clicks=0)
                      ]),
+            html.Div(id='progress_display', children="Progress will appear here."),
+            dcc.Interval(id='progress-interval', interval=1000, n_intervals=0),  # interval = 1000 ms = 1 second
+
+            # For storing and diplaying progress messages
+            dcc.Store(id = 'progress-store', data=[]),
+            html.Div(id = 'progress-div'),
+
+            # Stop Button
+            html.Button('Stop Migrate3D', id = 'Stop_migrate', n_clicks = 0),
+            dcc.Store(id = 'stop-store', data = {'stop_requested': False}),
+
 
         html.Div(id='dummy', style={'display': 'none'})
         ]))
@@ -145,11 +161,12 @@ app.layout = (
     Input(component_id='category_col', component_property='value'),
     Input(component_id='PCA_filter', component_property='value'),
     Input(component_id='Run_migrate', component_property='n_clicks'),
+    Input(component_id='stop-store',component_property='data'),
     prevent_initial_call=True)
 def run_migrate(*vals):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving, contact_length, arrested, tau_msd,
      tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2, category_col_name, pca_filter,
-     run_button) = vals
+     run_button, stop_data) = vals
     if run_button == 0:
         raise exceptions.PreventUpdate
     else:
@@ -164,7 +181,8 @@ def run_migrate(*vals):
                                         int(contact_length), float(arrested), int(tau_msd), int(tau_euclid),
                                         formatting_options,
                                         savefile, segments_file_name, tracks_file,
-                                        parent_id2, category_col_name, parameters, pca_filter)
+                                        parent_id2, category_col_name, parameters, pca_filter,
+                                        progress_callback = update_progress, stop_event = stop_event )
         if formatting_options is None:
             pass
         else:
@@ -250,6 +268,31 @@ def get_file(contents, filename):
 
     else:
         pass
+
+@app.callback(
+    Output('progress_display', 'children'),
+    Input('progress-interval', 'n_intervals')
+)
+def update_progress_display(n):
+    return progress_status
+
+
+def update_progress(status_message):
+     global progress_status
+     progress_status = status_message
+
+
+# Stop button functionality
+@app.callback(
+    Output('stop-store', 'data'),
+    Input('Stop_migrate', 'n_clicks'),
+    prevent_initial_call=True
+)
+def update_stop(n_clicks):
+    if n_clicks > 0:
+        return {'stop_requested': True}
+    else:
+        raise exceptions.PreventUpdate
 
 
 if __name__ == '__main__':
