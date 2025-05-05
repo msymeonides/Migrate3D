@@ -32,7 +32,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     parameters['tau_euclid'] = tau_euclid
     parameters['pca_filter'] = pca_filter
 
-    # Formatting options for parameter update
+    # formatting options for param update
     if formatting_options is None:
         pass
     else:
