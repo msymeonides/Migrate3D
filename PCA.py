@@ -16,6 +16,7 @@ def pca(df, parameters, savefile):
         filter_ = [int(x) for x in filter_]
         print(f'Filtering categories for PCA and XGB to {filter_}...')
         df = df[df[category_col].isin(filter_)]
+    print('Starting PCA...')
     df = df.dropna()
     df_pca = df.drop(
         labels=['Object ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',

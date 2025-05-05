@@ -17,9 +17,9 @@ from summary_statistics_figures import generate_figures
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
               'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
               'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate',
-              'y_col_name': 'Y Coordinate',
-              'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID', 'category_col': 'Category', 'interpolate': False,
-              'multi_track': True, 'two_dim': False, 'contact': False, 'pca_filter': None, 'infile_tracks': False}
+              'y_col_name': 'Y Coordinate', 'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID',
+              'category_col': 'Category', 'interpolate': False, 'multi_track': True, 'two_dim': False,
+              'contact': False, 'attract': False, 'pca_filter': None, 'infile_tracks': False}
 
 # initialize the app
 file_storing = {}
@@ -73,7 +73,7 @@ app.layout = (
                                dcc.Dropdown(id='time_formatting', placeholder='Select time column'),
                                dcc.Dropdown(id='x_axis', placeholder='Select x-coordinate column'),
                                dcc.Dropdown(id='y_axis', placeholder='Select y-coordinate column'),
-                               dcc.Dropdown(id='z_axis', placeholder='Select z-coordinate column')]),
+                               dcc.Dropdown(id='z_axis', placeholder='Select z-coordinate column (leave empty for 2D data)')]),
 
             html.Div(id='Categories_dropdown',
                      children=[html.H4('Enter Column Identifiers for tracks (optional)'),
@@ -107,7 +107,7 @@ app.layout = (
                          html.Hr(),
                          html.H4(children=['Select formatting options if needed']),
                          dcc.Checklist(id='formatting_options',
-                                       options=['Multitrack', 'Two-dimensional', 'Interpolate', 'Verbose', 'Contacts', 'Generate Figures']),
+                                       options=['Multitrack', 'Two-dimensional', 'Interpolate', 'Verbose', 'Contacts', 'Attractors', 'Generate Figures']),
                          html.Hr(),
                          html.H4(children='Enter subset of categories for PCA and xgboost analysis (separated by space)'),
                          dcc.Input(id='PCA_filter', placeholder='ex: 4 5 6',),

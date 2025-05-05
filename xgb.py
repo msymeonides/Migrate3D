@@ -22,6 +22,7 @@ def select_categories(df, parameters):
     if filter_ is not None:
         filter_ = [int(x) for x in filter_]
         df = df[df[category_col].isin(filter_)]
+    print('Starting XGB...')
     df = df.dropna()
     df = df.drop(
         labels=['Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',

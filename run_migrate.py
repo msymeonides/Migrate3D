@@ -15,8 +15,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
               tau_msd, tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
               category_col_name, parameters, pca_filter):
     bigtic = tempo.time()
-    print(parent_id, time_for, x_for, y_for, z_for)
-    # update param dict
+    # Update parameter dictionary
     parameters['savefile'] = savefile
     parameters['x_col_name'] = x_for
     parameters['object_id_col_name'] = parent_id
@@ -33,7 +32,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     parameters['tau_euclid'] = tau_euclid
     parameters['pca_filter'] = pca_filter
 
-    # formatting options for param update
+    # Formatting options for parameter update
     if formatting_options is None:
         pass
     else:
@@ -47,8 +46,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters['verbose'] = True
         if 'Contacts' in formatting_options:
             parameters['contact'] = True
+        if 'Attractors' in formatting_options:
+            parameters['attractors'] = True
 
-    # check if tracks used at all and update accordingly
+    # Check if tracks used at all and update accordingly
     if 'Enter your category .csv file here by clicking or dropping:' in tracks_file:
         pass
     else:
@@ -72,23 +73,23 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     infile_segments = pd.read_csv(infile_name, sep=',')
     df_infile = pd.DataFrame(infile_segments)
 
-    # Check if the segments file column names match
-    # todo: Not needed now that columns are dropdowns directly from import file but here for y'all to decide
-    expected_columns = [parent_id, time_for, x_for, y_for, z_for]
-    for col in expected_columns:
-        if col not in df_infile.columns:
-            print(f"Error: Column '{col}' not found in Segments input file. Please fix the column names.")
-            return
-            # Check if the column names match in infile_tracks
-    if parameters['infile_tracks']:
-        df_tracks = pd.read_csv(tracks_file, sep=',')
-        object_id_2 = parameters['object_id_2_col']
-        category_col_name = parameters['category_col']
-        expected_track_columns = [object_id_2, category_col_name]
-        for col in expected_track_columns:
-            if col not in df_tracks.columns:
-                print(f"Error: Column '{col}' not found in Tracks input file. Please fix the column names.")
-                return
+    # # Check if the segments file column names match
+    # # todo: Not needed now that columns are dropdowns directly from import file but here for y'all to decide
+    # expected_columns = [parent_id, time_for, x_for, y_for, z_for]
+    # for col in expected_columns:
+    #     if col not in df_infile.columns:
+    #         print(f"Error: Column '{col}' not found in Segments input file. Please fix the column names.")
+    #         return
+    #         # Check if the column names match in infile_tracks
+    # if parameters['infile_tracks']:
+    #     df_tracks = pd.read_csv(tracks_file, sep=',')
+    #     object_id_2 = parameters['object_id_2_col']
+    #     category_col_name = parameters['category_col']
+    #     expected_track_columns = [object_id_2, category_col_name]
+    #     for col in expected_track_columns:
+    #         if col not in df_tracks.columns:
+    #             print(f"Error: Column '{col}' not found in Tracks input file. Please fix the column names.")
+    #             return
 
     if z_for is None:
         df_infile[z_for] = 0
@@ -179,11 +180,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                                                                                                      parameters,
                                                                                                      arr_tracks,
                                                                                                      savefile)
+
     tic = tempo.time()
 
-    print('wtf')
-
-    if parameters['infile_tracks']:
+    if parameters['attract']:
         print('Detecting attractors...')
         # Create a mapping from object IDs to cell types
         cell_types = dict(zip(track_df[parameters['object_id_2_col']], track_df[parameters['category_col']]))
