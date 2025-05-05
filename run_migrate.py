@@ -7,6 +7,7 @@ import time as tempo
 from summary_sheet import summary_sheet
 from attract import attract
 import parallel_contacts
+from scipy.stats import mode
 from summarize_contacts import summarize_contacts
 
 
@@ -71,6 +72,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     infile_name = parameters['infile_segments']
     infile_segments = pd.read_csv(infile_name, sep=',')
     df_infile = pd.DataFrame(infile_segments)
+
+
 
     # Check if the segments file column names match
     # todo: Not needed now that columns are dropdowns directly from import file but here for y'all to decide
