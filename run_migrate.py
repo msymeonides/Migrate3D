@@ -179,9 +179,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                                                                                                      parameters,
                                                                                                      arr_tracks,
                                                                                                      savefile)
-    tic = tempo.time()
 
-    print('wtf')
+    tic = tempo.time()
 
     if parameters['infile_tracks']:
         print('Detecting attractors...')
