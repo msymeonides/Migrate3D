@@ -6,7 +6,7 @@ import warnings
 from scipy.spatial import ConvexHull
 from overall_medians import overall_medians
 from PCA import pca
-# from xgb import xgboost
+from xgb import xgboost
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
     """
@@ -222,9 +222,10 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
 
     if parameters['infile_tracks']:
         print('Object category input required for PCA found! Running PCA...')
+        xgboost(df_sum, parameters, savefile)
         df_pca = pca(df_sum, parameters, savefile)
     else:
         print('Object category input required for PCA not found. Skipping PCA.')
         df_pca = None
 
-    return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat, df_pca
+    return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat
