@@ -109,7 +109,7 @@ app.layout = (
                          dcc.Checklist(id='formatting_options',
                                        options=['Multitrack', 'Two-dimensional', 'Interpolate', 'Verbose', 'Contacts', 'Generate Figures']),
                          html.Hr(),
-                         html.H4(children='Enter subset of categories for PCA analysis (separated by space)'),
+                         html.H4(children='Enter subset of categories for PCA and xgboost analysis (separated by space)'),
                          dcc.Input(id='PCA_filter', placeholder='ex: 4 5 6',),
                          html.H4(children=['Save results as:']),
                          dcc.Input(id='save_file',

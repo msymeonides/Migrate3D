@@ -14,7 +14,7 @@ def pca(df, parameters, savefile):
     filter_ = parameters['pca_filter']
     if filter_ is not None:
         filter_ = [int(x) for x in filter_]
-        print(f'Filtering categories for PCA to {filter_}...')
+        print(f'Filtering categories for PCA and XGB to {filter_}...')
         df = df[df[category_col].isin(filter_)]
     df = df.dropna()
     df_pca = df.drop(
@@ -108,4 +108,4 @@ def pca(df, parameters, savefile):
 
     writer.close()
     print('...PCA done.')
-    return df_PCscores
+

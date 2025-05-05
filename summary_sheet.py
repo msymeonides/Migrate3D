@@ -221,11 +221,10 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     print('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
     if parameters['infile_tracks']:
-        print('Object category input required for PCA found! Running PCA...')
+        print('Object category input required for PCA and xgboost found! Running PCA and xgboost...')
+        pca(df_sum, parameters, savefile)
         xgboost(df_sum, parameters, savefile)
-        df_pca = pca(df_sum, parameters, savefile)
     else:
-        print('Object category input required for PCA not found. Skipping PCA.')
-        df_pca = None
+        print('Object category input required for PCA and xgboost not found. Skipping PCA and xgboost.')
 
     return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat

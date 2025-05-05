@@ -20,11 +20,8 @@ def select_categories(df, parameters):
     # Filter if specific categories are given
     filter_ = parameters['pca_filter']
     if filter_ is not None:
-        filter_ = filter_.split(sep=',')
         filter_ = [int(x) for x in filter_]
-        print(f'Filtering categories for XGBoost to {filter_}...')
         df = df[df[category_col].isin(filter_)]
-    print(df.columns)
     df = df.dropna()
     df = df.drop(
         labels=['Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
@@ -32,7 +29,6 @@ def select_categories(df, parameters):
                 'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
                 'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
                 'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume'], axis=1)
-    print(df.columns)
     return df
 
 # def select_important_features(X, y, k=20):
@@ -196,7 +192,7 @@ def optimize_hyperparameters(X_train, y_train):
     random_search = RandomizedSearchCV(
         model, param_distributions=param_grid,
         #n_iter=25,  # Reduce the number of combinations
-        cv=3, scoring='accuracy', verbose=1, n_jobs=-1, random_state=42
+        cv=3, scoring='accuracy', verbose=0, n_jobs=-1, random_state=42
     )
 
     random_search.fit(X_train, y_train)
@@ -226,9 +222,7 @@ def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
         # for i, param_space in enumerate(param_spaces):
             #print(f"Starting GridSearch optimization round {i + 1}...")
 
-        print("Starting GridSearch optimization...")
         best_params = optimize_hyperparameters(X_train, y_train)
-        print(f"Best parameters: {best_params}")
 
             # GridSearchCV for the current param_space
             #best_params = optimize_hyperparameters(X_train, y_train, param_space)
@@ -236,17 +230,6 @@ def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
 
             # Evaluate model with the best parameters
         accuracy, model = train_and_evaluate(X_train, y_train, X_test, y_test, best_params)
-        print(f"Accuracy: {accuracy * 100:.2f}%")
-
-        #if i == len(param_spaces) - 1:
-        # Map aggregated features back to their original features
-        # Debugging step: print the type and content of col and feature_mapping
-        print(f"feature_mapping type: {type(feature_mapping)}")
-        print(f"Columns in X: {X.columns.tolist()}")
-
-        # Check if col exists in feature_mapping
-        #'Features': [",".join(map(str, feature_mapping[col])) if col in feature_mapping else "Not Found" for col in
-                    # X.columns],
 
         feature_importance = pd.DataFrame({
             'Features': [",".join(map(str, feature_mapping[col])) for col in X.columns],
@@ -261,7 +244,6 @@ def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
 
 
 def xgboost(df_sum, parameters, output_file):
-    print("Entered xgboost function.")
     param_spaces = [
         {'n_estimators': [100, 200, 300, 400, 500], 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3]},
         {'max_depth': [3, 5, 7, 9], 'gamma': [0.0, 0.05, 0.1, 0.2]},
@@ -276,5 +258,6 @@ def xgboost(df_sum, parameters, output_file):
     try:
         with pd.ExcelWriter(saveXGB, engine='xlsxwriter') as workbook:
             feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
+        print('...XGB done')
     except Exception as e:
         print('Not enough objects for XGBoost analysis.')

@@ -181,6 +181,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                                                                                                      savefile)
     tic = tempo.time()
 
+    print('wtf')
+
     if parameters['infile_tracks']:
         print('Detecting attractors...')
         # Create a mapping from object IDs to cell types
