@@ -28,8 +28,6 @@ app = Dash(__name__)
 
 progress_status = ""
 
-stop_event = threading.Event()
-
 app.layout = (
     html.Div(
         children=[
@@ -130,11 +128,6 @@ app.layout = (
             dcc.Store(id = 'progress-store', data=[]),
             html.Div(id = 'progress-div'),
 
-            # Stop Button
-            html.Button('Stop Migrate3D', id = 'Stop_migrate', n_clicks = 0),
-            dcc.Store(id = 'stop-store', data = {'stop_requested': False}),
-
-
         html.Div(id='dummy', style={'display': 'none'})
         ]))
 
@@ -181,7 +174,7 @@ def run_migrate(*vals):
                                         formatting_options,
                                         savefile, segments_file_name, tracks_file,
                                         parent_id2, category_col_name, parameters, pca_filter,
-                                        progress_callback = update_progress, stop_event = stop_event )
+                                        progress_callback = update_progress)
         if formatting_options is None:
             pass
         else:
@@ -279,20 +272,6 @@ def update_progress_display(n):
 def update_progress(status_message):
      global progress_status
      progress_status = status_message
-
-
-# Stop button functionality
-@app.callback(
-    Output('stop-store', 'data'),
-    Input('Stop_migrate', 'n_clicks'),
-    prevent_initial_call=True
-)
-def update_stop(n_clicks):
-    if n_clicks > 0:
-        return {'stop_requested': True}
-    else:
-        raise exceptions.PreventUpdate
-
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)

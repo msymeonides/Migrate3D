@@ -24,7 +24,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
                MSD summaries for all objects, and MSD summaries per category.
     """
     tic = tempo.time()
-    print('Running Summary Sheet...')
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     sum_ = {}
     single_euclid_dict = {}

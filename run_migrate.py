@@ -11,9 +11,8 @@ from summarize_contacts import summarize_contacts
 
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
-              arrested,
-              tau_msd, tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
-              category_col_name, parameters, pca_filter, progress_callback = None, stop_event = None):
+              arrested, tau_msd, tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
+              category_col_name, parameters, pca_filter, progress_callback = None):
     bigtic = tempo.time()
     # Update parameter dictionary
     parameters['savefile'] = savefile
@@ -124,12 +123,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     unique_objects = np.unique(arr_segments[:, 0])
     tic = tempo.time()
 
-    # Stop button check
-    if stop_event and stop_event.is_set():
-        if progress_callback:
-            progress_callback("Process stopped.")
-        return
-
     # Format dataset
     print('Formatting input dataset:\n' + infile_name + '...')
     if progress_callback:
@@ -149,12 +142,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     if progress_callback:
         progress_callback("Formatting input dataset done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
 
-    # Stop button check
-    if stop_event and stop_event.is_set():
-        if progress_callback:
-            progress_callback("Process stopped.")
-        return
-
     tic = tempo.time()
     print('Calculating migration parameters...')
     if progress_callback:
@@ -163,12 +150,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     all_calcs = []
 
     for object in unique_objects:
-        # Stop button check
-        if stop_event and stop_event.is_set():
-            if progress_callback:
-                progress_callback("Process stopped during migration calculations.")
-            return
-
         object_data = arr_segments[arr_segments[:, 0] == object, :]
         object_id = object_data[0, 0]
         df_calcs = calculations(object_data, tau_euclid, object_id, parameters)
@@ -180,11 +161,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     print('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
     if progress_callback:
         progress_callback("...Calculations done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
-
-    if stop_event and stop_event.is_set():
-        if progress_callback:
-            progress_callback("Process stopped after migration calculations.")
-        return
 
     # Create categories dataframe
     track_df = pd.DataFrame()
@@ -203,6 +179,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         arr_tracks = np.zeros_like(arr_segments)
 
     # Create summary sheet of calculations
+    print('Running Summary Sheet...')
+    if progress_callback:
+        progress_callback("Running summary sheet.")
     df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat, df_pca = summary_sheet(arr_segments,
                                                                                                      df_all_calcs,
                                                                                                      unique_objects,
@@ -215,11 +194,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     tic = tempo.time()
 
     if parameters['attractors']:
-        # Stop button check
-        if stop_event and stop_event.is_set():
-            if progress_callback:
-                progress_callback("Process stopped.")
-            return
         print('Detecting attractors...')
         if progress_callback:
             progress_callback("Detecting attractors...")
@@ -231,11 +205,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         if progress_callback:
             progress_callback("...Attractors done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
 
-        # Stop button check
-        if stop_event and stop_event.is_set():
-            if progress_callback:
-                progress_callback("Process stopped.")
-            return
     else:
         pass
 
@@ -243,11 +212,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     if parameters['contact'] is False:
         pass
     else:
-        # Stop button check
-        if stop_event and stop_event.is_set():
-            if progress_callback:
-                progress_callback("Process stopped.")
-            return
         tic = tempo.time()
         print('Detecting contacts...')
         if progress_callback:
@@ -275,12 +239,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         if progress_callback:
             progress_callback("...Contacts done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
 
-        # Stop button check
-        if stop_event and stop_event.is_set():
-            if progress_callback:
-                progress_callback("Process stopped.")
-            return
-
     # Replace zero with None
     df_all_calcs = df_all_calcs.replace(mapping)
     df_sum = df_sum.replace(mapping)
@@ -292,24 +250,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     # restore zeros for Arrest Coefficient
     df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 
-    # Stop button check
-    if stop_event and stop_event.is_set():
-        if progress_callback:
-            progress_callback("Process stopped.")
-        return
-
     # Create file path
     savepath = savefile + '.xlsx'
     print('Saving main output to ' + savepath + '...')
     if progress_callback:
         progress_callback("Saving results to Excel...")
     savecontacts = savefile + '_Contacts.xlsx'
-
-    # Stop button check
-    if stop_event and stop_event.is_set():
-        if progress_callback:
-            progress_callback("Process stopped.")
-        return
 
     # Save results to Excel file
     if parameters['verbose']:  # Save all data to Excel file

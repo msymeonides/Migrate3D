@@ -7,11 +7,11 @@ import multiprocessing as mp
 def worker(task):
     # Each worker processes a chunk of timepoints and returns the results.
     timepoint_chunk, arr_segments, contact_length, df_sum, arrested, time_interval, worker_id = task
-    print(f"Worker {worker_id} processing chunk with {len(timepoint_chunk)} timepoints")
+    # print(f"Worker {worker_id} processing chunk with {len(timepoint_chunk)} timepoints")
 
     # Process the chunk and get the results
     result = process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arrested, time_interval)
-    print(f"Worker {worker_id} finished processing chunk.")
+    # print(f"Worker {worker_id} finished processing chunk.")
 
     # Return the processed results (dataframes for contacts, no daughter contacts, and no dead cells)
     return result
@@ -69,6 +69,16 @@ def process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arreste
     return df_contacts, df_no_daughter, df_no_dead_
 
 
+# Custom split with overlap
+def split_with_overlap(timepoints, num_chunks, overlap):
+    chunks = np.array_split(timepoints, num_chunks)
+    for i in range(1, len(chunks)):
+        # Add overlap: take 'overlap' elements from the end of the previous chunk
+        overlap_elements = chunks[i-1][-overlap:]
+        chunks[i] = np.concatenate((overlap_elements, chunks[i]))
+    return chunks
+
+
 def main(timepoints, arr_segments, contact_length, df_sum, arrested, time_interval):
     # Determine the number of CPU cores available for parallel processing
     max_processes = max(1, min(61, mp.cpu_count() - 1))
@@ -82,7 +92,7 @@ def main(timepoints, arr_segments, contact_length, df_sum, arrested, time_interv
 
     # timepoint_chunks = np.array_split(unique_timepoints, num_workers)
     timepoint_chunks = split_with_overlap(unique_timepoints, num_workers, overlap = 3)
-    print(f"Split {len(unique_timepoints)} timepoints into {len(timepoint_chunks)} chunks.")
+    # print(f"Split {len(unique_timepoints)} timepoints into {len(timepoint_chunks)} chunks.")
 
     # Create a pool of workers, and distribute the work of processing each timepoint chunk
     with mp.Pool(processes=num_workers) as pool:
@@ -105,6 +115,4 @@ def main(timepoints, arr_segments, contact_length, df_sum, arrested, time_interv
 
 
 if __name__ == '__main__':
-    # Primarily used to stop the issues the entire program restarting in each worker
-    # Also ensures cross-platform compatibility maybe???????
     mp.set_start_method("spawn")
