@@ -13,7 +13,7 @@ from summarize_contacts import summarize_contacts
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
               arrested,
               tau_msd, tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
-              category_col_name, parameters, pca_filter):
+              category_col_name, parameters, pca_filter, progress_callback = None, stop_event = None):
     bigtic = tempo.time()
     # Update parameter dictionary
     parameters['savefile'] = savefile
@@ -124,8 +124,16 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     unique_objects = np.unique(arr_segments[:, 0])
     tic = tempo.time()
 
+    # Stop button check
+    if stop_event and stop_event.is_set():
+        if progress_callback:
+            progress_callback("Process stopped.")
+        return
+
     # Format dataset
     print('Formatting input dataset:\n' + infile_name + '...')
+    if progress_callback:
+        progress_callback("Formatting input dataset...")
 
     if parameters['multi_track']:
         arr_segments = multi_tracking(arr_segments)
@@ -138,13 +146,29 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', z_for])
     toc = tempo.time()
     print('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+    if progress_callback:
+        progress_callback("Formatting input dataset done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+
+    # Stop button check
+    if stop_event and stop_event.is_set():
+        if progress_callback:
+            progress_callback("Process stopped.")
+        return
 
     tic = tempo.time()
     print('Calculating migration parameters...')
+    if progress_callback:
+        progress_callback("Calculating migration parameters...")
     # Perform calculations on each unique object
     all_calcs = []
 
     for object in unique_objects:
+        # Stop button check
+        if stop_event and stop_event.is_set():
+            if progress_callback:
+                progress_callback("Process stopped during migration calculations.")
+            return
+
         object_data = arr_segments[arr_segments[:, 0] == object, :]
         object_id = object_data[0, 0]
         df_calcs = calculations(object_data, tau_euclid, object_id, parameters)
@@ -154,6 +178,13 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     mapping = {0: None}
     toc = tempo.time()
     print('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+    if progress_callback:
+        progress_callback("...Calculations done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+
+    if stop_event and stop_event.is_set():
+        if progress_callback:
+            progress_callback("Process stopped after migration calculations.")
+        return
 
     # Create categories dataframe
     track_df = pd.DataFrame()
@@ -183,13 +214,28 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     tic = tempo.time()
 
-    if parameters['attract']:
+    if parameters['attractors']:
+        # Stop button check
+        if stop_event and stop_event.is_set():
+            if progress_callback:
+                progress_callback("Process stopped.")
+            return
         print('Detecting attractors...')
+        if progress_callback:
+            progress_callback("Detecting attractors...")
         # Create a mapping from object IDs to cell types
         cell_types = dict(zip(track_df[parameters['object_id_2_col']], track_df[parameters['category_col']]))
         attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile)
         toc = tempo.time()
         print('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+        if progress_callback:
+            progress_callback("...Attractors done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+
+        # Stop button check
+        if stop_event and stop_event.is_set():
+            if progress_callback:
+                progress_callback("Process stopped.")
+            return
     else:
         pass
 
@@ -197,8 +243,15 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     if parameters['contact'] is False:
         pass
     else:
+        # Stop button check
+        if stop_event and stop_event.is_set():
+            if progress_callback:
+                progress_callback("Process stopped.")
+            return
         tic = tempo.time()
         print('Detecting contacts...')
+        if progress_callback:
+            progress_callback("Detecting contacts...")
         # Extract the timepoints from arr_segments (column index 1) and get unique values
         unique_timepoints = np.unique(arr_segments[:, 1])
         # Then pass unique_timepoints to parallel_contacts.main instead of unique_objects
@@ -219,6 +272,14 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
         toc = tempo.time()
         print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+        if progress_callback:
+            progress_callback("...Contacts done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+
+        # Stop button check
+        if stop_event and stop_event.is_set():
+            if progress_callback:
+                progress_callback("Process stopped.")
+            return
 
     # Replace zero with None
     df_all_calcs = df_all_calcs.replace(mapping)
@@ -231,10 +292,24 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     # restore zeros for Arrest Coefficient
     df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 
+    # Stop button check
+    if stop_event and stop_event.is_set():
+        if progress_callback:
+            progress_callback("Process stopped.")
+        return
+
     # Create file path
     savepath = savefile + '.xlsx'
     print('Saving main output to ' + savepath + '...')
+    if progress_callback:
+        progress_callback("Saving results to Excel...")
     savecontacts = savefile + '_Contacts.xlsx'
+
+    # Stop button check
+    if stop_event and stop_event.is_set():
+        if progress_callback:
+            progress_callback("Process stopped.")
+        return
 
     # Save results to Excel file
     if parameters['verbose']:  # Save all data to Excel file
@@ -274,7 +349,11 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
                 df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
 
+        if progress_callback:
+            progress_callback("... Results saved to Excel")
         print("Migrate3D done!")
+        if progress_callback:
+            progress_callback("Migrate3D Done!")
         bigtoc = tempo.time()
 
         # Display total runtime
@@ -284,5 +363,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             print('Total time taken = {:.0f} seconds.'.format(total_time_sec))
         else:
             print('Total time taken = {:.1f} minutes.'.format(total_time_min))
+
+        if progress_callback:
+            progress_callback("Total time taken = {:.1f} minutes.".format(total_time_min))
+
 
     return df_segments, df_sum, df_pca
