@@ -194,7 +194,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     tic = tempo.time()
 
-    if parameters['attract'] and parameters['infile_tracks']:
+    if parameters['attractors'] and parameters['infile_tracks']:
         print('Detecting attractors...')
         if progress_callback:
             progress_callback("Detecting attractors...")
