@@ -181,7 +181,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     # Create summary sheet of calculations
     print('Running Summary Sheet...')
     if progress_callback:
-        progress_callback("Running summary sheet.")
+        progress_callback("Running Summary Sheet...")
     df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat, df_pca = summary_sheet(arr_segments,
                                                                                                      df_all_calcs,
                                                                                                      unique_objects,
