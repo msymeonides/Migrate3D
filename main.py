@@ -201,65 +201,150 @@ def run_migrate(*vals):
 
 
 # callback for segments file
+# @app.callback(
+#     Output(component_id='segments_upload', component_property='children'),
+#     Output(component_id='parent_id', component_property='options'),
+#     Output(component_id='time_formatting', component_property='options'),
+#     Output(component_id='x_axis', component_property='options'),
+#     Output(component_id='y_axis', component_property='options'),
+#     Output(component_id='z_axis', component_property='options'),
+#     Input(component_id='segments_upload', component_property='contents'),
+#     State(component_id='segments_upload', component_property='filename'),
+#     prevent_initial_call=True)
+# def get_file(contents, filename):
+#     if contents is None:
+#         raise exceptions.PreventUpdate
+#
+#     elif contents is not None:
+#         content_type, content_string = contents.split(',')
+#         decoded = base64.b64decode(content_string)
+#         try:
+#             df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+#
+#         except Exception as e:
+#             return html.Div([
+#                 'There was an error processing this file.'
+#             ])
+#
+#         file_storing['Segments'] = df
+#         return filename, list(df.columns), list(df.columns), list(df.columns), list(df.columns), list(df.columns)
+#
+#     else:
+#         pass
+#
+#
+#
+# @app.callback(
+#     Output(component_id='category_upload', component_property='children'),
+#     Output(component_id='parent_id2', component_property='options'),
+#     Output(component_id='category_col', component_property='options'),
+#     Input(component_id='category_upload', component_property='contents'),
+#     State(component_id='category_upload', component_property='filename'),
+#     prevent_initial_call=True)
+# def get_file(contents, filename):
+#     if contents is None:
+#         raise exceptions.PreventUpdate
+#
+#     elif contents is not None:
+#         content_type, content_string = contents.split(',')
+#         decoded = base64.b64decode(content_string)
+#         try:
+#             df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+#
+#         except Exception as e:
+#             return html.Div([
+#                 'There was an error processing this file.'
+#             ])
+#
+#         file_storing['Categories'] = df
+#         return filename, list(df.columns), list(df.columns)
+#
+#     else:
+#         pass
+
+
 @app.callback(
-    Output(component_id='segments_upload', component_property='children'),
-    Output(component_id='parent_id', component_property='options'),
-    Output(component_id='time_formatting', component_property='options'),
-    Output(component_id='x_axis', component_property='options'),
-    Output(component_id='y_axis', component_property='options'),
-    Output(component_id='z_axis', component_property='options'),
-    Input(component_id='segments_upload', component_property='contents'),
-    State(component_id='segments_upload', component_property='filename'),
-    prevent_initial_call=True)
-def get_file(contents, filename):
+    Output('segments_upload', 'children'),
+    Output('parent_id', 'options'), Output('parent_id', 'value'),
+    Output('time_formatting', 'options'), Output('time_formatting', 'value'),
+    Output('x_axis', 'options'), Output('x_axis', 'value'),
+    Output('y_axis', 'options'), Output('y_axis', 'value'),
+    Output('z_axis', 'options'), Output('z_axis', 'value'),
+    Input('segments_upload', 'contents'),
+    State('segments_upload', 'filename'),
+    prevent_initial_call=True
+)
+def get_segments_file(contents, filename):
     if contents is None:
         raise exceptions.PreventUpdate
 
-    elif contents is not None:
-        content_type, content_string = contents.split(',')
-        decoded = base64.b64decode(content_string)
-        try:
-            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    try:
+        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+    except Exception as e:
+        return html.Div(['There was an error processing this file.']), [], None, [], None, [], None, [], None, [], None
 
-        except Exception as e:
-            return html.Div([
-                'There was an error processing this file.'
-            ])
+    file_storing['Segments'] = df
 
-        file_storing['Segments'] = df
-        return filename, list(df.columns), list(df.columns), list(df.columns), list(df.columns), list(df.columns)
+    # Auto-detection logic
+    def guess_column(df, keywords):
+        for col in df.columns:
+            if any(key.lower() in col.lower() for key in keywords):
+                return col
+        return None
 
-    else:
-        pass
+    id_guess = guess_column(df, ['id', 'track', 'parent'])
+    time_guess = guess_column(df, ['time', 'frame'])
+    x_guess = guess_column(df, ['x'])
+    y_guess = guess_column(df, ['y'])
+    z_guess = guess_column(df, ['z'])
+
+    options = list(df.columns)
+    return (
+        filename,
+        options, id_guess,
+        options, time_guess,
+        options, x_guess,
+        options, y_guess,
+        options, z_guess
+    )
 
 
 @app.callback(
-    Output(component_id='category_upload', component_property='children'),
-    Output(component_id='parent_id2', component_property='options'),
-    Output(component_id='category_col', component_property='options'),
-    Input(component_id='category_upload', component_property='contents'),
-    State(component_id='category_upload', component_property='filename'),
-    prevent_initial_call=True)
-def get_file(contents, filename):
+    Output('category_upload', 'children'),
+    Output('parent_id2', 'options'), Output('parent_id2', 'value'),
+    Output('category_col', 'options'), Output('category_col', 'value'),
+    Input('category_upload', 'contents'),
+    State('category_upload', 'filename'),
+    prevent_initial_call=True
+)
+def get_category_file(contents, filename):
     if contents is None:
         raise exceptions.PreventUpdate
 
-    elif contents is not None:
-        content_type, content_string = contents.split(',')
-        decoded = base64.b64decode(content_string)
-        try:
-            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    try:
+        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+    except Exception as e:
+        return html.Div(['There was an error processing this file.']), [], None, [], None
 
-        except Exception as e:
-            return html.Div([
-                'There was an error processing this file.'
-            ])
+    file_storing['Categories'] = df
 
-        file_storing['Categories'] = df
-        return filename, list(df.columns), list(df.columns)
+    # Auto-detection logic
+    def guess_column(df, keywords):
+        for col in df.columns:
+            if any(key.lower() in col.lower() for key in keywords):
+                return col
+        return None
 
-    else:
-        pass
+    id_guess = guess_column(df, ['id', 'track', 'object'])
+    category_guess = guess_column(df, ['category', 'label', 'type'])
+
+    options = list(df.columns)
+    return filename, options, id_guess, options, category_guess
+
 
 @app.callback(
     Output('progress_display', 'children'),
