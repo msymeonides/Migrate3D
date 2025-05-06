@@ -8,6 +8,7 @@ from summary_sheet import summary_sheet
 from attract import attract
 import parallel_contacts
 from summarize_contacts import summarize_contacts
+from scipy.stats import mode
 
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
@@ -183,7 +184,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     tic = tempo.time()
 
-    if parameters['attract']:
+    if parameters['attract'] and parameters['infile_tracks']:
         print('Detecting attractors...')
         # Create a mapping from object IDs to cell types
         cell_types = dict(zip(track_df[parameters['object_id_2_col']], track_df[parameters['category_col']]))
