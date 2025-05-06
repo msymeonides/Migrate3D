@@ -21,7 +21,7 @@ def graph_sorted_segments(df, df_sum, cat_provided, save_file):
     for object_ in unique_ids:
         df_object = df.loc[df['Object ID'] == object_]
         if cat_provided:
-            cat = int(df_sum.loc[df_sum['Object ID'] == object_, 'Category'])
+            cat = int(df_sum.loc[df_sum['Object ID'] == object_, 'Category'].iloc[0])
         else:
             cat = 0
         time_data = list(df_object.loc[:, 'Time'])

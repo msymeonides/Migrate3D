@@ -87,25 +87,25 @@ app.layout = (
             html.Hr(),
             html.Div(id='Parameters',
                      children=[
-                         html.H4(children=['Enter Timelapse interval']),
+                         html.H4(children=['Enter timelapse interval']),
                          dcc.Input(id='Timelapse', value=4),
                          html.Hr(),
-                         html.H4(children=['Enter arrest limit']),
+                         html.H4(children=['Enter maximum displacement to consider an object arrested']),
                          dcc.Input(id='arrest_limit', value=3.0),
                          html.Hr(),
-                         html.H4(children=['Enter moving']),
+                         html.H4(children=['Enter minimum timepoints an object has to be moving for to be considered moving']),
                          dcc.Input(id='moving', value=4),
                          html.Hr(),
-                         html.H4(children=['Enter Contact length']),
+                         html.H4(children=['Enter minimum distance between objects to consider a contact']),
                          dcc.Input(id='contact_length', value=12),
                          html.Hr(),
-                         html.H4(children=['Enter arrested']),
+                         html.H4(children=['Enter minimum arrest coefficient to consider an object arrested']),
                          dcc.Input(id='arrested', value=0.95),
                          html.Hr(),
-                         html.H4(children=['Enter tau MSD']),
+                         html.H4(children=['Enter tau value for MSD calculations']),
                          dcc.Input(id='tau_msd', value=50),
                          html.Hr(),
-                         html.H4(children=['Enter tau euclid']),
+                         html.H4(children=['Enter tau value for Euclidean distance calculations']),
                          dcc.Input(id='tau_euclid', value=25),
                          html.Hr(),
                          html.H4(children=['Select formatting options if needed']),
@@ -196,71 +196,10 @@ def run_migrate(*vals):
                         for i in sum_fig:
                             f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
 
-    # Dummy return to satisfy the output
-    return "Migrate3D run completed"
-
-
-# callback for segments file
-# @app.callback(
-#     Output(component_id='segments_upload', component_property='children'),
-#     Output(component_id='parent_id', component_property='options'),
-#     Output(component_id='time_formatting', component_property='options'),
-#     Output(component_id='x_axis', component_property='options'),
-#     Output(component_id='y_axis', component_property='options'),
-#     Output(component_id='z_axis', component_property='options'),
-#     Input(component_id='segments_upload', component_property='contents'),
-#     State(component_id='segments_upload', component_property='filename'),
-#     prevent_initial_call=True)
-# def get_file(contents, filename):
-#     if contents is None:
-#         raise exceptions.PreventUpdate
-#
-#     elif contents is not None:
-#         content_type, content_string = contents.split(',')
-#         decoded = base64.b64decode(content_string)
-#         try:
-#             df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-#
-#         except Exception as e:
-#             return html.Div([
-#                 'There was an error processing this file.'
-#             ])
-#
-#         file_storing['Segments'] = df
-#         return filename, list(df.columns), list(df.columns), list(df.columns), list(df.columns), list(df.columns)
-#
-#     else:
-#         pass
-#
-#
-#
-# @app.callback(
-#     Output(component_id='category_upload', component_property='children'),
-#     Output(component_id='parent_id2', component_property='options'),
-#     Output(component_id='category_col', component_property='options'),
-#     Input(component_id='category_upload', component_property='contents'),
-#     State(component_id='category_upload', component_property='filename'),
-#     prevent_initial_call=True)
-# def get_file(contents, filename):
-#     if contents is None:
-#         raise exceptions.PreventUpdate
-#
-#     elif contents is not None:
-#         content_type, content_string = contents.split(',')
-#         decoded = base64.b64decode(content_string)
-#         try:
-#             df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-#
-#         except Exception as e:
-#             return html.Div([
-#                 'There was an error processing this file.'
-#             ])
-#
-#         file_storing['Categories'] = df
-#         return filename, list(df.columns), list(df.columns)
-#
-#     else:
-#         pass
+    print("Migrate3D run completed!")
+    update_progress("Migrate3D run completed!")
+    threading.Timer(1, lambda: os._exit(0)).start()
+    return "Migrate3D run completed!"
 
 
 @app.callback(
@@ -294,7 +233,7 @@ def get_segments_file(contents, filename):
                 return col
         return None
 
-    id_guess = guess_column(df, ['id', 'track', 'parent'])
+    id_guess = guess_column(df, ['id', 'track', 'parent', 'cell', 'object'])
     time_guess = guess_column(df, ['time', 'frame'])
     x_guess = guess_column(df, ['x'])
     y_guess = guess_column(df, ['y'])
@@ -339,8 +278,8 @@ def get_category_file(contents, filename):
                 return col
         return None
 
-    id_guess = guess_column(df, ['id', 'track', 'object'])
-    category_guess = guess_column(df, ['category', 'label', 'type'])
+    id_guess = guess_column(df, ['id', 'track', 'parent', 'cell', 'object'])
+    category_guess = guess_column(df, ['category', 'label', 'type', 'code'])
 
     options = list(df.columns)
     return filename, options, id_guess, options, category_guess
