@@ -78,13 +78,13 @@ app.layout = (
                                dcc.Dropdown(id='time_formatting', placeholder='Select time column'),
                                dcc.Dropdown(id='x_axis', placeholder='Select x-coordinate column'),
                                dcc.Dropdown(id='y_axis', placeholder='Select y-coordinate column'),
-                               dcc.Dropdown(id='z_axis', placeholder='Select z-coordinate column (leave empty for 2D data)')]),
+                               dcc.Dropdown(id='z_axis', placeholder='Select z-coordinate column (leave blank for 2D data)')]),
 
             html.Div(id='Categories_dropdown',
                      children=[html.H4('Enter Column Identifiers for tracks (optional)'),
                                dcc.Dropdown(id='parent_id2', placeholder='Select ID column'),
                                dcc.Dropdown(id='category_col', placeholder='Column header name in input Categories file'
-                                                                           'for object category'),
+                                                                           ' for object category'),
                                ]),
             html.Hr(),
             html.Div(id='Parameters',
