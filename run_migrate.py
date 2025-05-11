@@ -131,7 +131,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         object_data = arr_segments[arr_segments[:, 0] == object, :]
         object_id = object_data[0, 0]
         df_calcs = calculations(object_data, tau_euclid, object_id, parameters)
-        # dpg.set_value('pbar', p_bar_increase)
         all_calcs.append(df_calcs)
     df_all_calcs = pd.concat(all_calcs)
     mapping = {0: None}
@@ -148,10 +147,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     if parameters['infile_tracks']:
         track_df = pd.DataFrame(pd.read_csv(tracks_file))
+        track_df = track_df[[parameters['object_id_2_col'], parameters['category_col']]]
         for row in track_df.index:
             object_id2 = track_df[object_id_2][row]
             category = track_df[category_col_name][row]
             track_input_list.append([object_id2, category])
+        track_df.columns = ['Object ID', 'Category']
         arr_tracks = np.array(track_input_list)
     else:
         arr_tracks = np.zeros_like(arr_segments)

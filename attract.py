@@ -117,6 +117,7 @@ def save_results(attractor_events, output_file, cell_types, df_all_calcs):
         cell_types (dict): Dictionary mapping object IDs to their cell types.
         df_all_calcs (dict): Dictionary containing precomputed velocities.
     """
+
     rows = []
     for attractor_id, attracted_id, events in attractor_events:
         attractor_type = cell_types.get(attractor_id)
