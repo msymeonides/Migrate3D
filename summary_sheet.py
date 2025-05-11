@@ -61,7 +61,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
 
         # Calculate convex hull volume
         convex_coords = np.array([x_val, y_val, z_val]).transpose()
-        if convex_coords.shape[0] < 4 or parameters['two_dim']:
+        if convex_coords.shape[0] < 4:
             convex_hull_volume = 0
         else:
             try:
@@ -214,7 +214,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         'Absolute Acceleration Filtered Mean', 'Absolute Acceleration Filtered Median',
         'Absolute Acceleration Filtered Standard Deviation', 'Arrest Coefficient',
         'Overall Angle Median', 'Overall Euclidean Median', 'Convex Hull Volume',
-        'Time Corrected Convex Hull Volume', parameters['category_col']
+        'Time Corrected Convex Hull Volume', 'Category'
     ]
     toc = tempo.time()
     print('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))

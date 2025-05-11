@@ -16,12 +16,11 @@ def signed_log_transformation(x):
     return np.sign(x) * np.log(np.abs(x) + 1)
 
 def select_categories(df, parameters):
-    category_col = parameters['category_col']
     # Filter if specific categories are given
     filter_ = parameters['pca_filter']
     if filter_ is not None:
         filter_ = [int(x) for x in filter_]
-        df = df[df[category_col].isin(filter_)]
+        df = df[df['Category'].isin(filter_)]
     print('Starting XGB...')
     df = df.dropna()
     df = df.drop(
@@ -82,9 +81,8 @@ def preprocess_features(df, parameters, k=20):
     """
     Preprocesses the feature data (log transformation and correlation grouping)
 """
-    category_col = parameters['category_col']
-    df_features = df.drop([category_col, 'Object ID'], axis=1)
-    y = df[category_col]
+    df_features = df.drop(['Object ID', 'Category'], axis=1)
+    y = df['Category']
 
     # Apply signed log transformation and drop any rows with NaN values
     log_data = signed_log_transformation(df_features)

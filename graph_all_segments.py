@@ -26,9 +26,9 @@ def graph_sorted_segments(df, df_sum, cat_provided, save_file):
             cat = 0
         time_data = list(df_object.loc[:, 'Time'])
         time_data = [f'Time point {x} Category {cat}' for x in time_data]
-        x_data = list(df_object.loc[:, 'X'])
-        y_data = list(df_object.loc[:, 'Y'])
-        z_data = list(df_object.loc[:, 'Z Coordinate'])
+        x_data = list(df_object.iloc[:, 2])
+        y_data = list(df_object.iloc[:, 3])
+        z_data = list(df_object.iloc[:, 4])
         traces_.append(go.Scatter3d(x=x_data, y=y_data, z=z_data, hovertext=time_data, name=object_, mode='lines',
                                     marker=dict(size=12), marker_color=all_colors[cat]))
 

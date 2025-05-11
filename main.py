@@ -4,23 +4,20 @@ import pandas as pd
 import base64
 import io
 import os
-import numpy as np
 import threading
-from warnings import simplefilter
 from datetime import date
-from formatting import multi_tracking, adjust_2D, interpolate_lazy
 from run_migrate import migrate3D
-from openpyxl import load_workbook
 from graph_all_segments import graph_sorted_segments
 from generate_PCA import generate_PCA
 from summary_statistics_figures import generate_figures
+
 
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
               'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
               'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate',
               'y_col_name': 'Y Coordinate', 'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID',
-              'category_col': 'Category', 'interpolate': False, 'multi_track': True, 'two_dim': False,
-              'contact': False, 'attractors': False, 'pca_filter': None, 'infile_tracks': False}
+              'category_col': 'Category', 'interpolate': False, 'multi_track': True, 'contact': False,
+              'attractors': False, 'pca_filter': None, 'infile_tracks': False}
 
 # initialize the app
 file_storing = {}
@@ -110,10 +107,10 @@ app.layout = (
                          html.Hr(),
                          html.H4(children=['Select formatting options if needed']),
                          dcc.Checklist(id='formatting_options',
-                                       options=['Multitrack', 'Two-dimensional', 'Interpolate', 'Verbose', 'Contacts', 'Attractors', 'Generate Figures']),
+                                       options=['Multitrack', 'Interpolate', 'Verbose', 'Contacts', 'Attractors', 'Generate Figures']),
                          html.Hr(),
                          html.H4(children='Enter subset of categories for PCA and xgboost analysis (separated by space)'),
-                         dcc.Input(id='PCA_filter', placeholder='ex: 4 5 6',),
+                         dcc.Input(id='PCA_filter', placeholder='e.g. 4 5 6',),
                          html.H4(children=['Save results as:']),
                          dcc.Input(id='save_file',
                                    placeholder='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
@@ -166,7 +163,6 @@ def run_migrate(*vals):
             pass
         else:
             pca_filter = pca_filter.split(sep=' ')
-            print(type(pca_filter))
 
         df_segments, df_sum, df_pca = migrate3D(parent_id, time_for, x_for, y_for, z_for, int(timelapse), float(arrest_limit),
                                         int(moving),
@@ -196,10 +192,10 @@ def run_migrate(*vals):
                         for i in sum_fig:
                             f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
 
-    print("Migrate3D run completed!")
-    update_progress("Migrate3D run completed!")
-    threading.Timer(1, lambda: os._exit(0)).start()
-    return "Migrate3D run completed!"
+    print("Migrate3D run completed! You may terminate the Python process.")
+    update_progress("Migrate3D run completed! You may terminate the Python process.")
+
+    return "Migrate3D run completed! You may terminate the Python process."
 
 
 @app.callback(

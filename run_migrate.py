@@ -1,14 +1,13 @@
 import pandas as pd
 import numpy as np
 import os
-from formatting import multi_tracking, adjust_2D, interpolate_lazy
+from formatting import multi_tracking, interpolate_lazy
 from calculations import calculations
 import time as tempo
 from summary_sheet import summary_sheet
 from attract import attract
 import parallel_contacts
 from summarize_contacts import summarize_contacts
-from scipy.stats import mode
 
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
@@ -38,8 +37,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     else:
         if 'Multitrack' in formatting_options:
             parameters['multi_track'] = True
-        if 'Two-dimensional' in formatting_options:
-            parameters['two_dim'] = True
         if 'Interpolate' in formatting_options:
             parameters['interpolate'] = True
         if 'Verbose' in formatting_options:
@@ -73,24 +70,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     infile_segments = pd.read_csv(infile_name, sep=',')
     df_infile = pd.DataFrame(infile_segments)
 
-    # # Check if the segments file column names match
-    # # todo: Not needed now that columns are dropdowns directly from import file but here for y'all to decide
-    # expected_columns = [parent_id, time_for, x_for, y_for, z_for]
-    # for col in expected_columns:
-    #     if col not in df_infile.columns:
-    #         print(f"Error: Column '{col}' not found in Segments input file. Please fix the column names.")
-    #         return
-    #         # Check if the column names match in infile_tracks
-    # if parameters['infile_tracks']:
-    #     df_tracks = pd.read_csv(tracks_file, sep=',')
-    #     object_id_2 = parameters['object_id_2_col']
-    #     category_col_name = parameters['category_col']
-    #     expected_track_columns = [object_id_2, category_col_name]
-    #     for col in expected_track_columns:
-    #         if col not in df_tracks.columns:
-    #             print(f"Error: Column '{col}' not found in Tracks input file. Please fix the column names.")
-    #             return
-
     if z_for is None:
         df_infile[z_for] = 0
 
@@ -111,7 +90,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 'Timelapse Interval': [timelapse_interval], 'Arrest Limit': [arrest_limit],
                 'Min. TP Moving': parameters['moving'], 'Max. Contact Length': [contact_length],
                 'Arrested': [arrested], 'Tau (MSD)': [parameters['tau_msd']], 'Tau (Euclid/Angle)': [tau_euclid],
-                'Interpolation': parameters['interpolate'], 'Multitracking': [parameters['multi_track']], 'Adjust to 2D': parameters['two_dim'],
+                'Interpolation': parameters['interpolate'], 'Multitracking': [parameters['multi_track']],
                 'Contacts': parameters['contact']}
     df_settings = pd.DataFrame(data=settings)
 
@@ -131,8 +110,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     if parameters['multi_track']:
         arr_segments = multi_tracking(arr_segments)
-    if parameters['two_dim']:
-        arr_segments = adjust_2D(arr_segments)
     if parameters['interpolate']:
         arr_segments = interpolate_lazy(arr_segments, timelapse_interval, unique_objects)
 
@@ -199,7 +176,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         if progress_callback:
             progress_callback("Detecting attractors...")
         # Create a mapping from object IDs to cell types
-        cell_types = dict(zip(track_df[parameters['object_id_2_col']], track_df[parameters['category_col']]))
+        cell_types = dict(zip(track_df['Object ID'], track_df['Category']))
         attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile)
         toc = tempo.time()
         print('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
@@ -246,7 +223,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     # If categories are present, restore zeroes for category
     if track_df.shape[0] > 0:
-        df_sum[category_col_name] = df_sum[category_col_name].replace(np.nan, 0)
+        df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
 
     # restore zeros for Arrest Coefficient
     df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
