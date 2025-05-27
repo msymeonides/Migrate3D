@@ -149,10 +149,12 @@ app.layout = dbc.Container(children=[dbc.Row([
                                     color='success'),
                        dcc.Interval(id='progress-interval', interval=1000, n_intervals=0),
                        # interval = 1000 ms = 1 second
-                       ])], className="body", fluid=True)
+                       html.Div(id='dummy', style={'display': 'none'})
+                       ],)], className="body", fluid=True)
 
 
 @app.callback(
+    Output(component_id='dummy', component_property='children'),
     Input(component_id='parent_id', component_property='value'),
     Input(component_id='time_formatting', component_property='value'),
     Input(component_id='x_axis', component_property='value'),
