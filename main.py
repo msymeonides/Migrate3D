@@ -10,7 +10,7 @@ from run_migrate import migrate3D
 from graph_all_segments import graph_sorted_segments
 from generate_PCA import generate_PCA
 from summary_statistics_figures import generate_figures
-
+import dash_bootstrap_components as dbc
 
 parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length': 12, 'arrested': 0.95, 'tau_msd': 50,
               'tau_euclid': 25, 'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
@@ -21,116 +21,138 @@ parameters = {'timelapse': 4, 'arrest_limit': 3.0, 'moving': 4, 'contact_length'
 
 # initialize the app
 file_storing = {}
-app = Dash(__name__)
+app = Dash(__name__, assets_folder='assets', assets_url_path='/assets/', external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-progress_status = ""
+increase = 0
 
-app.layout = (
-    html.Div(
-        children=[
-            html.H1(children='Migrate3D'),  # title
-            html.Hr(),
-            # start of file inputs here
-            html.Div(id='Segments',
-                     children=["Segments input files should be a .csv with cell ID, time, X, Y, and Z coordinates. "
-                               "Please ensure that column headers are in the first row of the .csv file input.",
-                               html.Div(className='segment_div',
-                                        id='segment_div',
-                                        children=[
-                                            dcc.Upload(id='segments_upload',
-                                                       children='Enter your segments .csv file here by clicking or '
-                                                                'dropping: ',
-                                                       style={'width': '100%',
-                                                              'height': '60px',
-                                                              'lineHeight': '60px',
-                                                              'borderWidth': '1px',
-                                                              'borderStyle': 'dashed',
-                                                              'borderRadius': '5px',
-                                                              'textAlign': 'center',
-                                                              'margin': '10px'})])]),  # end segment upload div
-            html.Hr(),
-            html.Div(id="Categories",
-                     children=['Categories input files should be a .csv with cell ID and cell category (No categories '
-                               'file is necessary to run the program). Please ensure that column headers are in the '
-                               'first row of the .csv file input.',
-                               html.Div(className='categories_div', id='categories_div',
-                                        children=[
-                                            dcc.Upload(id='category_upload',
-                                                       children='Enter your category .csv file here by clicking or '
-                                                                'dropping:',
-                                                       style={'width': '100%',
-                                                              'height': '60px',
-                                                              'lineHeight': '60px',
-                                                              'borderWidth': '1px',
-                                                              'borderStyle': 'dashed',
-                                                              'borderRadius': '5px',
-                                                              'textAlign': 'center',
-                                                              'margin': '10px'})])]),  # End Categories Div
+app.layout = dbc.Container(children=[dbc.Row([
+    dbc.Col(html.H1(children='Migrate3D'), width=10, className="d-flex align-items-end"),
+    dbc.Col(html.Img(src="assets/uvm_asset.jpeg",
+                     style={"position": "absolute",
+                            "top": "10px",
+                            "right": "10px",
+                            "width": "150px",
+                            "height": "auto",
+                            "zIndex": 1000,
+                            })),
+], style={"height": "100px"}),
+    html.Div(id='master_div',
+             children=[html.Hr(),
+                       # start of file inputs here
+                       html.Div(id='inputs',
+                                children=[
+                                    html.Div(className='segment_div',
+                                             id='segment_div',
+                                             children=[
+                                                 "Segments input files should be a .csv with cell ID, time, X, Y, and Z coordinates. "
+                                                 "Please ensure that column headers are in the first row of the .csv file input.",
+                                                 dcc.Upload(id='segments_upload',
+                                                            children='Enter your segments .csv file here by clicking or '
+                                                                     'dropping: ',
+                                                            style={'width': '100%',
+                                                                   'height': '60px',
+                                                                   'lineHeight': '60px',
+                                                                   'borderWidth': '1px',
+                                                                   'borderStyle': 'dashed',
+                                                                   'borderRadius': '5px',
+                                                                   'textAlign': 'center',
+                                                                   'margin': '10px'})],
+                                             style={'width': '45%', 'display': 'inline-block'}),
+                                    # end segment upload div
+                                    html.Div(className='categories_div', id='categories_div',
+                                             children=[
+                                                 'Categories input files should be a .csv with cell ID and cell category. Please ensure that column headers are in the '
+                                                 'first row of the .csv file input.',
+                                                 dcc.Upload(id='category_upload',
+                                                            children='Enter your category .csv file here by clicking or '
+                                                                     'dropping (optional):',
+                                                            style={'width': '100%',
+                                                                   'height': '60px',
+                                                                   'lineHeight': '60px',
+                                                                   'borderWidth': '1px',
+                                                                   'borderStyle': 'dashed',
+                                                                   'borderRadius': '5px',
+                                                                   'textAlign': 'center',
+                                                                   'margin': '10px'})],
+                                             style={'width': '45%', 'display': 'inline-block'})],
+                                style={'display': 'flex', 'justify-content': 'space-between'}),  # End Categories Div
+                       html.Hr(),
 
-            html.Div(id='column_populate_segments',
-                     children=[html.H4('Select Column Identifiers for segments file'),
-                               dcc.Dropdown(id='parent_id', placeholder='Select ID column'),
-                               dcc.Dropdown(id='time_formatting', placeholder='Select time column'),
-                               dcc.Dropdown(id='x_axis', placeholder='Select x-coordinate column'),
-                               dcc.Dropdown(id='y_axis', placeholder='Select y-coordinate column'),
-                               dcc.Dropdown(id='z_axis', placeholder='Select z-coordinate column (leave blank for 2D data)')]),
+                       html.Div(id='identifier_divs',
+                                children=[
+                                    html.Div(id='column_populate_segments',
+                                             children=[html.H4('Select Column Identifiers for segments file'),
+                                                       dcc.Dropdown(id='parent_id', placeholder='Select ID column'),
+                                                       dcc.Dropdown(id='time_formatting',
+                                                                    placeholder='Select time column'),
+                                                       dcc.Dropdown(id='x_axis',
+                                                                    placeholder='Select x-coordinate column'),
+                                                       dcc.Dropdown(id='y_axis',
+                                                                    placeholder='Select y-coordinate column'),
+                                                       dcc.Dropdown(id='z_axis',
+                                                                    placeholder='Select z-coordinate column (leave blank for 2D data)')],
+                                             style={'width':'45%', 'display': 'inline-block'}),
 
-            html.Div(id='Categories_dropdown',
-                     children=[html.H4('Enter Column Identifiers for tracks (optional)'),
-                               dcc.Dropdown(id='parent_id2', placeholder='Select ID column'),
-                               dcc.Dropdown(id='category_col', placeholder='Column header name in input Categories file'
-                                                                           ' for object category'),
-                               ]),
-            html.Hr(),
-            html.Div(id='Parameters',
-                     children=[
-                         html.H4(children=['Enter timelapse interval']),
-                         dcc.Input(id='Timelapse', value=4),
-                         html.Hr(),
-                         html.H4(children=['Enter maximum displacement to consider an object arrested']),
-                         dcc.Input(id='arrest_limit', value=3.0),
-                         html.Hr(),
-                         html.H4(children=['Enter minimum timepoints an object has to be moving for to be considered moving']),
-                         dcc.Input(id='moving', value=4),
-                         html.Hr(),
-                         html.H4(children=['Enter minimum distance between objects to consider a contact']),
-                         dcc.Input(id='contact_length', value=12),
-                         html.Hr(),
-                         html.H4(children=['Enter minimum arrest coefficient to consider an object arrested']),
-                         dcc.Input(id='arrested', value=0.95),
-                         html.Hr(),
-                         html.H4(children=['Enter tau value for MSD calculations']),
-                         dcc.Input(id='tau_msd', value=50),
-                         html.Hr(),
-                         html.H4(children=['Enter tau value for Euclidean distance calculations']),
-                         dcc.Input(id='tau_euclid', value=25),
-                         html.Hr(),
-                         html.H4(children=['Select formatting options if needed']),
-                         dcc.Checklist(id='formatting_options',
-                                       options=['Multitrack', 'Interpolate', 'Verbose', 'Contacts', 'Attractors', 'Generate Figures']),
-                         html.Hr(),
-                         html.H4(children='Enter subset of categories for PCA and xgboost analysis (separated by space)'),
-                         dcc.Input(id='PCA_filter', placeholder='e.g. 4 5 6',),
-                         html.H4(children=['Save results as:']),
-                         dcc.Input(id='save_file',
-                                   placeholder='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
-                                   value='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results'),
-                         html.Hr(),
-                         html.Button('Run Migrate3D', id='Run_migrate', n_clicks=0)
-                     ]),
-            html.Div(id='progress_display', children="Progress will appear here."),
-            dcc.Interval(id='progress-interval', interval=1000, n_intervals=0),  # interval = 1000 ms = 1 second
-
-            # For storing and displaying progress messages
-            dcc.Store(id = 'progress-store', data=[]),
-            html.Div(id = 'progress-div'),
-
-        html.Div(id='dummy', style={'display': 'none'})
-        ]))
+                                    html.Div(id='Categories_dropdown',
+                                             children=[html.H4('Enter Column Identifiers for tracks (optional)'),
+                                                       dcc.Dropdown(id='parent_id2', placeholder='Select ID column'),
+                                                       dcc.Dropdown(id='category_col',
+                                                                    placeholder='Column header name in input Categories file'
+                                                                                ' for object category'),
+                                                       ], style={'width': '45%', 'display': 'inline-block'})],
+                                                    style={'display': 'flex', 'justify-content': 'space-between'}),
+                       html.Hr(),
+                       html.Div(id='Parameters',
+                                children=[
+                                    html.H6(children=['Enter timelapse interval']),
+                                    dcc.Input(id='Timelapse', value=4),
+                                    html.Hr(),
+                                    html.H6(children=['Enter maximum displacement to consider an object arrested']),
+                                    dcc.Input(id='arrest_limit', value=3.0),
+                                    html.Hr(),
+                                    html.H6(children=[
+                                        'Enter minimum timepoints an object has to be moving for to be considered moving']),
+                                    dcc.Input(id='moving', value=4),
+                                    html.Hr(),
+                                    html.H6(children=['Enter minimum distance between objects to consider a contact']),
+                                    dcc.Input(id='contact_length', value=12),
+                                    html.Hr(),
+                                    html.H6(
+                                        children=['Enter minimum arrest coefficient to consider an object arrested']),
+                                    dcc.Input(id='arrested', value=0.95),
+                                    html.Hr(),
+                                    html.H6(children=['Enter tau value for MSD calculations']),
+                                    dcc.Input(id='tau_msd', value=50),
+                                    html.Hr(),
+                                    html.H6(children=['Enter tau value for Euclidean distance calculations']),
+                                    dcc.Input(id='tau_euclid', value=25),
+                                    html.Hr(),
+                                    html.H6(children=['Select formatting options if needed']),
+                                    dcc.Checklist(id='formatting_options',
+                                                  options=['Multitrack', 'Interpolate', 'Verbose', 'Contacts',
+                                                           'Attractors',
+                                                           'Generate Figures']),
+                                    html.Hr(),
+                                    html.H6(
+                                        children='Enter subset of categories for PCA and xgboost analysis (separated by space)'),
+                                    dcc.Input(id='PCA_filter', placeholder='e.g. 4 5 6', ),
+                                    html.Hr(),
+                                    html.H6(children=['Save results as:']),
+                                    dcc.Input(id='save_file',
+                                              placeholder='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
+                                              value='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results'),
+                                    html.Hr(),
+                                    html.Button('Run Migrate3D', id='Run_migrate', n_clicks=0)
+                                ]),
+                       html.Hr(),
+                       dbc.Progress(id="progress-bar", value=0, striped=True, animated=True, className="mb-3",
+                                    color='success'),
+                       dcc.Interval(id='progress-interval', interval=1000, n_intervals=0),
+                       # interval = 1000 ms = 1 second
+                       ])], className="body", fluid=True)
 
 
 @app.callback(
-    Output(component_id='dummy', component_property='children'),
     Input(component_id='parent_id', component_property='value'),
     Input(component_id='time_formatting', component_property='value'),
     Input(component_id='x_axis', component_property='value'),
@@ -154,7 +176,8 @@ app.layout = (
     prevent_initial_call=True)
 def run_migrate(*vals):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving, contact_length, arrested, tau_msd,
-     tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2, category_col_name, pca_filter,
+     tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2, category_col_name,
+     pca_filter,
      run_button) = vals
     if run_button == 0:
         raise exceptions.PreventUpdate
@@ -164,13 +187,14 @@ def run_migrate(*vals):
         else:
             pca_filter = pca_filter.split(sep=' ')
 
-        df_segments, df_sum, df_pca = migrate3D(parent_id, time_for, x_for, y_for, z_for, int(timelapse), float(arrest_limit),
-                                        int(moving),
-                                        int(contact_length), float(arrested), int(tau_msd), int(tau_euclid),
-                                        formatting_options,
-                                        savefile, segments_file_name, tracks_file,
-                                        parent_id2, category_col_name, parameters, pca_filter,
-                                        progress_callback = update_progress)
+        df_segments, df_sum, df_pca = migrate3D(parent_id, time_for, x_for, y_for, z_for, int(timelapse),
+                                                float(arrest_limit),
+                                                int(moving),
+                                                int(contact_length), float(arrested), int(tau_msd), int(tau_euclid),
+                                                formatting_options,
+                                                savefile, segments_file_name, tracks_file,
+                                                parent_id2, category_col_name, parameters, pca_filter,
+                                                progress_callback=update_progress)
         if formatting_options is None:
             pass
         else:
@@ -193,9 +217,12 @@ def run_migrate(*vals):
                             f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
 
     print("Migrate3D run completed! You may terminate the Python process.")
-    update_progress("Migrate3D run completed! You may terminate the Python process.")
+    update_progress(100)
+    alert = dbc.Alert([html.H4("Migrate3D run completed! You may terminate the Python process",
+                               className="alert-heading"),
 
-    return "Migrate3D run completed! You may terminate the Python process."
+                       ])
+    return None
 
 
 @app.callback(
@@ -282,16 +309,20 @@ def get_category_file(contents, filename):
 
 
 @app.callback(
-    Output('progress_display', 'children'),
-    Input('progress-interval', 'n_intervals')
+    Output('progress-bar', 'value'),
+    Input("progress-interval", 'n_intervals'),
 )
-def update_progress_display(n):
-    return progress_status
+def update_pbar(n):
+    return increase
 
 
-def update_progress(status_message):
-     global progress_status
-     progress_status = status_message
+def update_progress(state_):
+    global increase
+    increase += state_
+    if increase > 100:
+        increase = 100
+    print(increase)
+
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)

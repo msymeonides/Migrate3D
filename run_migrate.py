@@ -47,7 +47,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters['attractors'] = True
 
     # Check if tracks used at all and update accordingly
-    if 'Enter your category .csv file here by clicking or dropping:' in tracks_file:
+    if 'Enter your category .csv file here by clicking or dropping (optional):' in tracks_file:
         pass
     else:
         parameters['infile_tracks'] = True
@@ -106,7 +106,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     # Format dataset
     print('Formatting input dataset:\n' + infile_name + '...')
     if progress_callback:
-        progress_callback("Formatting input dataset...")
+        progress_callback(10)
 
     if parameters['multi_track']:
         arr_segments = multi_tracking(arr_segments)
@@ -118,12 +118,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     toc = tempo.time()
     print('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
     if progress_callback:
-        progress_callback("Formatting input dataset done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+        progress_callback(10)
 
     tic = tempo.time()
     print('Calculating migration parameters...')
     if progress_callback:
-        progress_callback("Calculating migration parameters...")
+        progress_callback(5)
     # Perform calculations on each unique object
     all_calcs = []
 
@@ -137,7 +137,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     toc = tempo.time()
     print('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
     if progress_callback:
-        progress_callback("...Calculations done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+        progress_callback(25)
 
     # Create categories dataframe
     track_df = pd.DataFrame()
@@ -160,7 +160,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     # Create summary sheet of calculations
     print('Running Summary Sheet...')
     if progress_callback:
-        progress_callback("Running Summary Sheet...")
+        progress_callback(5)
     df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat, df_pca = summary_sheet(arr_segments,
                                                                                                      df_all_calcs,
                                                                                                      unique_objects,
@@ -175,14 +175,14 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     if parameters['attractors'] and parameters['infile_tracks']:
         print('Detecting attractors...')
         if progress_callback:
-            progress_callback("Detecting attractors...")
+            progress_callback(25)
         # Create a mapping from object IDs to cell types
         cell_types = dict(zip(track_df['Object ID'], track_df['Category']))
         attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile)
         toc = tempo.time()
         print('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
         if progress_callback:
-            progress_callback("...Attractors done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+            progress_callback(0)
 
     else:
         pass
@@ -194,7 +194,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         tic = tempo.time()
         print('Detecting contacts...')
         if progress_callback:
-            progress_callback("Detecting contacts...")
+            progress_callback(0)
         # Extract the timepoints from arr_segments (column index 1) and get unique values
         unique_timepoints = np.unique(arr_segments[:, 1])
         # Then pass unique_timepoints to parallel_contacts.main instead of unique_objects
@@ -216,7 +216,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         toc = tempo.time()
         print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
         if progress_callback:
-            progress_callback("...Contacts done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+            progress_callback(5)
 
     # Replace zero with None
     df_all_calcs = df_all_calcs.replace(mapping)
@@ -233,7 +233,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     savepath = savefile + '.xlsx'
     print('Saving main output to ' + savepath + '...')
     if progress_callback:
-        progress_callback("Saving results to Excel...")
+        progress_callback(100)
     savecontacts = savefile + '_Contacts.xlsx'
 
     # Save results to Excel file
@@ -275,10 +275,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
 
         if progress_callback:
-            progress_callback("... Results saved to Excel")
+            progress_callback(10)
         print("Migrate3D done!")
         if progress_callback:
-            progress_callback("Migrate3D Done!")
+            progress_callback(100)
         bigtoc = tempo.time()
 
         # Display total runtime
@@ -290,7 +290,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             print('Total time taken = {:.1f} minutes.'.format(total_time_min))
 
         if progress_callback:
-            progress_callback("Total time taken = {:.1f} minutes.".format(total_time_min))
+            progress_callback(100)
 
 
     return df_segments, df_sum, df_pca
