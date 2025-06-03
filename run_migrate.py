@@ -8,6 +8,7 @@ from summary_sheet import summary_sheet
 from attract import attract
 import parallel_contacts
 from summarize_contacts import summarize_contacts
+pd.set_option('future.no_silent_downcasting', True)
 
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
