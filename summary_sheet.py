@@ -9,20 +9,6 @@ from PCA import pca
 from xgb import xgboost
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
-    """
-    Generates a summary sheet with various migration parameters and statistics for each object.
-    Args:
-        arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
-        df_all_calcs (pandas.DataFrame): DataFrame containing all calculated migration parameters.
-        unique_objects (numpy.ndarray): Array of unique object IDs.
-        tau_msd (int): The maximum time differential for mean squared displacement (MSD) calculation.
-        parameters (dict): Dictionary containing user-defined parameters for the analysis.
-        arr_tracks (numpy.ndarray): Array of tracks with columns [object_id, category].
-        savefile (str): Path to save the output files.
-    Returns:
-        tuple: DataFrames containing summary statistics, time interval, single timepoint medians, MSD values,
-               MSD summaries for all objects, and MSD summaries per category.
-    """
     tic = tempo.time()
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     sum_ = {}
@@ -38,7 +24,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         y_val = object_data[:, 3]
         z_val = object_data[:, 4]
         vals_msd = []
-        # Vectorized MSD computation for every t_diff
+
         for t_diff in range(1, tau_msd + 1):
             if x_val.size <= t_diff:
                 vals_msd.append(0)
@@ -51,7 +37,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             vals_msd.append(msd)
         msd_dict[obj] = vals_msd
 
-        # Retrieve category from tracks
         category = ''
         if arr_tracks.shape[0] > 0:
             obj_id_str = str(int(object_data[0, 0]))
@@ -59,7 +44,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             if matching_index.size > 0:
                 category = arr_tracks[matching_index[0], 1]
 
-        # Calculate convex hull volume
         convex_coords = np.array([x_val, y_val, z_val]).transpose()
         if convex_coords.shape[0] < 4:
             convex_hull_volume = 0
@@ -70,7 +54,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             except Exception:
                 convex_hull_volume = 0
 
-        # Calculate summary statistics from df_all_calcs
         max_path = df_all_calcs.loc[df_all_calcs['Object ID'] == obj, 'Path Length'].max()
         duration_list = list(df_all_calcs.loc[df_all_calcs['Object ID'] == obj, 'Time'])
         time_interval = abs(duration_list[1] - duration_list[0])
@@ -85,7 +68,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         tc_convex = convex_hull_volume / np.sqrt(duration_val)
         outreach_ratio = max_euclid / max_path if max_path != 0 else 0
 
-        # Vectorized filtering for velocity and acceleration columns
         velocity_all = np.array(df_all_calcs.loc[df_all_calcs['Object ID'] == obj, 'Instantaneous Velocity'])
         velocity = velocity_all[1:]
         valid_velocity = velocity[~np.isnan(velocity) & (velocity != 0)]
@@ -153,8 +135,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         )
 
     df_sum = pd.DataFrame.from_dict(sum_, orient='index')
-    df_msd = pd.DataFrame.from_dict(msd_dict, orient='index')
-    df_msd.columns = [f'MSD {i}' for i in range(1, tau_msd + 1)]
+
     objs = list(single_euclid_dict.keys())
     df_single_euclids = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
     df_single_euclids.columns = cols_euclidean
@@ -163,46 +144,28 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     df_single = pd.concat([df_single_euclids, df_single_angles], axis=1)
     df_single.insert(0, 'Object ID', objs)
 
-    msd_means_stdev_all = {}
-    msd_means_stdev_per_cat = {}
+    df_msd = pd.DataFrame.from_dict(msd_dict, orient='index')
+    df_msd.columns = list(range(1, tau_msd + 1))
+    df_msd.insert(0, 'Object ID', list(msd_dict.keys()))
 
-    df_msd_sum_cat = pd.DataFrame()
-    for msd_col in df_msd.columns:
-        column_vals = list(df_msd.loc[:, str(msd_col)])
-        if len(column_vals) < 2:
-            pass
-        else:
-            msd_means_stdev_all[msd_col] = [np.nanmean(column_vals), np.nanstd(column_vals)]
+    msd_vals = df_msd.set_index('Object ID')[range(1, tau_msd + 1)]
+    df_msd_sum_all = pd.DataFrame({
+        'Avg': msd_vals.mean(),
+        'StDev': msd_vals.std()
+    })
+    df_msd_sum_all.index.name = 'MSD'
 
     if parameters['infile_tracks']:
         category_tracks = arr_tracks[:,1]
-        df_msd["Category"] = category_tracks
-        all_cat = list(df_msd.loc[:, 'Category'])
-
-        # Get unique categories
-        unique_cat = []
-        for x in all_cat:
-            if x not in unique_cat:
-                unique_cat.append(x)
-            else:
-                pass
-
-        # Calculate MSD per category
-        for cat in unique_cat:
-            for msd in df_msd.columns[:-1]:
-                per_cat = list(df_msd.loc[df_msd['Category'] == cat, str(msd)])
-                msd_means_stdev_per_cat[f"Category {cat}, {str(msd)}"] = [np.nanmean(per_cat), np.nanstd(per_cat)]
-
-    df_msd.insert(0, 'Object ID', objs)
-    df_msd_sum_all = pd.DataFrame.from_dict(msd_means_stdev_all)
-    df_msd_sum_all.index = ["Average", 'Standard Deviation']
-    df_msd_sum_all = df_msd_sum_all.transpose()
-    if parameters['infile_tracks']:
-        df_msd_sum_cat = pd.DataFrame.from_dict(msd_means_stdev_per_cat)
-        df_msd_sum_cat.index = ['Average', 'Standard Deviation']
-        df_msd_sum_cat = df_msd_sum_cat.transpose()
+        msd_vals['Category'] = category_tracks
+        grouped = msd_vals.groupby('Category')
+        df_msd_avg_per_cat = grouped.mean().T
+        df_msd_std_per_cat = grouped.std().T
+        df_msd_avg_per_cat.index.name = 'MSD Avg'
+        df_msd_std_per_cat.index.name = 'MSD StDev'
     else:
-        df_msd_sum_cat = pd.DataFrame()
+        df_msd_avg_per_cat = pd.DataFrame()
+        df_msd_std_per_cat = pd.DataFrame()
 
     df_sum.columns = [
         'Object ID', 'Duration', 'Final Euclidean', 'Max Euclidean', 'Path Length',
@@ -220,11 +183,11 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     print('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
     if parameters['infile_tracks']:
-        print('Object category input required for PCA and xgboost found! Running PCA and xgboost...')
+        print('Object category input found! Running PCA and XGBoost...')
         df_pca = pca(df_sum, parameters, savefile)
         xgboost(df_sum, parameters, savefile)
     else:
-        print('Object category input required for PCA and xgboost not found. Skipping PCA and xgboost.')
+        print('Object category input not found. Skipping PCA and XGBoost.')
         df_pca = None
 
-    return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat, df_pca
+    return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca

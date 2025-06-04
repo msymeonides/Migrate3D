@@ -67,7 +67,6 @@ def contacts(unique_objects, arr_segments, contact_length):
                     df_of_contacts.append(df_c)
 
         except Exception:
-            # It is advisable to catch specific exceptions or log errors instead of a blanket exception.
             continue
 
     return df_of_contacts

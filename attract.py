@@ -12,15 +12,6 @@ allowed_attracted_types = [2, 4]  # Cell types allowed to be attracted
 
 
 def detect_attractors(arr_segments, unique_objects, cell_types):
-    """
-    Detects attractor events between objects based on their positions, velocities, and cell types.
-    Args:
-        arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
-        unique_objects (numpy.ndarray): Array of unique object IDs.
-        cell_types (dict): Dictionary mapping object IDs to their cell types.
-    Returns:
-        list: A list of tuples containing attractor events.
-    """
     all_positions = {obj: arr_segments[arr_segments[:, 0] == obj, 2:5] for obj in unique_objects}
     all_times = {obj: arr_segments[arr_segments[:, 0] == obj, 1] for obj in unique_objects}
 
@@ -109,15 +100,6 @@ def evaluate_and_clear(chain, attractor_events, attractor_id, other_id):
 
 
 def save_results(attractor_events, output_file, cell_types, df_all_calcs):
-    """
-    Saves the detected attractor events to a XLSX file.
-    Args:
-        attractor_events (list): List of tuples containing attractor events.
-        output_file (str): Path to the output XLSX file.
-        cell_types (dict): Dictionary mapping object IDs to their cell types.
-        df_all_calcs (dict): Dictionary containing precomputed velocities.
-    """
-
     rows = []
     for attractor_id, attracted_id, events in attractor_events:
         attractor_type = cell_types.get(attractor_id)
@@ -165,15 +147,6 @@ def save_results(attractor_events, output_file, cell_types, df_all_calcs):
 
 
 def attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile):
-    """
-    Main function to detect attractor events and save the results to a XLSX file.
-    Args:
-        unique_objects (numpy.ndarray): Array of unique object IDs.
-        arr_segments (numpy.ndarray): Array of segments with columns [object_id, timepoint, x, y, z].
-        cell_types (dict): Dictionary mapping object IDs to their cell types.
-        df_all_calcs (pd.DataFrame): DataFrame of all calculations.
-        savefile (str): Path to the output XLSX file.
-    """
     events = detect_attractors(arr_segments, unique_objects, cell_types)
-    save_attract = savefile + '_attract.xlsx'
+    save_attract = savefile + '_attractors.xlsx'
     save_results(events, save_attract, cell_types, df_all_calcs)

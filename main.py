@@ -44,11 +44,10 @@ app.layout = dbc.Container(children=[dbc.Row([
                                     html.Div(className='segment_div',
                                              id='segment_div',
                                              children=[
-                                                 "Segments input files should be a .csv with cell ID, time, X, Y, and Z coordinates. "
+                                                 "Segments input file should be a .csv with object ID, time, X, Y, and Z coordinates. "
                                                  "Please ensure that column headers are in the first row of the .csv file input.",
                                                  dcc.Upload(id='segments_upload',
-                                                            children='Enter your segments .csv file here by clicking or '
-                                                                     'dropping: ',
+                                                            children='Segments .csv file (drag and drop, or click to select a file):',
                                                             style={'width': '100%',
                                                                    'height': '60px',
                                                                    'lineHeight': '60px',
@@ -61,11 +60,10 @@ app.layout = dbc.Container(children=[dbc.Row([
                                     # end segment upload div
                                     html.Div(className='categories_div', id='categories_div',
                                              children=[
-                                                 'Categories input files should be a .csv with cell ID and cell category. Please ensure that column headers are in the '
-                                                 'first row of the .csv file input.',
+                                                 'Categories input files should be a .csv with object ID and object category. Please ensure that column headers are in the '
+                                                 'first row of the .csv file input. A category file is optional, but required for certain analyses.',
                                                  dcc.Upload(id='category_upload',
-                                                            children='Enter your category .csv file here by clicking or '
-                                                                     'dropping (optional):',
+                                                            children='Categories .csv file (drag and drop, or click to select a file):',
                                                             style={'width': '100%',
                                                                    'height': '60px',
                                                                    'lineHeight': '60px',
@@ -81,60 +79,61 @@ app.layout = dbc.Container(children=[dbc.Row([
                        html.Div(id='identifier_divs',
                                 children=[
                                     html.Div(id='column_populate_segments',
-                                             children=[html.H4('Select Column Identifiers for segments file'),
-                                                       dcc.Dropdown(id='parent_id', placeholder='Select ID column'),
+                                             children=[html.H4('Select Column Identifiers for segment file'),
+                                                       dcc.Dropdown(id='parent_id',
+                                                                    placeholder='Select object ID column'),
                                                        dcc.Dropdown(id='time_formatting',
                                                                     placeholder='Select time column'),
                                                        dcc.Dropdown(id='x_axis',
-                                                                    placeholder='Select x-coordinate column'),
+                                                                    placeholder='Select X coordinate column'),
                                                        dcc.Dropdown(id='y_axis',
-                                                                    placeholder='Select y-coordinate column'),
+                                                                    placeholder='Select Y coordinate column'),
                                                        dcc.Dropdown(id='z_axis',
-                                                                    placeholder='Select z-coordinate column (leave blank for 2D data)')],
+                                                                    placeholder='Select Z coordinate column (leave blank for 2D data)')],
                                              style={'width':'45%', 'display': 'inline-block'}),
 
                                     html.Div(id='Categories_dropdown',
-                                             children=[html.H4('Enter Column Identifiers for tracks (optional)'),
-                                                       dcc.Dropdown(id='parent_id2', placeholder='Select ID column'),
+                                             children=[html.H4('Enter Column Identifiers for category file (if used)'),
+                                                       dcc.Dropdown(id='parent_id2', placeholder='Select object ID column'),
                                                        dcc.Dropdown(id='category_col',
-                                                                    placeholder='Column header name in input Categories file'
-                                                                                ' for object category'),
-                                                       ], style={'width': '45%', 'display': 'inline-block'})],
+                                                                    placeholder='Select Category column'),],
+                                                       style={'width': '45%', 'display': 'inline-block'})],
                                                     style={'display': 'flex', 'justify-content': 'space-between'}),
                        html.Hr(),
                        html.Div(id='Parameters',
-                                children=[
-                                    html.H6(children=['Enter timelapse interval']),
+                                children=[html.H4('Tunable parameters'),
+                                    html.H6(children=['Timelapse interval']),
                                     dcc.Input(id='Timelapse', value=4),
                                     html.Hr(),
-                                    html.H6(children=['Enter maximum displacement to consider an object arrested']),
+                                    html.H6(children=['Arrest limit (displacements below this value will not count as movement)']),
                                     dcc.Input(id='arrest_limit', value=3.0),
                                     html.Hr(),
-                                    html.H6(children=[
-                                        'Enter minimum timepoints an object has to be moving for to be considered moving']),
+                                    html.H6(children=['Minimum timepoints (objects must be moving for at least this many timepoints to be fully analyzed)']),
                                     dcc.Input(id='moving', value=4),
                                     html.Hr(),
-                                    html.H6(children=['Enter minimum distance between objects to consider a contact']),
+                                    html.H6(children=['Contact length (if the distance between two objects is less than this, they will be considered to be in contact)']),
                                     dcc.Input(id='contact_length', value=12),
                                     html.Hr(),
-                                    html.H6(
-                                        children=['Enter minimum arrest coefficient to consider an object arrested']),
+                                    html.H6(children=['Maximum arrest coefficient (objects with arrest coefficient above this value will be considered arrested)']),
                                     dcc.Input(id='arrested', value=0.95),
                                     html.Hr(),
-                                    html.H6(children=['Enter tau value for MSD calculations']),
+                                    html.H6(children=['Maximum MSD Tau value (should be equal to the median number of timepoints in the dataset)']),
                                     dcc.Input(id='tau_msd', value=50),
                                     html.Hr(),
-                                    html.H6(children=['Enter tau value for Euclidean distance calculations']),
+                                    html.H6(children=['Maximum Euclidean distance Tau value (should be half of the Maximum MSD Tau Value)']),
                                     dcc.Input(id='tau_euclid', value=25),
                                     html.Hr(),
                                     html.H6(children=['Select formatting options if needed']),
                                     dcc.Checklist(id='formatting_options',
-                                                  options=['Multitrack', 'Interpolate', 'Verbose', 'Contacts',
-                                                           'Attractors',
-                                                           'Generate Figures']),
+                                                  options=[{'label': ' Multitracking (if an object ID is represented by multiple segments at a given timepoint, they will be spatially averaged into one segment)', 'value': 'Multitrack'},
+                                                           {'label': ' Interpolation (if an object ID is missing a timepoint, that timepoint will be inferred by simple linear interpolation and inserted)', 'value': 'Interpolate'},
+                                                           {'label': ' Verbose (includes the results of all calculations in the output file)', 'value': 'Verbose'},
+                                                           {'label': ' Contacts (identifies contacts between objects)', 'value': 'Contacts'},
+                                                           {'label': ' Attractors (identifies instances where an object is attracting other objects towards it)', 'value': 'Attractors'},
+                                                           {'label': ' Generate Figures (creates figures for summary statistics and PCA)', 'value': 'Generate Figures'}]),
                                     html.Hr(),
                                     html.H6(
-                                        children='Enter subset of categories for PCA and xgboost analysis (separated by space)'),
+                                        children='Enter subset of categories to be used during PCA and XGBoost analysis (separate category IDs with a space). Leave blank to use all categories.'),
                                     dcc.Input(id='PCA_filter', placeholder='e.g. 4 5 6', ),
                                     html.Hr(),
                                     html.H6(children=['Save results as:']),
@@ -188,7 +187,7 @@ def run_migrate(*vals):
             pass
         else:
             pca_filter = pca_filter.split(sep=' ')
-
+        update_progress(5)
         df_segments, df_sum, df_pca = migrate3D(parent_id, time_for, x_for, y_for, z_for, int(timelapse),
                                                 float(arrest_limit),
                                                 int(moving),
@@ -207,7 +206,7 @@ def run_migrate(*vals):
 
                 if df_pca is None:
                     fig_pca = None
-                    with open(f'{savefile}_figures.html', 'a') as f:
+                    with open(f'{savefile}_Figures.html', 'a') as f:
                         for i in sum_fig:
                             f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
 
@@ -323,7 +322,6 @@ def update_progress(state_):
     increase += state_
     if increase > 100:
         increase = 100
-    print(increase)
 
 
 if __name__ == '__main__':

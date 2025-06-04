@@ -2,18 +2,6 @@ import numpy as np
 import pandas as pd
 
 def calculations(object_data, num_euclid_spaces, object_id, parameters):
-    """
-    Calculates various migration parameters for a given object's data.
-    Uses vectorized operations for displacement and path length calculations as well as
-    local variables to minimize repeated indexing in loops.
-    Args:
-        object_data (numpy.ndarray): Array of object data with columns [object_id, timepoint, x, y, z].
-        num_euclid_spaces (int): Number of Euclid spaces for angle measurements.
-        object_id: Unique identifier for the object.
-        parameters (dict): Dictionary containing user-defined parameters for the analysis.
-    Returns:
-        pandas.DataFrame: DataFrame containing calculated migration parameters for the object.
-    """
     num_rows, _ = object_data.shape
 
     instantaneous_displacement = np.zeros(num_rows)
@@ -26,36 +14,24 @@ def calculations(object_data, num_euclid_spaces, object_id, parameters):
     timelapse = parameters['timelapse']
     arrest_limit = parameters['arrest_limit']
 
-    # Precompute coordinate arrays
     x = object_data[:, 2]
     y = object_data[:, 3]
     z = object_data[:, 4]
 
-    # Compute instantaneous displacement vectorized
     dx = np.diff(x)
     dy = np.diff(y)
     dz = np.diff(z)
     disp = np.sqrt(dx**2 + dy**2 + dz**2)
     instantaneous_displacement[1:] = disp
-
-    # Compute path length as cumulative sum of displacements
     path_length[1:] = np.cumsum(disp)
-
-    # Total displacement from starting position
     total_displacement = np.sqrt((x - x[0])**2 + (y - y[0])**2 + (z - z[0])**2)
-
-    # Calculate instantaneous velocity and acceleration
     instantaneous_velocity[1:] = instantaneous_displacement[1:] / timelapse
-    # For acceleration, use differences of velocity; first value is zero
     instantaneous_acceleration[1:] = np.concatenate(([0], np.diff(instantaneous_velocity[1:]) / timelapse))
-
-    # Compute filtered velocity and acceleration where displacement exceeds arrest_limit
     filtered_mask = instantaneous_displacement > arrest_limit
     instantaneous_velocity_filtered[filtered_mask] = instantaneous_velocity[filtered_mask]
     acc_diff = np.diff(instantaneous_velocity, prepend=instantaneous_velocity[0])
     instantaneous_acceleration_filtered[filtered_mask] = acc_diff[filtered_mask] / timelapse
 
-    # Calculate Euclidean distances over different time spaces
     euclid_array = np.zeros((num_euclid_spaces, num_rows))
     for num in range(1, num_euclid_spaces + 1):
         euclid_tp = np.zeros(num_rows)
@@ -67,7 +43,6 @@ def calculations(object_data, num_euclid_spaces, object_id, parameters):
                                        (curr_row[4] - prev_row[4])**2)
         euclid_array[num - 1] = euclid_tp
 
-    # Calculate angles and filtered angles
     mod = 3
     arrest_multiplier = 1
     space = list(range(1, num_euclid_spaces + 1, 2))
@@ -78,7 +53,6 @@ def calculations(object_data, num_euclid_spaces, object_id, parameters):
     for back_angle in range(num_tps):
         angle_tp = np.zeros(num_rows)
         filtered_angle_tp = np.zeros(num_rows)
-        # Start from index back_angle*2 to ensure valid indexing
         for index in range(back_angle * 2, num_rows):
             curr = object_data[index]
             back = object_data[index - back_angle] if back_angle > 0 else object_data[index]
@@ -103,7 +77,6 @@ def calculations(object_data, num_euclid_spaces, object_id, parameters):
         arrest_multiplier += 1
         mod += 2
 
-    # Build results DataFrame with calculated values
     object_calcs = {
         'Object ID': object_id,
         'Time': object_data[:, 1],

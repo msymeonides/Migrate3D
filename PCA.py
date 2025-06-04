@@ -7,7 +7,6 @@ from scipy import stats
 
 
 def apply_category_filter(df, filter):
-    print("Raw dataframe shape: " + str(df.shape))
     print("Unique Categories:", df['Category'].unique())
     if filter is None:
         return df
@@ -26,7 +25,7 @@ def apply_category_filter(df, filter):
     if filtered_df.empty:
         print("No data available for the selected categories.")
     else:
-        print(f"Filtered data contains {len(filtered_df)} rows.")
+        pass
     return filtered_df
 
 def pca(df, parameters, savefile):
@@ -44,7 +43,6 @@ def pca(df, parameters, savefile):
                 'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Category'], axis=1)
     df_pca.columns = df_pca.columns.str.strip()
     df_pca = df_pca.dropna()
-    print("Final PCA dataframe shape: " + str(df_pca.shape))
     x = np.array(df_pca)
     x = StandardScaler().fit_transform(x)
     pca_model = PCA(n_components=4)
