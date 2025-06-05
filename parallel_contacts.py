@@ -27,7 +27,12 @@ def process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arreste
     df_contacts = pd.concat(df_cont, ignore_index=True)
     df_contacts.drop_duplicates(subset=["Object ID", "Object Compare", "Time of Contact"], inplace=True)
     df_no_daughter_func = no_daughter_contacts(unique_objects_chunk, df_contacts)
-    df_no_daughter = pd.concat(df_no_daughter_func, ignore_index=True) if df_no_daughter_func else pd.DataFrame()
+    valid_frames = [
+        df.dropna(axis=1, how='all')
+        for df in df_no_daughter_func
+        if not df.dropna(axis=1, how='all').empty
+    ]
+    df_no_daughter = pd.concat(valid_frames, ignore_index=True) if valid_frames else pd.DataFrame()
     df_no_daughter.drop_duplicates(subset=["Object ID", "Object Compare", "Time of Contact"], inplace=True)
     df_alive = contacts_moving(df_sum, df_no_daughter, arrested)
     df_no_dead_ = pd.concat(df_alive, ignore_index=True) if df_alive else pd.DataFrame()

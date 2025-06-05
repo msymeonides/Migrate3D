@@ -148,5 +148,5 @@ def save_results(attractor_events, output_file, cell_types, df_all_calcs):
 
 def attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile):
     events = detect_attractors(arr_segments, unique_objects, cell_types)
-    save_attract = savefile + '_attractors.xlsx'
+    save_attract = savefile + '_Attractors.xlsx'
     save_results(events, save_attract, cell_types, df_all_calcs)
