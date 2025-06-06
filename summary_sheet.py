@@ -12,6 +12,11 @@ from shared_state import messages, thread_lock
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
+
+    with thread_lock:
+        messages.append('Running Summary Sheet...')
+
+    tic = tempo.time()
     sum_ = {}
     single_euclid_dict = {}
     single_angle_dict = {}
@@ -155,6 +160,12 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         'StDev': msd_vals.std()
     })
     df_msd_sum_all.index.name = 'MSD'
+
+    toc = tempo.time()
+
+    with thread_lock:
+        messages.append('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+        messages.append('')
 
     if parameters['infile_tracks']:
         category_tracks = arr_tracks[:,1]

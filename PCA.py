@@ -126,3 +126,4 @@ def pca(df, parameters, savefile):
     writer.close()
     with thread_lock:
         messages.append('...PCA done.')
+        messages.append('')

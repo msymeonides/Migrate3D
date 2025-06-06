@@ -264,6 +264,8 @@ def xgboost(df_sum, parameters, output_file):
             feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
         with thread_lock:
             messages.append('...XGB done')
+            messages.append('')
     except Exception as e:
         with thread_lock:
             messages.append('Not enough objects for XGBoost analysis.')
+            messages.append('')

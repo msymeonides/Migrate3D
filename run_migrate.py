@@ -20,6 +20,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     with thread_lock:
         messages.append('Starting Migrate3D...')
+        messages.append('')
 
     parameters['savefile'] = savefile
     parameters['x_col_name'] = x_for
@@ -106,9 +107,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     with thread_lock:
         messages.append('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+        messages.append('')
 
     set_progress(5)
-
     tic = tempo.time()
 
     with thread_lock:
@@ -127,6 +128,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     with thread_lock:
         messages.append('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+        messages.append('')
 
     set_progress(25)
 
@@ -147,16 +149,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     else:
         arr_tracks = np.zeros_like(arr_segments)
 
-    with thread_lock:
-        messages.append('Running Summary Sheet...')
-
-    tic = tempo.time()
     df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca = summary_sheet(arr_segments,
                   df_all_calcs, unique_objects, parameters['tau_msd'], parameters, arr_tracks, savefile)
-    toc = tempo.time()
-
-    with thread_lock:
-        messages.append('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
 
     set_progress(15)
 
@@ -172,6 +166,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
         with thread_lock:
             messages.append('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+            messages.append('')
 
         set_progress(10)
 
@@ -218,11 +213,24 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 
     savepath = savefile + '.xlsx'
+    savecontacts = savefile + '_Contacts.xlsx'
+
+    if parameters['contact'] is False:
+        pass
+    else:
+        with thread_lock:
+            messages.append('Saving contacts output to ' + savecontacts + '...')
+            messages.append('')
+
+        with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
+            df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
+            df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
+            df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
+            df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
 
     with thread_lock:
         messages.append('Saving main output to ' + savepath + '...')
-
-    savecontacts = savefile + '_Contacts.xlsx'
+        messages.append('')
 
     if parameters['verbose']:
         with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
@@ -252,29 +260,22 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             else:
                 pass
 
-        if parameters['contact'] is False:
-            pass
-        else:
-            with thread_lock:
-                messages.append('Saving contacts output to ' + savecontacts + '...')
-            with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
-                df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
-                df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
-                df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
-                df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
+    set_progress(100)
+    bigtoc = tempo.time()
 
-        set_progress(100)
-        bigtoc = tempo.time()
+    total_time_sec = (int(round((bigtoc - bigtic), 1)))
+    total_time_min = round((total_time_sec / 60), 1)
+    if total_time_sec < 180:
+        with thread_lock:
+            messages.append('------------------------------------------------')
+            messages.append('Migrate3D done! Total time taken = {:.0f} seconds.'.format(total_time_sec))
+            messages.append('------------------------------------------------')
+    else:
+        with thread_lock:
+            messages.append('------------------------------------------------')
+            messages.append('Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min))
+            messages.append('------------------------------------------------')
 
-        total_time_sec = (int(round((bigtoc - bigtic), 1)))
-        total_time_min = round((total_time_sec / 60), 1)
-        if total_time_sec < 180:
-            with thread_lock:
-                messages.append('Migrate3D done! Total time taken = {:.0f} seconds.'.format(total_time_sec))
-        else:
-            with thread_lock:
-                messages.append('Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min))
-
-        set_progress(100)
+    set_progress(100)
 
     return df_segments, df_sum, df_pca
