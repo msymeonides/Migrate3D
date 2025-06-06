@@ -173,8 +173,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         grouped = msd_vals.groupby('Category')
         df_msd_avg_per_cat = grouped.mean().T
         df_msd_std_per_cat = grouped.std().T
-        df_msd_avg_per_cat.index.name = 'MSD Avg'
-        df_msd_std_per_cat.index.name = 'MSD StDev'
+        df_msd_avg_per_cat.index.name = 'MSD'
     else:
         df_msd_avg_per_cat = pd.DataFrame()
         df_msd_std_per_cat = pd.DataFrame()

@@ -381,7 +381,9 @@ $$
 MSD(τ)=\ \lt(x(t + τ) - x(t))^2 \gt 
 $$
 
-MSD Summary Sheets are also provided with the average and standard deviation of the MSD at each τ value, either across the whole dataset or for each object category (if provided). These can be used to plot MSD log-log plots and evaluate whether a category of object is moving with a certain pattern. 
+In the output file, two MSD result sheets are provided: one ("Mean Squared Displacements") with the MSD at each τ value (columns) for each object (rows), and one (MSD Summary) with the average and standard deviation of the MSD (columns) at each τ value (rows) across the whole dataset.
+ 
+If a Categories file is provided, two additional result sheets are given: one ("MSD Avg Per Category") with the mean MSD at each τ value (rows) for each object category (columns), and one ("MSD StDev Per Category") with the standard deviation of MSD at each τ value (rows) for each object category (columns). These can be used to plot MSD log-log plots and evaluate whether a category of object is moving with a certain pattern. 
 
 ### Convex Hull Volume
 
