@@ -4,12 +4,13 @@ import statistics
 import time as tempo
 import warnings
 from scipy.spatial import ConvexHull
+
 from overall_medians import overall_medians
 from PCA import pca
 from xgb import xgboost
+from shared_state import messages, thread_lock
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
-    tic = tempo.time()
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     sum_ = {}
     single_euclid_dict = {}
@@ -179,15 +180,16 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         'Overall Angle Median', 'Overall Euclidean Median', 'Convex Hull Volume',
         'Time Corrected Convex Hull Volume', 'Category'
     ]
-    toc = tempo.time()
-    print('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+
 
     if parameters['infile_tracks']:
-        print('Object category input found! Running PCA and XGBoost...')
+        with thread_lock:
+            messages.append('Object category input found! Running PCA and XGBoost...')
         df_pca = pca(df_sum, parameters, savefile)
         xgboost(df_sum, parameters, savefile)
     else:
-        print('Object category input not found. Skipping PCA and XGBoost.')
+        with thread_lock:
+            messages.append('Object category input not found. Skipping PCA and XGBoost.')
         df_pca = None
 
     return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca

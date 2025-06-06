@@ -1,20 +1,25 @@
 import pandas as pd
 import numpy as np
-import os
+import time as tempo
+from pathlib import Path
+
 from formatting import multi_tracking, interpolate_lazy
 from calculations import calculations
-import time as tempo
 from summary_sheet import summary_sheet
 from attract import attract
 import parallel_contacts
 from summarize_contacts import summarize_contacts
+from shared_state import messages, thread_lock, set_progress
 pd.set_option('future.no_silent_downcasting', True)
 
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
               arrested, tau_msd, tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
-              category_col_name, parameters, pca_filter, progress_callback = None):
+              category_col_name, parameters, pca_filter):
     bigtic = tempo.time()
+
+    with thread_lock:
+        messages.append('Starting Migrate3D...')
 
     parameters['savefile'] = savefile
     parameters['x_col_name'] = x_for
@@ -53,13 +58,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         parameters['object_id_2_col'] = parent_id2
         parameters['category_col'] = category_col_name
 
-    content_folder = os.path.join(os.getcwd())
-    segments_file_name = segments_file_name
-    infile_path = os.path.join(content_folder, segments_file_name)
-    parameters['infile_segments'] = infile_path
+    seg_path = Path(segments_file_name).expanduser().resolve()
+    parameters['infile_segments'] = str(seg_path)
 
-    infile_name = parameters['infile_segments']
-    infile_segments = pd.read_csv(infile_name, sep=',')
+    infile_segments = pd.read_csv(parameters['infile_segments'], sep=',')
     df_infile = pd.DataFrame(infile_segments)
 
     if z_for is None:
@@ -76,8 +78,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     arr_segments = np.array(input_data_list)
 
-    settings = {'Segments file': [os.path.basename(infile_name).split('/')[-1]],
-                'Categories file': [os.path.basename(tracks_file).split('/')[-1]],
+    settings = {'Segments file': [seg_path.name],
+                'Categories file': [Path(tracks_file).name],
                 'Timelapse Interval': [timelapse_interval], 'Arrest Limit': [arrest_limit],
                 'Min. TP Moving': parameters['moving'], 'Max. Contact Length': [contact_length],
                 'Arrested': [arrested], 'Tau (MSD)': [parameters['tau_msd']], 'Tau (Euclid/Angle)': [tau_euclid],
@@ -91,7 +93,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     unique_objects = np.unique(arr_segments[:, 0])
     tic = tempo.time()
 
-    print('Formatting input dataset:\n' + infile_name + '...')
+    with thread_lock:
+        messages.append(f"Formatting input dataset:\n{seg_path}...")
 
     if parameters['multi_track']:
         arr_segments = multi_tracking(arr_segments)
@@ -100,12 +103,16 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', z_for])
     toc = tempo.time()
-    print('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-    if progress_callback:
-        progress_callback(5)
+
+    with thread_lock:
+        messages.append('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+
+    set_progress(5)
 
     tic = tempo.time()
-    print('Calculating migration parameters...')
+
+    with thread_lock:
+        messages.append('Calculating migration parameters...')
 
     all_calcs = []
 
@@ -117,9 +124,11 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_all_calcs = pd.concat(all_calcs)
     mapping = {0: None}
     toc = tempo.time()
-    print('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-    if progress_callback:
-        progress_callback(25)
+
+    with thread_lock:
+        messages.append('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+
+    set_progress(25)
 
     track_df = pd.DataFrame()
     track_input_list = []
@@ -138,25 +147,33 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     else:
         arr_tracks = np.zeros_like(arr_segments)
 
-    print('Running Summary Sheet...')
+    with thread_lock:
+        messages.append('Running Summary Sheet...')
 
+    tic = tempo.time()
     df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca = summary_sheet(arr_segments,
                   df_all_calcs, unique_objects, parameters['tau_msd'], parameters, arr_tracks, savefile)
+    toc = tempo.time()
 
-    print('Summary Sheet done!')
-    if progress_callback:
-        progress_callback(15)
+    with thread_lock:
+        messages.append('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+
+    set_progress(15)
 
     tic = tempo.time()
 
     if parameters['attractors'] and parameters['infile_tracks']:
-        print('Detecting attractors...')
+        with thread_lock:
+            messages.append('Detecting attractors...')
+
         cell_types = dict(zip(track_df['Object ID'], track_df['Category']))
         attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile)
         toc = tempo.time()
-        print('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-        if progress_callback:
-            progress_callback(10)
+
+        with thread_lock:
+            messages.append('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+
+        set_progress(10)
 
     else:
         pass
@@ -165,7 +182,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         pass
     else:
         tic = tempo.time()
-        print('Detecting contacts...')
+
+        with thread_lock:
+            messages.append('Detecting contacts...')
 
         unique_timepoints = np.unique(arr_segments[:, 1])
         df_contacts, df_no_daughter, df_no_dead_ = parallel_contacts.main(
@@ -180,12 +199,15 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             df_contact_summary = summarize_contacts(df_no_dead_, timelapse_interval)
         else:
             df_contact_summary = pd.DataFrame()
-            print("No valid contacts detected; skipping summary processing.")
+            with thread_lock:
+                messages.append("No valid contacts detected; skipping summary processing.")
 
         toc = tempo.time()
-        print('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-        if progress_callback:
-            progress_callback(20)
+
+        with thread_lock:
+            messages.append('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+
+        set_progress(20)
 
     df_all_calcs = df_all_calcs.replace(mapping)
     df_sum = df_sum.replace(mapping)
@@ -196,7 +218,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 
     savepath = savefile + '.xlsx'
-    print('Saving main output to ' + savepath + '...')
+
+    with thread_lock:
+        messages.append('Saving main output to ' + savepath + '...')
+
     savecontacts = savefile + '_Contacts.xlsx'
 
     if parameters['verbose']:
@@ -230,26 +255,26 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         if parameters['contact'] is False:
             pass
         else:
-            print('Saving contacts output to ' + savecontacts + '...')
+            with thread_lock:
+                messages.append('Saving contacts output to ' + savecontacts + '...')
             with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
                 df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
                 df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
                 df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
                 df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
 
-        print("Migrate3D done!")
-        if progress_callback:
-            progress_callback(100)
+        set_progress(100)
         bigtoc = tempo.time()
 
         total_time_sec = (int(round((bigtoc - bigtic), 1)))
         total_time_min = round((total_time_sec / 60), 1)
         if total_time_sec < 180:
-            print('Total time taken = {:.0f} seconds.'.format(total_time_sec))
+            with thread_lock:
+                messages.append('Migrate3D done! Total time taken = {:.0f} seconds.'.format(total_time_sec))
         else:
-            print('Total time taken = {:.1f} minutes.'.format(total_time_min))
+            with thread_lock:
+                messages.append('Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min))
 
-        if progress_callback:
-            progress_callback(100)
+        set_progress(100)
 
     return df_segments, df_sum, df_pca

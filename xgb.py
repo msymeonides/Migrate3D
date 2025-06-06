@@ -5,11 +5,12 @@ from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKF
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.feature_selection import mutual_info_classif,SelectKBest
-# from multiprocessing import Pool
 from itertools import product
 import traceback
 import shap
 import matplotlib.pyplot as plt
+
+from shared_state import messages, thread_lock
 
 
 def signed_log_transformation(x):
@@ -21,7 +22,8 @@ def select_categories(df, parameters):
     if filter_ is not None:
         filter_ = [int(x) for x in filter_]
         df = df[df['Category'].isin(filter_)]
-    print('Starting XGB...')
+    with thread_lock:
+        messages.append('Starting XGB...')
     df = df.dropna()
     df = df.drop(
         labels=['Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
@@ -80,7 +82,7 @@ def aggregate_correlated_features(df, feature_groups):
 def preprocess_features(df, parameters, k=20):
     """
     Preprocesses the feature data (log transformation and correlation grouping)
-"""
+    """
     df_features = df.drop(['Object ID', 'Category'], axis=1)
     y = df['Category']
 
@@ -104,7 +106,7 @@ def preprocess_features(df, parameters, k=20):
 
 
 def train_and_evaluate(X_train, y_train, X_test, y_test, params):
-    """"
+    """
     Trains XGBoost model and evaluates performance
     """
     model = xgb.XGBClassifier(
@@ -219,13 +221,15 @@ def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
         X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.4, random_state=42)
 
         # for i, param_space in enumerate(param_spaces):
-            #print(f"Starting GridSearch optimization round {i + 1}...")
+            #    with thread_lock:
+            #       messages.append(f"Starting GridSearch optimization round {i + 1}...")
 
         best_params = optimize_hyperparameters(X_train, y_train)
 
             # GridSearchCV for the current param_space
-            #best_params = optimize_hyperparameters(X_train, y_train, param_space)
-            #print(f"Best parameters for round {i + 1}: {best_params}")
+            # best_params = optimize_hyperparameters(X_train, y_train, param_space)
+            # with thread_lock:
+            #   messages.append(f"Best parameters for round {i + 1}: {best_params}")
 
             # Evaluate model with the best parameters
         accuracy, model = train_and_evaluate(X_train, y_train, X_test, y_test, best_params)
@@ -253,10 +257,13 @@ def xgboost(df_sum, parameters, output_file):
 
     # Save or print the results
     saveXGB = output_file + '_XGB.xlsx'
-    print('Saving XGB output to ' + saveXGB + '...')
+    with thread_lock:
+        messages.append('Saving XGB output to ' + saveXGB + '...')
     try:
         with pd.ExcelWriter(saveXGB, engine='xlsxwriter') as workbook:
             feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
-        print('...XGB done')
+        with thread_lock:
+            messages.append('...XGB done')
     except Exception as e:
-        print('Not enough objects for XGBoost analysis.')
+        with thread_lock:
+            messages.append('Not enough objects for XGBoost analysis.')

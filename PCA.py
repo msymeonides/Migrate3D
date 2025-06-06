@@ -5,35 +5,41 @@ from sklearn.preprocessing import StandardScaler
 import scikit_posthocs as sp
 from scipy import stats
 
+from shared_state import messages, thread_lock
+
 
 def apply_category_filter(df, filter):
-    print("Unique Categories:", df['Category'].unique())
+    with thread_lock:
+        messages.append(f"Unique Categories: {df['Category'].unique()}")
     if filter is None:
         return df
     if pd.api.types.is_numeric_dtype(df['Category']):
         try:
             filter_vals = [int(x) for x in filter]
         except ValueError:
-            print("Error converting filter values to int. Using original filter values.")
             filter_vals = filter
-        print(f"Filtering categories to {filter_vals}...")
+            with thread_lock:
+                messages.append("Error converting filter values to int. Using original filter values.")
+        with thread_lock:
+            messages.append(f"Filtering categories to {filter_vals}...")
         df['Category'] = df['Category'].astype(int)
     else:
         filter_vals = [str(x) for x in filter]
-        print(f"Filtering categories to {filter_vals}...")
+        with thread_lock:
+            messages.append(f"Filtering categories to {filter_vals}...")
     filtered_df = df[df['Category'].isin(filter_vals)]
     if filtered_df.empty:
-        print("No data available for the selected categories.")
-    else:
-        pass
+        with thread_lock:
+            messages.append('No data available for the selected categories.')
     return filtered_df
 
 def pca(df, parameters, savefile):
-    # Filter PCA if specific categories are given
     filter = parameters.get('pca_filter')
     df = apply_category_filter(df, filter)
 
-    print("Starting PCA...")
+    with thread_lock:
+        messages.append('Starting PCA...')
+
     df = df.dropna()
     df_pca = df.drop(
         labels=['Object ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
@@ -85,7 +91,8 @@ def pca(df, parameters, savefile):
     df_PC4 = pd.DataFrame(PC4_test)
 
     savePCA = savefile + '_PCA.xlsx'
-    print("Saving PCA output to " + savePCA + "...")
+    with thread_lock:
+        messages.append("Saving PCA output to " + savePCA + "...")
     writer = pd.ExcelWriter(savePCA, engine='xlsxwriter')
     df.to_excel(writer, sheet_name='Full dataset', index=False)
     df_pca.to_excel(writer, sheet_name='PCA dataset', index=False)
@@ -117,4 +124,5 @@ def pca(df, parameters, savefile):
         highlight_objs(worksheet)
 
     writer.close()
-    print("...PCA done.")
+    with thread_lock:
+        messages.append('...PCA done.')
