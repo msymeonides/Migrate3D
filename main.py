@@ -189,8 +189,10 @@ def run_migrate_thread(args):
      pca_filter) = args
 
     try:
-        if pca_filter is not None:
+        if pca_filter is not None and pca_filter.strip() != '':
             pca_filter = pca_filter.split(sep=' ')
+        else:
+            pca_filter = None
         set_progress(5)
         df_segments, df_sum, df_pca = migrate3D(
             parent_id, time_for, x_for, y_for, z_for, int(timelapse),
