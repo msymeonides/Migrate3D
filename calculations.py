@@ -88,22 +88,16 @@ def calculations(object_data, num_euclid_spaces, object_id, parameters):
         'Instantaneous Velocity Filtered': instantaneous_velocity_filtered,
         'Instantaneous Acceleration Filtered': instantaneous_acceleration_filtered,
     }
-    df_object_calcs = pd.DataFrame(object_calcs)
+    # Collect new columns in a dict
+    new_cols = {}
+    for i, arr in enumerate(euclid_array, 1):
+        new_cols[f'Euclid {i} TP'] = arr
+    for i, arr in enumerate(angle_array, 3):
+        new_cols[f'Angle {3 + 2 * i} TP'] = arr
+    for i, arr in enumerate(filtered_angle_array, 3):
+        new_cols[f'Filtered Angle {3 + 2 * i} TP'] = arr
 
-    euclid_num = 1
-    for arr in euclid_array:
-        df_object_calcs['Euclid ' + str(euclid_num) + ' TP'] = arr
-        euclid_num += 1
-
-    angle_num = 3
-    for arr in angle_array:
-        df_object_calcs['Angle ' + str(angle_num) + ' TP'] = arr
-        angle_num += 2
-
-    filtered_angle_num = 3
-    for arr in filtered_angle_array:
-        df_object_calcs['Filtered Angle ' + str(filtered_angle_num) + ' TP'] = arr
-        filtered_angle_num += 2
+    df_object_calcs = pd.DataFrame({**object_calcs, **new_cols})
 
     return df_object_calcs
 

@@ -267,7 +267,8 @@ def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, cate
 
             # Encode categories as binary labels
             label_encoder = LabelEncoder()
-            pair_data['label'] = label_encoder.fit_transform(pair_data[category_col])
+            pair_data = pair_data.copy()
+            pair_data.loc[:, 'label'] = label_encoder.fit_transform(pair_data[category_col])
 
             # Split data into features and labels
             X = pair_data[feature_cols]
@@ -277,7 +278,7 @@ def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, cate
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
             # Train XGBoost model
-            model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
+            model = XGBClassifier(eval_metric='logloss')
             model.fit(X_train, y_train)
 
             # Evaluate model

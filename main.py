@@ -1,14 +1,15 @@
-from dash import Dash
-from dash import dcc, html, Input, Output, State, exceptions
+from dash import Dash, dcc, html, Input, Output, State, exceptions
+import dash_bootstrap_components as dbc
 import pandas as pd
 import base64
 import io
 import os
 import threading
-import dash_bootstrap_components as dbc
+import math
+import traceback
 from datetime import date
 
-from run_migrate import migrate3D
+from governor import migrate3D
 from graph_all_segments import graph_sorted_segments
 from generate_PCA import generate_PCA
 from summary_statistics_figures import generate_figures
@@ -16,18 +17,17 @@ from shared_state import messages, thread_lock, get_progress, set_progress
 
 
 # Defaults for tunable parameters can be set here
-parameters = {'timelapse': 4,       # Timelapse interval
-              'arrest_limit': 3.0,  # Arrest limit
+parameters = {'arrest_limit': 3,    # Arrest limit
               'moving': 4,          # Minimum timepoints
               'contact_length': 12, # Contact length
               'arrested': 0.95,     # Maximum arrest coefficient
-              'tau_msd': 50,        # Maximum MSD Tau value
-              'tau_euclid': 25,     # Maximum Euclidean distance Tau value
-              'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results', 'verbose': False,
-              'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate',
-              'y_col_name': 'Y Coordinate', 'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID',
-              'category_col': 'Category', 'interpolate': False, 'multi_track': True, 'contact': False,
-              'attractors': False, 'pca_filter': None, 'infile_tracks': False}
+              'timelapse': 1,       # Timelapse interval
+              'tau_msd': 10,        # Maximum MSD Tau value
+              'tau_euclid': 5,      # Maximum Euclidean distance Tau value
+              'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
+              'multi_track': False, 'interpolate': False, 'verbose': False,
+              'contact': False, 'attractors': False, 'generate_figures': False, 'pca_filter': None,
+              'infile_tracks': False}
 
 file_storing = {}
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -35,28 +35,72 @@ app = Dash(__name__, assets_folder='assets', assets_url_path='/assets/', externa
 with thread_lock:
     messages.append('Waiting for user input. Load data, adjust parameters and options, and click "Run Migrate3D" to start the analysis.')
 
+formatting_option_map = {
+    'multi_track': 'Multitrack',
+    'interpolate': 'Interpolate',
+    'verbose': 'Verbose',
+    'contact': 'Contacts',
+    'attractors': 'Attractors',
+    'generate_figures': 'Generate Figures'
+}
+default_formatting_options = [
+    v for k, v in formatting_option_map.items() if parameters.get(k, False)
+]
+
 app.layout = dbc.Container(
     children=[
-        dbc.Row([
-            dbc.Col(
-                html.H1(children='Migrate3D'),
-                width="auto",
-                className="d-flex align-items-center"
-            ),
-            dbc.Col(
-                html.Img(
-                    src="assets/uvm_asset.jpeg",
-                    style={
-                        "position": "absolute",
-                        "top": "10px",
-                        "right": "50px",
-                        "width": "200px",
-                        "height": "auto",
-                        "zIndex": 1000,
-                    }
-                )
-            ),
-        ], style={"height": "150px"}),
+        dbc.Row(
+            [
+                dbc.Col([], width=3),  # Left spacer
+                dbc.Col(
+                    html.Div(
+                        html.H1(
+                            html.Span("Migrate3D", style={
+                                "border": "2px solid #333",
+                                "padding": "0.25em 0.75em",
+                                "borderRadius": "8px",
+                                "display": "inline-block"
+                            }),
+                            style={"margin": 0, "textAlign": "center"}
+                        ),
+                        style={
+                            "display": "flex",
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "height": "70px"
+                        }
+                    ),
+                    width=6,
+                    style={"display": "flex", "justifyContent": "center", "alignItems": "center"}
+                ),
+                dbc.Col(
+                    html.Div(
+                        html.Img(
+                            src="assets/uvm_asset.jpeg",
+                            style={
+                                "height": "70px",
+                                "width": "auto",
+                                "objectFit": "contain"
+                            }
+                        ),
+                        style={
+                            "display": "flex",
+                            "alignItems": "center",
+                            "justifyContent": "flex-end",
+                            "height": "70px"
+                        }
+                    ),
+                    width=3,
+                    style={"display": "flex", "alignItems": "center", "justifyContent": "flex-end"}
+                ),
+            ],
+            style={"height": "90px", "alignItems": "center"}
+        ),
+        html.H5(
+            "Cell migration analysis made easy!",
+            style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
+        ),
+        html.Hr(),
         html.Div(
             style={
                 'display': 'grid',
@@ -128,7 +172,7 @@ app.layout = dbc.Container(
                 html.Div(
                     id='column_populate_segments',
                     children=[
-                        html.H4('Select Column Identifiers for Segments file:'),
+                        html.H4('Column Identifiers for Segments file:'),
                         dcc.Dropdown(id='parent_id', placeholder='Select object ID column'),
                         dcc.Dropdown(id='time_formatting', placeholder='Select time column'),
                         dcc.Dropdown(id='x_axis', placeholder='Select X coordinate column'),
@@ -140,7 +184,7 @@ app.layout = dbc.Container(
                 html.Div(
                     id='Categories_dropdown',
                     children=[
-                        html.H4('Select Column Identifiers for Categories file (if used):'),
+                        html.H4('Column Identifiers for Categories file (if used):'),
                         dcc.Dropdown(id='parent_id2', placeholder='Select object ID column'),
                         dcc.Dropdown(id='category_col', placeholder='Select Category column'),
                     ],
@@ -162,40 +206,53 @@ app.layout = dbc.Container(
                             id='Parameters',
                             children=[
                                 html.H4('Tunable parameters'),
-                                html.H6(children=['Timelapse interval']),
-                                dcc.Input(id='Timelapse', value=4),
+                                html.Div(html.H6('Set these values as desired (refer to README file). You can change the default values by editing the "parameters" section at the top of main.py.'),style={'marginLeft': '2%'}),
                                 html.Hr(),
-                                html.H6(children=['Arrest limit (displacements below this value will not count as movement)']),
-                                dcc.Input(id='arrest_limit', value=3.0),
+                                html.Div([html.H6(children=['Arrest limit (displacements below this value will not count as movement)']),
+                                dcc.Input(id='arrest_limit', value=parameters['arrest_limit']),],style={'marginLeft': '5%'}),
                                 html.Hr(),
-                                html.H6(children=['Minimum timepoints (objects must be moving for at least this many timepoints to be fully analyzed)']),
-                                dcc.Input(id='moving', value=4),
+                                html.Div([html.H6(children=['Minimum timepoints (objects must be moving for at least this many timepoints to be fully analyzed)']),
+                                dcc.Input(id='moving', value=parameters['moving']),],style={'marginLeft': '5%'}),
                                 html.Hr(),
-                                html.H6(children=['Contact length (if the distance between two objects is less than this, they will be considered to be in contact)']),
-                                dcc.Input(id='contact_length', value=12),
+                                html.Div([html.H6(children=['Contact length (if the distance between two objects is less than this, they will be considered to be in contact)']),
+                                dcc.Input(id='contact_length', value=parameters['contact_length']),],style={'marginLeft': '5%'}),
                                 html.Hr(),
-                                html.H6(children=['Maximum arrest coefficient (objects with arrest coefficient above this value will be considered arrested)']),
-                                dcc.Input(id='arrested', value=0.95),
+                                html.Div([html.H6(children=['Maximum arrest coefficient (objects with arrest coefficient above this value will be considered arrested)']),
+                                dcc.Input(id='arrested', value=parameters['arrested']),],style={'marginLeft': '5%'}),
                                 html.Hr(),
-                                html.H6(children=['Maximum MSD Tau value (should be equal to the median number of timepoints in the dataset)']),
-                                dcc.Input(id='tau_msd', value=50),
+                                html.H4('Autodetected parameters'),
+                                html.Div(html.H6('The timelapse interval, maximum MSD Tau value, and maximum Euclidean distance Tau value will be autodetected from the segments file immediately after it is loaded. Any value can be manually entered in case these are not detected correctly.'),style={'marginLeft': '2%'}),
                                 html.Hr(),
-                                html.H6(children=['Maximum Euclidean distance Tau value (should be half of the Maximum MSD Tau Value)']),
-                                dcc.Input(id='tau_euclid', value=25),
+                                html.Div([html.H6(children=['Timelapse interval']),
+                                dcc.Input(id='Timelapse', value=parameters['timelapse'], placeholder='Enter timelapse interval'),],style={'marginLeft': '5%'}),
+                                html.Hr(),
+                                html.Div([html.H6(children=['Maximum MSD Tau value (Default: The median number of timepoints in the dataset)']),
+                                dcc.Input(id='tau_msd', value=parameters['tau_msd'], placeholder='Enter MSD Tau'),],style={'marginLeft': '5%'}),
+                                html.Hr(),
+                                html.Div([html.H6(children=['Maximum Euclidean distance Tau value (Default: Half of the Maximum MSD Tau Value)']),
+                                dcc.Input(id='tau_euclid', value=parameters['tau_euclid'], placeholder='Enter Euclidean Tau'),],style={'marginLeft': '5%'}),
                                 html.Hr(),
                                 html.H4(children=['Formatting options']),
                                 dcc.Checklist(
                                     id='formatting_options',
                                     options=[
-                                        {'label': ' Multitracking (if an object ID is represented by multiple segments at a given timepoint, they will be spatially averaged into one segment)', 'value': 'Multitrack'},
-                                        {'label': ' Interpolation (if an object ID is missing a timepoint, that timepoint will be inferred by simple linear interpolation and inserted)', 'value': 'Interpolate'},
-                                        {'label': ' Verbose (includes the results of all calculations in the output file)', 'value': 'Verbose'},
-                                        {'label': ' Contacts (identifies contacts between objects)', 'value': 'Contacts'},
-                                        {'label': ' Attractors (identifies instances where an object is attracting other objects towards it)', 'value': 'Attractors'},
-                                        {'label': ' Generate Figures (creates figures for summary statistics and PCA)', 'value': 'Generate Figures'}
+                                        {'label': ' Multitracking (if an object ID is represented by multiple segments at a given timepoint, they will be spatially averaged into one segment)',
+                                            'value': 'Multitrack'},
+                                        {'label': ' Interpolation (if an object ID is missing a timepoint, that timepoint will be inferred by simple linear interpolation and inserted)',
+                                            'value': 'Interpolate'},
+                                        {'label': ' Verbose (includes the results of all calculations in the output file)',
+                                            'value': 'Verbose'},
+                                        {'label': ' Contacts (identifies contacts between objects)',
+                                         'value': 'Contacts'},
+                                        {'label': ' Attractors (identifies instances where an object is attracting other objects towards it)',
+                                            'value': 'Attractors'},
+                                        {'label': ' Generate Figures (creates figures for summary statistics and PCA)',
+                                         'value': 'Generate Figures'}
                                     ],
-                                    inputStyle={'width': '30px', 'height': '30px', 'marginRight': '5px', 'marginBottom': '5px', 'marginTop': '5px'},
-                                    labelStyle={'display': 'flex', 'alignItems': 'center'}
+                                    value=default_formatting_options,
+                                    inputStyle={'width': '30px', 'height': '30px', 'marginRight': '5px',
+                                                'marginBottom': '5px', 'marginTop': '5px'},
+                                    labelStyle={'display': 'flex', 'alignItems': 'center', 'marginLeft': '5%'}
                                 ),
                                 html.Hr(),
                                 html.H6(
@@ -206,8 +263,8 @@ app.layout = dbc.Container(
                                 html.H6(children=['Save results as:']),
                                 dcc.Input(
                                     id='save_file',
-                                    placeholder='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
-                                    value='{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
+                                    placeholder=parameters['savefile'],
+                                    value=parameters['savefile'],
                                     style={'width': '250px'}
                                 )
                             ]
@@ -273,23 +330,29 @@ app.layout = dbc.Container(
 
 def run_migrate_thread(args):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving, contact_length, arrested, tau_msd,
-     tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2, category_col_name,
-     pca_filter) = args
+     tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, category_file_name, parent_id2,
+     category_col_name, parameters, pca_filter) = args
+
+    parameters['category_file_name'] = category_file_name
 
     try:
-        if pca_filter is not None and pca_filter.strip() != '':
+        if isinstance(pca_filter, str) and pca_filter.strip() != '':
             pca_filter = pca_filter.split(sep=' ')
         else:
             pca_filter = None
         set_progress(5)
+
+        if not isinstance(timelapse, (int, float)) or float(timelapse) <= 0:
+            raise ValueError("Timelapse interval must be a positive, non-zero number.")
+
         df_segments, df_sum, df_pca = migrate3D(
-            parent_id, time_for, x_for, y_for, z_for, int(timelapse),
+            parent_id, time_for, x_for, y_for, z_for, float(timelapse),
             float(arrest_limit), int(moving), int(contact_length), float(arrested),
             int(tau_msd), int(tau_euclid), formatting_options, savefile,
             segments_file_name, tracks_file, parent_id2, category_col_name,
             parameters, pca_filter)
 
-        if formatting_options and 'Generate Figures' in formatting_options:
+        if parameters.get('generate_figures', False):
             fig_segments = graph_sorted_segments(df_segments, df_sum, parameters['infile_tracks'], savefile)
             sum_fig = generate_figures(df_sum)
             sum_fig.append(fig_segments)
@@ -306,9 +369,11 @@ def run_migrate_thread(args):
         with thread_lock:
             messages.append("You may close the Anaconda prompt and the GUI browser tab, or just terminate the Python process.")
         set_progress(100)
+
     except Exception as e:
         with thread_lock:
             messages.append(f"Error: {str(e)}")
+        traceback.print_exc()
         set_progress(100)
 
 @app.callback(
@@ -328,7 +393,8 @@ def run_migrate_thread(args):
     Input('formatting_options', 'value'),
     Input('save_file', 'value'),
     Input('segments_upload', 'children'),
-    Input('category_upload', 'children'),
+    Input('category_upload', 'contents'),
+    State('category_upload', 'filename'),
     Input('parent_id2', 'value'),
     Input('category_col', 'value'),
     Input('PCA_filter', 'value'),
@@ -339,10 +405,23 @@ def run_migrate(*vals):
     run_button = vals[-1]
     if run_button == 0:
         raise exceptions.PreventUpdate
+
+    vals = list(vals)
+    category_contents = vals[16]
+    category_file_name = vals[17]
+    if category_contents is not None:
+        parameters['infile_tracks'] = True
+    else:
+        parameters['infile_tracks'] = False
+
+    formatting_options = vals[12]
+    parameters['generate_figures'] = isinstance(formatting_options, list) and 'Generate Figures' in formatting_options
+
     with thread_lock:
         messages.clear()
     set_progress(0)
-    args = vals[:-1]
+
+    args = vals[:15] + [vals[15], vals[16], vals[17], vals[18], parameters, vals[19]]
     thread = threading.Thread(target=run_migrate_thread, args=(args,))
     thread.start()
     return None
@@ -432,6 +511,81 @@ def update_alert_box(n):
         return html.Div([
             html.Pre('\n'.join(messages), style={'whiteSpace': 'pre-wrap', 'margin': 0})
         ])
+
+@app.callback(
+    Output('Timelapse', 'value'),
+    Output('Timelapse', 'placeholder'),
+    Output('tau_msd', 'value'),
+    Output('tau_msd', 'placeholder'),
+    Output('tau_euclid', 'value'),
+    Output('tau_euclid', 'placeholder'),
+    Input('segments_upload', 'contents'),
+    Input('parent_id', 'value'),
+    Input('time_formatting', 'value'),
+)
+def update_time_and_tau(contents, id_col, time_col):
+    if contents is None or id_col is None or time_col is None:
+        raise exceptions.PreventUpdate
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    try:
+        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+    except Exception:
+        return (
+            None, "Enter timelapse interval manually",
+            None, "Enter MSD Tau manually",
+            None, "Enter Euclidean Tau manually"
+        )
+    if id_col not in df.columns or time_col not in df.columns:
+        return (
+            None, "Enter timelapse interval manually",
+            None, "Enter MSD Tau manually",
+            None, "Enter Euclidean Tau manually"
+        )
+    try:
+        df[time_col] = pd.to_numeric(df[time_col], errors='coerce')
+    except Exception:
+        return (
+            None, "Enter timelapse interval manually",
+            None, "Enter MSD Tau manually",
+            None, "Enter Euclidean Tau manually"
+        )
+    # Compute intervals per object, then concatenate
+    intervals = []
+    for _, group in df.groupby(id_col):
+        times = group[time_col].dropna().sort_values().unique()
+        if len(times) > 1:
+            diffs = pd.Series(times).diff().dropna()
+            intervals.extend(diffs)
+    if not intervals:
+        return (
+            None, "Enter timelapse interval manually",
+            None, "Enter MSD Tau manually",
+            None, "Enter Euclidean Tau manually"
+        )
+    rounded_intervals = pd.Series(intervals).round(6)
+    detected_interval = rounded_intervals.mode()
+    if detected_interval.empty:
+        return (
+            None, "Enter timelapse interval manually",
+            None, "Enter MSD Tau manually",
+            None, "Enter Euclidean Tau manually"
+        )
+    detected_interval = float(detected_interval.iloc[0])
+    counts = df.groupby(id_col)[time_col].nunique()
+    if len(counts) == 0:
+        return (
+            None, "Enter timelapse interval manually",
+            None, "Enter MSD Tau manually",
+            None, "Enter Euclidean Tau manually"
+        )
+    msd_tau = int(counts.median())
+    euclid_tau = int(math.ceil(msd_tau / 2))
+    return (
+        detected_interval, f"Detected interval: {detected_interval:.6f} (you can override)",
+        msd_tau, f"Detected MSD Tau: {msd_tau}",
+        euclid_tau, f"Detected Euclidean Tau: {euclid_tau}"
+    )
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)

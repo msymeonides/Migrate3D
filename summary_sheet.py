@@ -155,6 +155,20 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     df_msd.insert(0, 'Object ID', list(msd_dict.keys()))
 
     msd_vals = df_msd.set_index('Object ID')[range(1, tau_msd + 1)]
+    if parameters['infile_tracks']:
+        category_tracks = arr_tracks[:, 1]
+        if len(category_tracks) == len(msd_vals):
+            msd_vals['Category'] = category_tracks
+            grouped = msd_vals.groupby('Category')
+            df_msd_avg_per_cat = grouped.mean().T
+            df_msd_std_per_cat = grouped.std().T
+            df_msd_avg_per_cat.index.name = 'MSD'
+        else:
+            df_msd_avg_per_cat = pd.DataFrame()
+            df_msd_std_per_cat = pd.DataFrame()
+    else:
+        df_msd_avg_per_cat = pd.DataFrame()
+        df_msd_std_per_cat = pd.DataFrame()
     df_msd_sum_all = pd.DataFrame({
         'Avg': msd_vals.mean(),
         'StDev': msd_vals.std()
