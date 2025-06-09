@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
-import xgboost as xgb
+import xgboost.sklearn as xgb
+import itertools
+from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold, RandomizedSearchCV
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.feature_selection import mutual_info_classif,SelectKBest
 from itertools import product
@@ -246,26 +248,86 @@ def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
         print('Stack trace: ', traceback.format_exc())
 
 
+def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, category_filter=None):
+    # Extract unique categories
+    unique_categories = data[category_col].unique()
+
+    # Apply category filter if provided
+    if category_filter:
+        unique_categories = [cat for cat in unique_categories if cat in category_filter]
+
+    # Generate all two-way combinations of categories
+    category_pairs = list(itertools.combinations(unique_categories, 2))
+
+    # Initialize Excel writer
+    with pd.ExcelWriter(savefile, engine='xlsxwriter') as writer:
+        for cat1, cat2 in category_pairs:
+            # Filter data for the two categories
+            pair_data = data[data[category_col].isin([cat1, cat2])]
+
+            # Encode categories as binary labels
+            label_encoder = LabelEncoder()
+            pair_data['label'] = label_encoder.fit_transform(pair_data[category_col])
+
+            # Split data into features and labels
+            X = pair_data[feature_cols]
+            y = pair_data['label']
+
+            # Train-test split
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+            # Train XGBoost model
+            model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
+            model.fit(X_train, y_train)
+
+            # Evaluate model
+            y_pred = model.predict(X_test)
+            report = classification_report(y_test, y_pred, output_dict=True)
+            report_df = pd.DataFrame(report).transpose()
+
+            # Save classification report and feature importance
+            report_df.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Report')
+            feature_importance = pd.DataFrame({
+                'Feature': feature_cols,
+                'Importance': model.feature_importances_
+            }).sort_values(by='Importance', ascending=False)
+            feature_importance.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Features', index=False)
+
 def xgboost(df_sum, parameters, output_file):
-    param_spaces = [
-        {'n_estimators': [100, 200, 300, 400, 500], 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3]},
-        {'max_depth': [3, 5, 7, 9], 'gamma': [0.0, 0.05, 0.1, 0.2]},
-        {'subsample': [0.6, 0.7, 0.8, 0.9, 1.0], 'colsample_bytree': [0.7, 0.8, 0.9, 1.0]},
-        {'min_child_weight': [1, 3, 5], 'reg_alpha': [0.0, 0.1, 0.5], 'reg_lambda': [0.0, 0.1, 0.5, 1.0]}]
+                try:
+                    # Step 1: Hyperparameter Optimization on the Entire Dataset
+                    param_spaces = [
+                        {'n_estimators': [100, 200, 300, 400, 500], 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3]},
+                        {'max_depth': [3, 5, 7, 9], 'gamma': [0.0, 0.05, 0.1, 0.2]},
+                        {'subsample': [0.6, 0.7, 0.8, 0.9, 1.0], 'colsample_bytree': [0.7, 0.8, 0.9, 1.0]},
+                        {'min_child_weight': [1, 3, 5], 'reg_alpha': [0.0, 0.1, 0.5], 'reg_lambda': [0.0, 0.1, 0.5, 1.0]}
+                    ]
 
-    feature_importance = process_and_train_with_gridsearch(df_sum, param_spaces, parameters)
+                    # Perform grid search and train the model
+                    feature_importance = process_and_train_with_gridsearch(df_sum, param_spaces, parameters)
 
-    # Save or print the results
-    saveXGB = output_file + '_XGB.xlsx'
-    with thread_lock:
-        messages.append('Saving XGB output to ' + saveXGB + '...')
-    try:
-        with pd.ExcelWriter(saveXGB, engine='xlsxwriter') as workbook:
-            feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
-        with thread_lock:
-            messages.append('...XGB done')
-            messages.append('')
-    except Exception as e:
-        with thread_lock:
-            messages.append('Not enough objects for XGBoost analysis.')
-            messages.append('')
+                    # Save feature importance results
+                    saveXGB = output_file + '_XGB.xlsx'
+                    with pd.ExcelWriter(saveXGB, engine='xlsxwriter') as workbook:
+                        feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
+                    with thread_lock:
+                        messages.append(f"Grid search results saved to {saveXGB}")
+
+                    # Step 2: Pairwise Comparisons
+                    category_col = 'Category'  # Replace with the actual category column name
+                    feature_cols = [col for col in df_sum.columns if col not in ['Object ID', 'Category']]  # Adjust as needed
+                    savefile = output_file + '_XGB_Comparisons.xlsx'
+
+                    perform_xgboost_comparisons(
+                        data=df_sum,
+                        category_col=category_col,
+                        feature_cols=feature_cols,
+                        savefile=savefile,
+                        category_filter=parameters.get('pca_filter')  # Pass PCA filter if available
+                    )
+                    with thread_lock:
+                        messages.append(f"Pairwise comparisons saved to {savefile}")
+
+                except Exception as e:
+                    with thread_lock:
+                        messages.append(f"Error during XGBoost analysis: {str(e)}")
