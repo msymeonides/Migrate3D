@@ -4,6 +4,7 @@ import re
 import statistics
 import time as tempo
 import warnings
+from pandas.errors import PerformanceWarning
 from scipy.spatial import ConvexHull
 
 from overall_medians import overall_medians
@@ -13,6 +14,7 @@ from shared_state import messages, thread_lock
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
+    warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
 
     with thread_lock:
         messages.append('Running Summary Sheet...')

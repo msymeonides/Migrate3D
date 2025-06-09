@@ -314,6 +314,7 @@ app.layout = dbc.Container(
                                     'Run Migrate3D',
                                     id='Run_migrate',
                                     n_clicks=0,
+                                    disabled=False,
                                     style={
                                         'fontSize': '2rem',
                                         'padding': '20px 40px',
@@ -598,6 +599,7 @@ def update_time_and_tau(contents, id_col, time_col):
 @app.callback(
     Output('Run_migrate', 'children'),
     Output('Run_migrate', 'style'),
+    Output('Run_migrate', 'disabled'),
     Input('Run_migrate', 'n_clicks'),
     Input('progress-bar', 'value'),
     prevent_initial_call=False
@@ -615,7 +617,8 @@ def update_run_button(n_clicks, progress):
                 'backgroundColor': '#FFD700',
                 'color': 'black',
                 'border': 'none'
-            }
+            },
+            True
         )
     elif n_clicks and n_clicks > 0:
         return (
@@ -629,7 +632,8 @@ def update_run_button(n_clicks, progress):
                 'backgroundColor': '#7bb77b',
                 'color': 'white',
                 'border': 'none'
-            }
+            },
+            True
         )
     else:
         return (
@@ -643,7 +647,8 @@ def update_run_button(n_clicks, progress):
                 'backgroundColor': '#e0e0e0',
                 'color': 'black',
                 'border': 'none'
-            }
+            },
+            False
         )
 
 if __name__ == '__main__':
