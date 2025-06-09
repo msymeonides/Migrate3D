@@ -143,10 +143,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             overall_euclidean_median, convex_hull_volume, tc_convex, category
         )
 
-    df_sum = pd.DataFrame.from_dict(sum_, orient='index')
-
-    objs = list(single_euclid_dict.keys())
-
     df_single_euclids_df = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
     df_single_euclids_df.reset_index(inplace=True)
     cols_euclidean_numbers = [
@@ -190,12 +186,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     })
     df_msd_sum_all.index.name = 'MSD'
 
-    toc = tempo.time()
-
-    with thread_lock:
-        messages.append('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-        messages.append('')
-
+    df_sum = pd.DataFrame.from_dict(sum_, orient='index')
     df_sum.columns = [
         'Object ID', 'Duration', 'Final Euclidean', 'Max Euclidean', 'Path Length',
         'Straightness', 'Time Corrected Straightness', 'Displacement Ratio', 'Outreach Ratio',
@@ -209,6 +200,11 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         'Time Corrected Convex Hull Volume', 'Category'
     ]
 
+    toc = tempo.time()
+
+    with thread_lock:
+        messages.append('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+        messages.append('')
 
     if parameters['infile_tracks']:
         with thread_lock:
