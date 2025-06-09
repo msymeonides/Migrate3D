@@ -165,7 +165,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     ]
     df_settings = pd.DataFrame(settings, columns=['Parameter', 'Value'])
 
-    df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca = summary_sheet(arr_segments,
+    df_sum, time_interval, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca = summary_sheet(arr_segments,
                   df_all_calcs, unique_objects, parameters['tau_msd'], parameters, arr_tracks, savefile)
 
     set_progress(15)
@@ -211,7 +211,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 num_contacts = len(unique_contacts)
                 total_time = len(group) * timelapse_interval
                 n = len(group)
-                # Use 1-indexed durations to represent duration of each contact.
+
                 durations = [(i + 1) * timelapse_interval for i in range(n)]
                 if n == 1:
                     med_time = durations[0]
@@ -273,7 +273,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             df_segments.to_excel(workbook, sheet_name='Object Data', index=False)
             df_all_calcs.to_excel(workbook, sheet_name='Calculations', index=False)
             df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
-            df_single.to_excel(workbook, sheet_name='Single Timepoint Medians', index=False)
+            df_single_euclid.to_excel(workbook, sheet_name='Euclidean Medians', index=False)
+            df_single_angle.to_excel(workbook, sheet_name='Turning Angles', index=False)
             df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
             df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summaries All', index=True)
             if parameters['infile_tracks']:
@@ -286,7 +287,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
             df_settings.to_excel(workbook, sheet_name='Settings', index=False)
             df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
-            df_single.to_excel(workbook, sheet_name='Single Timepoint Medians', index=False)
+            df_single_euclid.to_excel(workbook, sheet_name='Euclidean Medians', index=False)
+            df_single_angle.to_excel(workbook, sheet_name='Turning Angles', index=False)
             df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
             df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summary', index=True)
             if parameters['infile_tracks']:

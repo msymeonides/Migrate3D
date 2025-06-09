@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import re
 import statistics
 import time as tempo
 import warnings
@@ -33,13 +34,13 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
 
         for t_diff in range(1, tau_msd + 1):
             if x_val.size <= t_diff:
-                vals_msd.append(0)
+                vals_msd.append(None)
                 continue
             sq_diff = np.square(x_val[t_diff:] - x_val[:-t_diff]) + \
                       np.square(y_val[t_diff:] - y_val[:-t_diff]) + \
                       np.square(z_val[t_diff:] - z_val[:-t_diff])
             valid = sq_diff > 0
-            msd = np.mean(sq_diff[valid]) if np.any(valid) else 0
+            msd = np.mean(sq_diff[valid]) if np.any(valid) else None
             vals_msd.append(msd)
         msd_dict[obj] = vals_msd
 
@@ -143,18 +144,29 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     df_sum = pd.DataFrame.from_dict(sum_, orient='index')
 
     objs = list(single_euclid_dict.keys())
-    df_single_euclids = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
-    df_single_euclids.columns = cols_euclidean
-    df_single_angles = pd.DataFrame.from_dict(single_angle_dict, orient='index')
-    df_single_angles.columns = [f"Filtered Angle {(2 * i) - 1}" for i in range(2, df_single_angles.shape[1] + 2)]
-    df_single = pd.concat([df_single_euclids, df_single_angles], axis=1)
-    df_single.insert(0, 'Object ID', objs)
 
-    df_msd = pd.DataFrame.from_dict(msd_dict, orient='index')
-    df_msd.columns = list(range(1, tau_msd + 1))
-    df_msd.insert(0, 'Object ID', list(msd_dict.keys()))
+    df_single_euclids_df = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
+    df_single_euclids_df.reset_index(inplace=True)
+    cols_euclidean_numbers = [
+        re.search(r'\d+', str(col)).group() if re.search(r'\d+', str(col)) else str(col)
+        for col in df_single_euclids_df.columns[1:]
+    ]
+    df_single_euclids_df.columns = ['Object ID'] + cols_euclidean_numbers
 
-    msd_vals = df_msd.set_index('Object ID')[range(1, tau_msd + 1)]
+    df_single_angles_df = pd.DataFrame.from_dict(single_angle_dict, orient='index')
+    df_single_angles_df.reset_index(inplace=True)
+    angle_col_numbers = [
+        re.search(r'\d+', str(col)).group() if re.search(r'\d+', str(col)) else str(col)
+        for col in df_single_angles_df.columns[1:]
+    ]
+    df_single_angles_df.columns = ['Object ID'] + angle_col_numbers
+
+    df_msd = pd.DataFrame({'Object ID': list(msd_dict.keys()),
+                           **pd.DataFrame.from_dict(msd_dict, orient='index').to_dict(orient='list')})
+    existing_cols = [col for col in range(1, tau_msd + 1) if col in df_msd.columns]
+    df_msd = df_msd[['Object ID'] + existing_cols]
+
+    msd_vals = df_msd.set_index('Object ID')[existing_cols]
     if parameters['infile_tracks']:
         category_tracks = arr_tracks[:, 1]
         if len(category_tracks) == len(msd_vals):
@@ -164,14 +176,15 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             df_msd_std_per_cat = grouped.std().T
             df_msd_avg_per_cat.index.name = 'MSD'
         else:
-            df_msd_avg_per_cat = pd.DataFrame()
-            df_msd_std_per_cat = pd.DataFrame()
+            pass
     else:
         df_msd_avg_per_cat = pd.DataFrame()
         df_msd_std_per_cat = pd.DataFrame()
+
+    msd_vals_summary = msd_vals.drop(columns='Category', errors='ignore')
     df_msd_sum_all = pd.DataFrame({
-        'Avg': msd_vals.mean(),
-        'StDev': msd_vals.std()
+        'Avg': msd_vals_summary.mean(),
+        'StDev': msd_vals_summary.std()
     })
     df_msd_sum_all.index.name = 'MSD'
 
@@ -180,17 +193,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     with thread_lock:
         messages.append('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
         messages.append('')
-
-    if parameters['infile_tracks']:
-        category_tracks = arr_tracks[:,1]
-        msd_vals['Category'] = category_tracks
-        grouped = msd_vals.groupby('Category')
-        df_msd_avg_per_cat = grouped.mean().T
-        df_msd_std_per_cat = grouped.std().T
-        df_msd_avg_per_cat.index.name = 'MSD'
-    else:
-        df_msd_avg_per_cat = pd.DataFrame()
-        df_msd_std_per_cat = pd.DataFrame()
 
     df_sum.columns = [
         'Object ID', 'Duration', 'Final Euclidean', 'Max Euclidean', 'Path Length',
@@ -216,4 +218,4 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
             messages.append('Object category input not found. Skipping PCA and XGBoost.')
         df_pca = None
 
-    return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca
+    return df_sum, time_interval, df_single_euclids_df, df_single_angles_df, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca

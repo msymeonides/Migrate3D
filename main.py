@@ -1,13 +1,14 @@
+import base64
 from dash import Dash, dcc, html, Input, Output, State, exceptions
 import dash_bootstrap_components as dbc
-import pandas as pd
-import base64
-import io
-import os
-import threading
-import math
-import traceback
 from datetime import date
+import io
+import math
+import numpy as np
+import os
+import pandas as pd
+import threading
+import traceback
 
 from governor import migrate3D
 from graph_all_segments import graph_sorted_segments
@@ -27,7 +28,11 @@ parameters = {'arrest_limit': 3,    # Arrest limit
               'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
               'multi_track': False, 'interpolate': False, 'verbose': False,
               'contact': False, 'attractors': False, 'generate_figures': False, 'pca_filter': None,
-              'infile_tracks': False}
+              'infile_tracks': False,
+              'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate',
+              'y_col_name': 'Y Coordinate', 'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID',
+              'category_col': 'Category',
+              }
 
 file_storing = {}
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -51,7 +56,7 @@ app.layout = dbc.Container(
     children=[
         dbc.Row(
             [
-                dbc.Col([], width=3),  # Left spacer
+                dbc.Col([], width=3),
                 dbc.Col(
                     html.Div(
                         html.H1(
@@ -96,8 +101,12 @@ app.layout = dbc.Container(
             ],
             style={"height": "90px", "alignItems": "center"}
         ),
-        html.H5(
-            "Cell migration analysis made easy!",
+        html.H4(
+            "Comprehensive motion analysis software package",
+            style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
+        ),
+        html.H6(
+            "Version 2.0, published June 2025. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.Hr(),
@@ -133,7 +142,7 @@ app.layout = dbc.Container(
                             'borderStyle': 'dashed',
                             'borderRadius': '5px',
                             'textAlign': 'center',
-                            'margin': '10px auto'
+                            'margin': '0 auto'
                         }
                     ),
                     style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'gridColumn': '1'}
@@ -151,7 +160,7 @@ app.layout = dbc.Container(
                             'borderStyle': 'dashed',
                             'borderRadius': '5px',
                             'textAlign': 'center',
-                            'margin': '10px auto'
+                            'margin': '0 auto'
                         }
                     ),
                     style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'gridColumn': '2'}
@@ -179,7 +188,7 @@ app.layout = dbc.Container(
                         dcc.Dropdown(id='y_axis', placeholder='Select Y coordinate column'),
                         dcc.Dropdown(id='z_axis', placeholder='Select Z coordinate column (leave blank for 2D data)'),
                     ],
-                    style={'width': '90%', 'display': 'inline-block'}
+                    style={'width': '70%', 'margin': '0 auto'}
                 ),
                 html.Div(
                     id='Categories_dropdown',
@@ -188,7 +197,7 @@ app.layout = dbc.Container(
                         dcc.Dropdown(id='parent_id2', placeholder='Select object ID column'),
                         dcc.Dropdown(id='category_col', placeholder='Select Category column'),
                     ],
-                    style={'width': '90%', 'display': 'inline-block'}
+                    style={'width': '70%', 'margin': '0 auto'}
                 ),
             ]
         ),
@@ -208,7 +217,7 @@ app.layout = dbc.Container(
                                 html.H4('Tunable parameters'),
                                 html.Div(html.H6('Set these values as desired (refer to README file). You can change the default values by editing the "parameters" section at the top of main.py.'),style={'marginLeft': '2%'}),
                                 html.Hr(),
-                                html.Div([html.H6(children=['Arrest limit (displacements below this value will not count as movement)']),
+                                html.Div([html.H6(children=['Arrest limit (displacements below this value will be considered noise and not real movement)']),
                                 dcc.Input(id='arrest_limit', value=parameters['arrest_limit']),],style={'marginLeft': '5%'}),
                                 html.Hr(),
                                 html.Div([html.H6(children=['Minimum timepoints (objects must be moving for at least this many timepoints to be fully analyzed)']),
@@ -226,7 +235,7 @@ app.layout = dbc.Container(
                                 html.Div([html.H6(children=['Timelapse interval']),
                                 dcc.Input(id='Timelapse', value=parameters['timelapse'], placeholder='Enter timelapse interval'),],style={'marginLeft': '5%'}),
                                 html.Hr(),
-                                html.Div([html.H6(children=['Maximum MSD Tau value (Default: The median number of timepoints in the dataset)']),
+                                html.Div([html.H6(children=['Maximum MSD Tau value (Default: The modal number of timepoints in the dataset)']),
                                 dcc.Input(id='tau_msd', value=parameters['tau_msd'], placeholder='Enter MSD Tau'),],style={'marginLeft': '5%'}),
                                 html.Hr(),
                                 html.Div([html.H6(children=['Maximum Euclidean distance Tau value (Default: Half of the Maximum MSD Tau Value)']),
@@ -272,9 +281,7 @@ app.layout = dbc.Container(
                         html.Div(
                             style={
                                 'display': 'flex',
-                                'flexDirection': 'column',
-                                'justifyContent': 'space-between',
-                                'height': '100%'
+                                'flexDirection': 'column'
                             },
                             children=[
                                 html.Div([
@@ -312,7 +319,7 @@ app.layout = dbc.Container(
                                         'padding': '20px 40px',
                                         'width': '40%',
                                         'alignSelf': 'center',
-                                        'marginBottom': '70px'
+                                        'marginTop': '50px'
                                     }
                                 )
                             ]
@@ -497,10 +504,15 @@ def get_category_file(contents, filename):
 
 @app.callback(
     Output('progress-bar', 'value'),
+    Output('progress-bar', 'color'),
     Input("progress-interval", 'n_intervals'),
 )
 def update_pbar(n):
-    return get_progress()
+    progress = get_progress()
+    if progress == 100:
+        return progress, 'warning'
+    else:
+        return progress, 'success'
 
 @app.callback(
     Output('alert_box', 'children'),
@@ -550,7 +562,7 @@ def update_time_and_tau(contents, id_col, time_col):
             None, "Enter MSD Tau manually",
             None, "Enter Euclidean Tau manually"
         )
-    # Compute intervals per object, then concatenate
+
     intervals = []
     for _, group in df.groupby(id_col):
         times = group[time_col].dropna().sort_values().unique()
@@ -579,13 +591,60 @@ def update_time_and_tau(contents, id_col, time_col):
             None, "Enter MSD Tau manually",
             None, "Enter Euclidean Tau manually"
         )
-    msd_tau = int(counts.median())
+    msd_tau = int(np.percentile(counts, 80))
     euclid_tau = int(math.ceil(msd_tau / 2))
-    return (
-        detected_interval, f"Detected interval: {detected_interval:.6f} (you can override)",
-        msd_tau, f"Detected MSD Tau: {msd_tau}",
-        euclid_tau, f"Detected Euclidean Tau: {euclid_tau}"
-    )
+    return detected_interval, "", msd_tau, "", euclid_tau, ""
+
+@app.callback(
+    Output('Run_migrate', 'children'),
+    Output('Run_migrate', 'style'),
+    Input('Run_migrate', 'n_clicks'),
+    Input('progress-bar', 'value'),
+    prevent_initial_call=False
+)
+def update_run_button(n_clicks, progress):
+    if progress == 100 and n_clicks and n_clicks > 0:
+        return (
+            "Done!",
+            {
+                'fontSize': '2rem',
+                'padding': '20px 40px',
+                'width': '40%',
+                'alignSelf': 'center',
+                'marginTop': '50px',
+                'backgroundColor': '#FFD700',
+                'color': 'black',
+                'border': 'none'
+            }
+        )
+    elif n_clicks and n_clicks > 0:
+        return (
+            "Running!",
+            {
+                'fontSize': '2rem',
+                'padding': '20px 40px',
+                'width': '40%',
+                'alignSelf': 'center',
+                'marginTop': '50px',
+                'backgroundColor': '#7bb77b',
+                'color': 'white',
+                'border': 'none'
+            }
+        )
+    else:
+        return (
+            "Run Migrate3D",
+            {
+                'fontSize': '2rem',
+                'padding': '20px 40px',
+                'width': '40%',
+                'alignSelf': 'center',
+                'marginTop': '50px',
+                'backgroundColor': '#e0e0e0',
+                'color': 'black',
+                'border': 'none'
+            }
+        )
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
