@@ -12,7 +12,7 @@ import traceback
 import shap
 import matplotlib.pyplot as plt
 
-from shared_state import messages, thread_lock
+from shared_state import messages, thread_lock, complete_progress_step
 
 
 def signed_log_transformation(x):
@@ -328,7 +328,8 @@ def xgboost(df_sum, parameters, output_file):
                     )
                     with thread_lock:
                         messages.append(f"Pairwise comparisons saved to {savefile}")
-
+                    complete_progress_step("XGB")
                 except Exception as e:
                     with thread_lock:
                         messages.append(f"Error during XGBoost analysis: {str(e)}")
+                    complete_progress_step("XGB")

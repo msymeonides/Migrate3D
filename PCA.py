@@ -5,7 +5,7 @@ from sklearn.preprocessing import StandardScaler
 import scikit_posthocs as sp
 from scipy import stats
 
-from shared_state import messages, thread_lock
+from shared_state import messages, thread_lock, complete_progress_step
 
 
 def apply_category_filter(df, filter):
@@ -127,3 +127,4 @@ def pca(df, parameters, savefile):
     with thread_lock:
         messages.append('...PCA done.')
         messages.append('')
+    complete_progress_step("PCA")

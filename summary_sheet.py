@@ -10,7 +10,7 @@ from scipy.spatial import ConvexHull
 from overall_medians import overall_medians
 from PCA import pca
 from xgb import xgboost
-from shared_state import messages, thread_lock
+from shared_state import messages, thread_lock, complete_progress_step
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
@@ -205,6 +205,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     with thread_lock:
         messages.append('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
         messages.append('')
+    complete_progress_step("Summary Sheet")
 
     if parameters['infile_tracks']:
         with thread_lock:

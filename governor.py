@@ -11,7 +11,7 @@ from calculations import calculations
 from summary_sheet import summary_sheet
 from attract import attract
 import parallel_contacts
-from shared_state import messages, thread_lock, set_progress
+from shared_state import messages, thread_lock, complete_progress_step
 pd.set_option('future.no_silent_downcasting', True)
 
 
@@ -101,8 +101,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     with thread_lock:
         messages.append('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
         messages.append('')
+    complete_progress_step("Formatting")
 
-    set_progress(5)
     tic = tempo.time()
 
     with thread_lock:
@@ -122,8 +122,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     with thread_lock:
         messages.append('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
         messages.append('')
-
-    set_progress(25)
+    complete_progress_step("Calculations")
 
     track_df = pd.DataFrame()
     track_input_list = []
@@ -169,8 +168,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_sum, time_interval, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca = summary_sheet(arr_segments,
                   df_all_calcs, unique_objects, parameters['tau_msd'], parameters, arr_tracks, savefile)
 
-    set_progress(15)
-
     tic = tempo.time()
 
     if parameters['attractors'] and parameters['infile_tracks']:
@@ -184,8 +181,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         with thread_lock:
             messages.append('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
             messages.append('')
-
-    set_progress(10)
+        complete_progress_step("Attractors")
 
     if parameters['contact'] is False:
         pass
@@ -237,8 +233,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
         with thread_lock:
             messages.append('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-
-    set_progress(20)
+        complete_progress_step("Contacts")
 
     df_all_calcs = df_all_calcs.replace(mapping)
     df_sum = df_sum.replace(mapping)
@@ -298,7 +293,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             else:
                 pass
 
-    set_progress(100)
+    complete_progress_step("Final results save")
     bigtoc = tempo.time()
 
     total_time_sec = (int(round((bigtoc - bigtic), 1)))
@@ -313,7 +308,5 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             messages.append('------------------------------------------------')
             messages.append('Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min))
             messages.append('------------------------------------------------')
-
-    set_progress(100)
 
     return df_segments, df_sum, df_pca

@@ -14,7 +14,7 @@ from governor import migrate3D
 from graph_all_segments import graph_sorted_segments
 from generate_PCA import generate_PCA
 from summary_statistics_figures import generate_figures
-from shared_state import messages, thread_lock, get_progress, set_progress
+from shared_state import messages, thread_lock, get_progress, complete_progress_step, init_progress_tracker
 
 
 # Defaults for tunable parameters can be set here
@@ -402,6 +402,19 @@ def run_migrate_thread(args):
 
     parameters['category_file_name'] = category_file_name
 
+    if tracks_file is not None and 'Enter your category .csv file here' not in str(tracks_file):
+         parameters['infile_tracks'] = True
+    else:
+         parameters['infile_tracks'] = False
+
+    optional_flags = {
+        "pca_xgb": True if parameters.get("infile_tracks", False) else False,
+        "contacts": True if formatting_options and "Contacts" in formatting_options else False,
+        "attractors": True if formatting_options and "Attractors" in formatting_options else False,
+        "generate_figures": True if formatting_options and "Generate Figures" in formatting_options else False
+    }
+    init_progress_tracker(optional_flags)
+
     try:
         if isinstance(pca_filter, str) and pca_filter.strip() != '':
             pca_filter = pca_filter.split(sep=' ')
@@ -432,6 +445,8 @@ def run_migrate_thread(args):
                 with open(f'{savefile}_Figures.html', 'a') as f:
                     for i in sum_fig:
                         f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
+                complete_progress_step("Generate Figures")
+
         with thread_lock:
             messages.append("You may close the Anaconda prompt and the GUI browser tab, or just terminate the Python process.")
 
@@ -439,7 +454,6 @@ def run_migrate_thread(args):
         with thread_lock:
             messages.append(f"Error: {str(e)}")
         traceback.print_exc()
-        set_progress(100)
 
 @app.callback(
     Output('dummy', 'children'),
