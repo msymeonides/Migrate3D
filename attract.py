@@ -2,16 +2,20 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
-distance_threshold = 100  # Maximum distance between attractor and attracted objects to be considered
-approach_ratio = 0.5  # Ratio of end distance to start distance must be less than this value
-min_proximity = 20  # Attracted objects must get at least this close to attractors for at least one timepoint
-time_persistence = 6  # Minimum number of consecutive timepoints for a chain to be included in results
-max_gaps = 4  # Number of consecutive timepoints of increasing distance allowed before chain is broken
-allowed_attractor_types = [5, 6, 8]  # Cell types allowed to be attractors
-allowed_attracted_types = [2, 4]  # Cell types allowed to be attracted
 
+def detect_attractors(arr_segments, unique_objects, cell_types, params):
+    distance_threshold = params['distance_threshold']
+    time_persistence = params['time_persistence']
+    max_gaps = params['max_gaps']
+    allowed_attractor_types = params['allowed_attractor_types']
+    allowed_attracted_types = params['allowed_attracted_types']
 
-def detect_attractors(arr_segments, unique_objects, cell_types):
+    all_types = set(cell_types.values())
+    if not allowed_attractor_types:
+        allowed_attractor_types = list(all_types)
+    if not allowed_attracted_types:
+        allowed_attracted_types = list(all_types)
+
     all_positions = {obj: arr_segments[arr_segments[:, 0] == obj, 2:5] for obj in unique_objects}
     all_times = {obj: arr_segments[arr_segments[:, 0] == obj, 1] for obj in unique_objects}
 
@@ -48,14 +52,14 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
                     continue
 
                 if not within_threshold[idx, t_idx]:
-                    evaluate_and_clear(chain, attractor_events, attractor_id, attracted_id)
+                    evaluate_and_clear(chain, attractor_events, attractor_id, attracted_id, params)
                     gap_count = 0
                     continue
 
                 direction = attracted_positions[idx] - attractor_positions[t_idx]
                 distance = np.linalg.norm(direction)
                 if distance == 0:
-                    evaluate_and_clear(chain, attractor_events, attractor_id, attracted_id)
+                    evaluate_and_clear(chain, attractor_events, attractor_id, attracted_id, params)
                     gap_count = 0
                     continue
 
@@ -76,7 +80,7 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
                             chain = [(current_time, *attracted_positions[idx], distance, t_idx)]
                             gap_count = 0
 
-            evaluate_and_clear(chain, attractor_events, attractor_id, attracted_id)
+            evaluate_and_clear(chain, attractor_events, attractor_id, attracted_id, params)
 
             if len(chain) >= time_persistence:
                 start_distance = chain[0][-2]
@@ -87,7 +91,11 @@ def detect_attractors(arr_segments, unique_objects, cell_types):
     return attractor_events
 
 
-def evaluate_and_clear(chain, attractor_events, attractor_id, other_id):
+def evaluate_and_clear(chain, attractor_events, attractor_id, other_id, params):
+    approach_ratio = params['approach_ratio']
+    min_proximity = params['min_proximity']
+    time_persistence = params['time_persistence']
+
     if len(chain) >= time_persistence:
         start_distance = chain[0][-2]
         end_distance = chain[-1][-2]
@@ -146,7 +154,6 @@ def save_results(attractor_events, output_file, cell_types, df_all_calcs):
             worksheet.write(0, col_num, value, wrap_format)
 
 
-def attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile):
-    events = detect_attractors(arr_segments, unique_objects, cell_types)
-    save_attract = savefile + '_Attractors.xlsx'
-    save_results(events, save_attract, cell_types, df_all_calcs)
+def attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, params):
+    events = detect_attractors(arr_segments, unique_objects, cell_types, params)
+    save_results(events, savefile + '_Attractors.xlsx', cell_types, df_all_calcs)

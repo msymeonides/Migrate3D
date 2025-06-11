@@ -17,7 +17,7 @@ pd.set_option('future.no_silent_downcasting', True)
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
               arrested, tau_msd, tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
-              category_col_name, parameters, pca_filter):
+              category_col_name, parameters, pca_filter, attract_params):
     bigtic = tempo.time()
 
     with thread_lock:
@@ -39,6 +39,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     parameters['tau_msd'] = tau_msd
     parameters['tau_euclid'] = tau_euclid
     parameters['pca_filter'] = pca_filter
+    parameters['attract_params'] = attract_params
 
     if formatting_options is None:
         pass
@@ -177,7 +178,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             messages.append('Detecting attractors...')
 
         cell_types = dict(zip(track_df['Object ID'], track_df['Category']))
-        attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile)
+        attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, parameters['attract_params'])
         toc = tempo.time()
 
         with thread_lock:

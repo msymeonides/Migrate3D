@@ -34,6 +34,17 @@ parameters = {'arrest_limit': 3,    # Arrest limit
               'category_col': 'Category',
               }
 
+# Defaults for Attractor tunable parameters can be set here
+attract_params = {
+        'distance_threshold': 100,  # Maximum distance between attractor and attracted objects
+        'approach_ratio': 0.5,  # Ratio of end distance to start distance must be less than this value
+        'min_proximity': 20,  # Attracted objects must get at least this close to attractors for at least one timepoint
+        'time_persistence': 6,  # Minimum number of consecutive timepoints for a chain to be included in results
+        'max_gaps': 4,  # Number of consecutive timepoints of increasing distance allowed before chain is broken
+        'allowed_attractor_types': [5, 6, 8],  # Object categories allowed to be attractors
+        'allowed_attracted_types': [2, 4],  # Object categories allowed to be attracted
+                }
+
 file_storing = {}
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 app = Dash(__name__, assets_folder='assets', assets_url_path='/assets/', external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -252,17 +263,24 @@ app.layout = dbc.Container(
                                         {'label': ' Verbose (includes the results of all calculations in the output file)',
                                             'value': 'Verbose'},
                                         {'label': ' Contacts (identifies contacts between objects)',
-                                         'value': 'Contacts'},
+                                            'value': 'Contacts'},
                                         {'label': ' Attractors (identifies instances where an object is attracting other objects towards it)',
                                             'value': 'Attractors'},
                                         {'label': ' Generate Figures (creates figures for summary statistics and PCA)',
-                                         'value': 'Generate Figures'}
+                                            'value': 'Generate Figures'}
                                     ],
                                     value=default_formatting_options,
                                     inputStyle={'width': '30px', 'height': '30px', 'marginRight': '5px',
                                                 'marginBottom': '5px', 'marginTop': '5px'},
-                                    labelStyle={'display': 'flex', 'alignItems': 'center', 'marginLeft': '5%'}
+                                    labelStyle={'display': 'block', 'alignItems': 'center', 'marginLeft': '5%'}
                                 ),
+                                html.Br(),
+                                html.Button('Open Attractors Parameters', id='toggle-attractor-settings', n_clicks=0,
+                                                style={
+                                                    'margin': '0 auto',
+                                                    'display': 'block'
+                                                }
+                                            ),
                                 html.Hr(),
                                 html.H6(
                                     children='Enter subset of categories to be used during PCA and XGBoost analysis (separate category IDs with a space). Leave blank to use all categories.'
@@ -322,6 +340,47 @@ app.layout = dbc.Container(
                                         'alignSelf': 'center',
                                         'marginTop': '50px'
                                     }
+                                ),
+                                html.Div(
+                                    id='attractor-settings-div',
+                                    style={'display': 'none'},
+                                    children=[
+                                        html.Div([
+                                            html.H4(children=['Attractors parameters']),
+                                            html.H6(
+                                                'Distance threshold (Maximum distance between attractor and attracted objects to be considered)'),
+                                            dcc.Input(id='dist_thr', type='number', step=0.1,
+                                                      value=attract_params['distance_threshold']),
+                                            html.Hr(),
+                                            html.H6(
+                                                'Approach ratio (Ratio of end distance to start distance must be less than this value)'),
+                                            dcc.Input(id='approach_ratio', type='number', step=0.1,
+                                                      value=attract_params['approach_ratio']),
+                                            html.Hr(),
+                                            html.H6(
+                                                'Min. proximity (Attracted objects must get at least this close to attractors for at least one timepoint)'),
+                                            dcc.Input(id='min_proximity', type='number', step=0.1,
+                                                      value=attract_params['min_proximity']),
+                                            html.Hr(),
+                                            html.H6(
+                                                'Time persistence (Minimum number of consecutive timepoints for a chain to be included in results)'),
+                                            dcc.Input(id='time_persistence', type='number', step=1,
+                                                      value=attract_params['time_persistence']),
+                                            html.Hr(),
+                                            html.H6(
+                                                'Max. gaps (Number of consecutive timepoints of increasing distance allowed before chain is broken)'),
+                                            dcc.Input(id='max_gaps', type='number', step=1,
+                                                      value=attract_params['max_gaps']),
+                                            html.Hr(),
+                                            html.H6(
+                                                'Object categories allowed to be attractors (space-separated list of category IDs)'),
+                                            dcc.Input(id='allowed_attractors', type='text'),
+                                            html.Hr(),
+                                            html.H6(
+                                                'Object categories allowed to be attracted (space-separated list of category IDs)'),
+                                            dcc.Input(id='allowed_attracted', type='text'),
+                                        ], style={'padding': '10px', 'border': '1px solid #ccc','marginTop': '400px', 'width': '70%'})
+                                    ]
                                 )
                             ]
                         ),
@@ -339,7 +398,7 @@ app.layout = dbc.Container(
 def run_migrate_thread(args):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving, contact_length, arrested, tau_msd,
      tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, category_file_name, parent_id2,
-     category_col_name, parameters, pca_filter) = args
+     category_col_name, parameters, pca_filter, attract_params) = args
 
     parameters['category_file_name'] = category_file_name
 
@@ -348,7 +407,6 @@ def run_migrate_thread(args):
             pca_filter = pca_filter.split(sep=' ')
         else:
             pca_filter = None
-        set_progress(5)
 
         if not isinstance(timelapse, (int, float)) or float(timelapse) <= 0:
             raise ValueError("Timelapse interval must be a positive, non-zero number.")
@@ -358,7 +416,7 @@ def run_migrate_thread(args):
             float(arrest_limit), int(moving), int(contact_length), float(arrested),
             int(tau_msd), int(tau_euclid), formatting_options, savefile,
             segments_file_name, tracks_file, parent_id2, category_col_name,
-            parameters, pca_filter)
+            parameters, pca_filter, attract_params)
 
         if parameters.get('generate_figures', False):
             fig_segments = graph_sorted_segments(df_segments, df_sum, parameters['infile_tracks'], savefile)
@@ -376,7 +434,6 @@ def run_migrate_thread(args):
                         f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
         with thread_lock:
             messages.append("You may close the Anaconda prompt and the GUI browser tab, or just terminate the Python process.")
-        set_progress(100)
 
     except Exception as e:
         with thread_lock:
@@ -400,36 +457,71 @@ def run_migrate_thread(args):
     Input('tau_euclid', 'value'),
     Input('formatting_options', 'value'),
     Input('save_file', 'value'),
-    Input('segments_upload', 'children'),
+    Input('segments_upload', 'contents'),
+    State('segments_upload', 'filename'),
     Input('category_upload', 'contents'),
     State('category_upload', 'filename'),
     Input('parent_id2', 'value'),
     Input('category_col', 'value'),
     Input('PCA_filter', 'value'),
     Input('Run_migrate', 'n_clicks'),
+    Input('dist_thr', 'value'),
+    Input('approach_ratio', 'value'),
+    Input('min_proximity', 'value'),
+    Input('time_persistence', 'value'),
+    Input('max_gaps', 'value'),
+    Input('allowed_attractors', 'value'),
+    Input('allowed_attracted', 'value'),
     prevent_initial_call=True
 )
 def run_migrate(*vals):
-    run_button = vals[-1]
-    if run_button == 0:
+    (parent_id, time_for, x_for, y_for, z_for,
+     timelapse, arrest_limit, moving, contact_length, arrested,
+     tau_msd, tau_euclid, formatting_options, savefile,
+     segments_contents, segments_file,
+     category_contents, category_file,
+     parent_id2, category_col_name, pca_filter,
+     run_clicks, dist_thr, approach_ratio, min_proximity,
+     time_persistence, max_gaps,
+     allowed_attractors, allowed_attracted) = vals
+
+    if run_clicks == 0:
         raise exceptions.PreventUpdate
 
-    vals = list(vals)
-    category_contents = vals[16]
-    category_file_name = vals[17]
-    if category_contents is not None:
-        parameters['infile_tracks'] = True
+    if isinstance(pca_filter, str) and pca_filter.strip():
+        pca_filter = pca_filter.split()
     else:
-        parameters['infile_tracks'] = False
+        pca_filter = None
 
-    formatting_options = vals[12]
-    parameters['generate_figures'] = isinstance(formatting_options, list) and 'Generate Figures' in formatting_options
+    if isinstance(allowed_attractors, str) and allowed_attractors.strip():
+        allowed_attractor_types = [int(i) for i in allowed_attractors.split()]
+    else:
+        allowed_attractor_types = []
 
-    with thread_lock:
-        messages.clear()
-    set_progress(0)
+    if isinstance(allowed_attracted, str) and allowed_attracted.strip():
+        allowed_attracted_types = [int(i) for i in allowed_attracted.split()]
+    else:
+        allowed_attracted_types = []
 
-    args = vals[:15] + [vals[15], vals[16], vals[17], vals[18], parameters, vals[19]]
+    attract_params = {
+        'distance_threshold': float(dist_thr),
+        'approach_ratio': float(approach_ratio),
+        'min_proximity': float(min_proximity),
+        'time_persistence': int(time_persistence),
+        'max_gaps': int(max_gaps),
+        'allowed_attractor_types': allowed_attractor_types,
+        'allowed_attracted_types': allowed_attracted_types
+    }
+
+    args = [
+        parent_id, time_for, x_for, y_for, z_for,
+        float(timelapse), float(arrest_limit), int(moving),
+        int(contact_length), float(arrested), int(tau_msd),
+        int(tau_euclid), formatting_options, savefile,
+        segments_file, category_contents, category_file,
+        parent_id2, category_col_name,
+        parameters, pca_filter, attract_params
+    ]
     thread = threading.Thread(target=run_migrate_thread, args=(args,))
     thread.start()
     return None
@@ -595,6 +687,17 @@ def update_time_and_tau(contents, id_col, time_col):
     msd_tau = int(np.percentile(counts, 80))
     euclid_tau = int(math.ceil(msd_tau / 2))
     return detected_interval, "", msd_tau, "", euclid_tau, ""
+
+@app.callback(
+    Output('attractor-settings-div', 'style'),
+    Output('toggle-attractor-settings', 'children'),
+    Input('toggle-attractor-settings', 'n_clicks'),
+)
+def toggle_attractor_settings(n_clicks):
+    is_open = bool(n_clicks and n_clicks % 2)
+    style = {'display': 'block'} if is_open else {'display': 'none'}
+    label = 'Close Attractors Parameters' if is_open else 'Open Attractors Parameters'
+    return style, label
 
 @app.callback(
     Output('Run_migrate', 'children'),
