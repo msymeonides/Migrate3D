@@ -401,11 +401,10 @@ app.layout = dbc.Container(
 )
 
 def run_migrate_thread(args):
-    (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving, contact_length, arrested, tau_msd,
-     tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, category_file_name, parent_id2,
-     category_col_name, parameters, pca_filter, attract_params) = args
-
-    parameters['category_file_name'] = category_file_name
+    (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving,
+     contact_length, arrested, tau_msd, tau_euclid, formatting_options, savefile,
+     segments_file_name, tracks_file, parent_id2, category_col_name,
+     parameters, pca_filter, attract_params) = args
 
     if tracks_file is not None and 'Enter your category .csv file here' not in str(tracks_file):
          parameters['infile_tracks'] = True
@@ -421,14 +420,6 @@ def run_migrate_thread(args):
     init_progress_tracker(optional_flags)
 
     try:
-        if isinstance(pca_filter, str) and pca_filter.strip() != '':
-            pca_filter = pca_filter.split(sep=' ')
-        else:
-            pca_filter = None
-
-        if not isinstance(timelapse, (int, float)) or float(timelapse) <= 0:
-            raise ValueError("Timelapse interval must be a positive, non-zero number.")
-
         df_segments, df_sum, df_pca = migrate3D(
             parent_id, time_for, x_for, y_for, z_for, float(timelapse),
             float(arrest_limit), int(moving), int(contact_length), float(arrested),
@@ -507,8 +498,9 @@ def run_migrate(*vals):
     if run_clicks == 0:
         raise exceptions.PreventUpdate
 
-    if isinstance(pca_filter, str) and pca_filter.strip():
-        pca_filter = pca_filter.split()
+    if isinstance(pca_filter, str):
+        pca_filter = pca_filter.strip()
+        pca_filter = pca_filter.split() if pca_filter != "" else None
     else:
         pca_filter = None
 
@@ -537,7 +529,7 @@ def run_migrate(*vals):
         float(timelapse), float(arrest_limit), int(moving),
         int(contact_length), float(arrested), int(tau_msd),
         int(tau_euclid), formatting_options, savefile,
-        segments_file, category_contents, category_file,
+        segments_file, category_file,
         parent_id2, category_col_name,
         parameters, pca_filter, attract_params
     ]
