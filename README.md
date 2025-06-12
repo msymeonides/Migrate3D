@@ -1,6 +1,6 @@
 # README
 
-Last Edited: June 6, 2025 (Migrate3D version 2.1)
+Last Edited: June 12, 2025 (Migrate3D version 2.0)
 
 # Migrate3D
 
@@ -8,13 +8,11 @@ Migrate3D is a Python program that streamlines and automates biological object m
 
 These results can be used in downstream analyses to compare different conditions, categories of objects, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity and arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement across selectable time lags, relative turn angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
 
-Migrate3D requires a .csv file input that contains data from object movements through two- or three-dimensional space. While complete/uninterrupted tracks are ideal, the program can interpolate missing data if needed, as long as the different segments of the track belong to the same unique object ID. A key limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
+Migrate3D requires a .csv file input that contains data from object movements through two- or three-dimensional space. After execution, the program will return a set of .xlsx files, each with several worksheets, containing track-by-track summary metrics, mean squared displacement analysis, etc. If the user imports a Categories .csv file (simply listing the category for each object ID), two additional analyses will be performed: dimensionality reduction using principal component analysis (PCA), and decision tree analysis using XGBoost. There is no guarantee that these will be performed in a statistically-sound way, that is left up to the user to ensure, but the libraries used to perform these analyses are widely used.
 
-Migrate3D has formatting functionality. If selected by the user, the program can account for multi-tracked timepoints, interpolate missing data points, and adjust for two-dimensional data. **Formatting functions do not alter original datafile** and (in verbose mode) the reformatted dataset will be part of the results output.
+A limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
 
-After execution, the program will return a set of .xlsx files, each with several worksheets, containing track-by-track summary metrics, mean squared displacement analysis, etc. If the user imports a Categories .csv file (simply listing the category for each object ID), two additional analyses will be performed: dimensionality reduction using principal component analysis (PCA), and decision tree analysis using XGBoost. There is no guarantee that these will be performed in a statistically-sound way, that is left up to the user to ensure, but the libraries used to perform these analyses are widely used.
-
-Migrate3D was developed by Emily Mynar, Matthew Kinahan, Jonah Harris, and Menelaos Symeonides at the University of Vermont, funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali). We welcome feedback and intend to continue developing and supporting the program as resources allow.
+Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan, and Jonah Harris at the University of Vermont, funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali). We welcome feedback and intend to continue developing and supporting the program as resources allow.
 
 ## Input Files
 
@@ -22,7 +20,7 @@ A Segments input file is required to run Migrate3D. Optionally, a Categories inp
 
 ### Segments
 
-The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input.
+The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the number of timepoints elapsed.
 
 ### Categories
 
@@ -32,7 +30,7 @@ The Categories input file should be a .csv with object ID and object category. P
 
 These installation instructions involve the use of the command line. If you are not familiar with using the command line, just copy each line and paste into your prompt/terminal and press Enter. Once the process is complete, you will be able to paste in the next line and press Enter, and so on. If "sudo" is used, you will need to enter your account password to proceed.
 
-### On Windows (tested in Windows 11)
+### On Windows (tested in Windows 10 and 11)
 
 1. First, download and install the latest version of Miniconda3 for Windows using all the default options during installation: https://docs.conda.io/projects/miniconda/en/latest/index.html
 
@@ -181,13 +179,9 @@ python3 ~/Migrate3D/Migrate3D-main/main.py
 Note that the output result spreadsheets will be saved under ~/Migrate3D/Migrate3D-main/.
 
 
-## Tunable Variables
+## Tunable Parameters
 
 Note that you can change the default values of these variables at the top of the main.py script, or you can change them in the GUI before running the analysis.
-
-### Timelapse Interval:
-
-The time between each observation (assumes the same units as the values in the Time column of your dataset).
 
 ### Arrest Limit:
 
@@ -205,13 +199,21 @@ A floating-point variable that represents the largest distance between two objec
 
 A floating point variable between 0 and 1 that uses each object's Arrest Coefficient to filter out "dead" objects during the contact detection process. To turn this filter off, set this value to 1.
 
+
+## Autodetected Parameters
+
+### Timelapse Interval:
+
+The time between each observation (assumes the same units as the values in the Time column of your dataset). This is automatically detected from the input dataset, but can be manually overridden in the GUI if necessary.
+
 ### Maximum MSD Tau Value:
 
-An integer variable that controls the number of Mean Squared Displacement intervals to calculate. It is recommended to set this value to a number equal to the total number of timepoints that the majority of the tracks in the dataset have.
+An integer variable that controls the number of Mean Squared Displacement intervals to calculate. It is recommended to set this value to a number equal to the total number of timepoints that the majority of the tracks in the dataset have. This is autodetected from the input dataset by calculating the number of timepoints in all object IDs and taking the mode of that set, but can be manually overridden in the GUI if necessary.
 
 ### Maximum Euclidean distance Tau value:
 
-An integer variable that controls the range of intervals that Euclidean Distance and Turning Angle calculations will be performed on. It is recommended to set this value to half the number of the MSD Tau Value.
+An integer variable that controls the range of intervals that Euclidean Distance and Turning Angle calculations will be performed on. This is automatically set to half the number of the MSD Tau Value, but can be manually overriden in the GUI if necessary.
+
 
 ## Formatting options
 
@@ -223,7 +225,7 @@ If an object ID is represented by multiple segments at a given timepoint, they w
 
 ### Interpolation:
 
-If an object ID is missing a timepoint, that timepoint will be inferred by simple linear interpolation and inserted. This will happen with any number of missing timepoints, but this will never add interpolated timepoints before the first or last available timepoints for that object ID.
+If an object ID is missing a timepoint, that timepoint will be inferred by simple linear interpolation and inserted. This will happen with any number of missing timepoints, but this will never add interpolated timepoints before the first or last available timepoints for that object ID, i.e. it will not extend the track in either direction but will fill in internal gaps.
 
 ### Verbose:
 
@@ -235,7 +237,7 @@ Identifies contacts between objects at each timepoint, and returns a separate re
 
 ### Attractors:
 
-Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event.
+Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event. An additional set of tunable parameters for this function is available in the GUI. The default values for these parameters can be changed at the top of the main.py script.
 
 ### Generate Figures:
 
@@ -248,6 +250,7 @@ In case your dataset includes several categories of objects, but you are only in
 ### Output Filename:
 
 Enter a name for your output file. The .xlsx extension will be added on, do not include it in this field. Note that any output file with the same name present in the program folder will be overwritten. Additionally, if a file with the same name is currently open in Excel, this will cause Migrate3D to crash.
+
 
 ## Calculations
 
@@ -287,15 +290,17 @@ $$
 
 ### Euclidean Distance:
 
-The Euclidean distance over n timepoints. Finds the length of a line segment between an object’s coordinates over n time points.
+The Euclidean distance over a number of timepoints. Finds the length of a line segment between a pair of timepoints for an object, for all values of time up to τ (which is set in an autodetected/tunable parameter).
 
 $$
 Euclidean \ Distance =\sqrt{(x_{t} - x_{t-n})^{2} + (y_{t} - y_{t-n})^{2} + (z_{t} - z_{t-n})^{2}}
 $$
 
+The results of this analysis are saved in a worksheet named "Euclidean medians", with each row being an object ID and each column being a number of timepoints.
+
 ### Turning Angle:
 
-The angle, θ, between two consecutive vectors, a and b, with a given timepoint interval, is calculated by first finding the dot product of the two vectors:
+The angle, θ, between two consecutive vectors, a and b, with a given timepoint interval (up to τ, which is a tunable parameter), is calculated by first finding the dot product of the two vectors:
 
 $$
 a \cdot b = a_xb_x + a_yb_y + a_zb_z
@@ -312,6 +317,9 @@ And finally, to find the angle θ, taking the inverse cosine of the dot product 
 $$
 \theta = \cos^{-1} (\frac{a \cdot b}{ |a||b| })
 $$
+
+The results of this analysis are saved in a worksheet named "Turning Angles", with each row being an object ID and each column being a number of timepoints.
+
 
 ## Summary Sheet
 
@@ -389,18 +397,43 @@ If a Categories file is provided, two additional result sheets are given: one ("
 
 The volume of a convex hull contained within the track is calculated. Essentially represents how much volume an object covered during its tracking history. Similarly to Straightness, a Time-Corrected value is also provided by multiplying each Convex Hull Volume value by the square root of the duration of that object’s track (needed when the tracking duration of the objects in the dataset varies). In the case of 2D data, this column will be left blank.
 
+
+## Machine Learning Analyses
+
+### Principal Component Analysis (PCA):
+
+PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. A Kruskal-Wallis test is performed on the PCA results to determine whether each principal component is significantly different between the provided categories of objects.
+
+### XGBoost:
+
+XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. The results are saved in a separate .xlsx file, and include the feature importance scores for each summary statistic when looking at the entire dataset, as well as for all possible pairs of category-to-category comparisons.
+
+
 ## Contacts
 
 Contacts will iterate over all the objects in the dataset comparing their X, Y, and Z coordinates at each timepoint. If two objects are closer in these dimensions than the "Contact Length" tunable variable, it will be recorded as a contact. This option reports all contacts, and specific to cells, also contacts that are not mitotic, contacts that are alive, and a summary of each object’s contacts.
 
-### Contacts no Mitosis:
+### Contacts (minus dividing):
 
 Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Cell IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Cell IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Cell IDs happen to differ by 1 regardless of mitosis. Manual spot-checking of contacts is recommended.
 
-### Contacts no Dead:
+### Contacts (minus dead):
 
 Utilizes the "Maximum arrest coefficient" tunable variable to filter out contacts that involve "dead" or non-motile objects based on their Arrest Coefficient.
 
-### Contact Summary:
+### Contacts Summary:
 
 A summary of contact history for each individual object. For each object (excluding objects which had no contacts at all), the number of contacts, the total time spent in contact, and the median contact duration are reported. Note that, in the case of cells, this summary comes after filtering out of mitotic contacts and contacts involving "dead" cells.
+
+
+## Attractors
+
+Attractors are detected by iterating over all objects in the dataset and checking whether any other object is moving towards it. If an object is moving towards another object, it is considered an attraction event and recorded. The results are saved in a separate .xlsx file, and include the timepoint of the attraction event, the distance between the two objects at that timepoint, and the relative speed between the motion of the two objects. The tunable parameters for this function are:
+
+- **Distance threshold**: The maximum distance between two objects at a given timepoint that would be considered an attraction. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
+- **Approach ratio**: An upper limit for the ratio of the distances between the objects at the end and at the start of a candidate attraction event for it to be recorded.
+- **Minimum proximity**: The attracted object must get at least this close to the attractor for at least one timepoint for the attraction event to be recorded.
+- **Time persistence**: The minimum number of consecutive timepoints that the attraction event must persist for it to be recorded.
+- **Maximum time gap**: The number of consecutive timepoints of increasing distance allowed before the attraction chain is broken.
+- **Attractor categories**: A space-separated list of categories of objects that may be considered as attractors. If this field is left blank, all object categories may be considered as attractors.
+- **Attracted categories**: A space-separated list of categories of objects that may be considered as attracted. If this field is left blank, all object categories may be considered as attracted.

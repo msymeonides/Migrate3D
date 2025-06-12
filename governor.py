@@ -254,10 +254,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             messages.append('')
 
         with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
-            df_contacts.to_excel(workbook, sheet_name='Contacts', index=False)
-            df_no_daughter.to_excel(workbook, sheet_name='Contacts no Division', index=False)
-            df_no_dead_.to_excel(workbook, sheet_name='Contacts no Dead', index=False)
-            df_contact_summary.to_excel(workbook, sheet_name='Contact Summary', index=False)
+            df_contacts.to_excel(workbook, sheet_name='Contacts (all)', index=False)
+            df_no_daughter.to_excel(workbook, sheet_name='Contacts (minus dividing)', index=False)
+            df_no_dead_.to_excel(workbook, sheet_name='Contacts (minus dead)', index=False)
+            df_contact_summary.to_excel(workbook, sheet_name='Contacts Summary', index=False)
 
     with thread_lock:
         messages.append('Saving main output to ' + savepath + '...')
