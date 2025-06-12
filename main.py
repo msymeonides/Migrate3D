@@ -445,7 +445,7 @@ def run_migrate_thread(args):
                 with open(f'{savefile}_Figures.html', 'a') as f:
                     for i in sum_fig:
                         f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
-                complete_progress_step("Generate Figures")
+        complete_progress_step("Generate Figures")
 
         with thread_lock:
             messages.append("You may close the Anaconda prompt and the GUI browser tab, or just terminate the Python process.")
