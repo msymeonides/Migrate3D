@@ -16,6 +16,11 @@ from generate_PCA import generate_PCA
 from summary_statistics_figures import generate_figures
 from shared_state import messages, thread_lock, get_progress, complete_progress_step, init_progress_tracker
 
+# Welcome to Migrate3D version 2.0, released June 2025.
+# Please see README.md before running this package
+# Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan and Jonah Harris
+# at the University of Vermont, funded by NIH R56-AI172486 and NIH R01-AI172486 (PI: Markus Thali).
+# For more information, see https://github.com/msymeonides/Migrate3D/
 
 # Defaults for tunable parameters can be set here
 parameters = {'arrest_limit': 3,    # Arrest limit
@@ -34,15 +39,15 @@ parameters = {'arrest_limit': 3,    # Arrest limit
               'category_col': 'Category',
               }
 
-# Defaults for Attractor tunable parameters can be set here
+# Defaults for Attractors tunable parameters can be set here
 attract_params = {
         'distance_threshold': 100,  # Maximum distance between attractor and attracted objects
         'approach_ratio': 0.5,  # Ratio of end distance to start distance must be less than this value
         'min_proximity': 20,  # Attracted objects must get at least this close to attractors for at least one timepoint
         'time_persistence': 6,  # Minimum number of consecutive timepoints for a chain to be included in results
         'max_gaps': 4,  # Number of consecutive timepoints of increasing distance allowed before chain is broken
-        'allowed_attractor_types': [5, 6, 8],  # Object categories allowed to be attractors
-        'allowed_attracted_types': [2, 4],  # Object categories allowed to be attracted
+        'allowed_attractor_types': '',  # Object categories allowed to be attractors
+        'allowed_attracted_types': '',  # Object categories allowed to be attracted
                 }
 
 file_storing = {}
@@ -374,11 +379,11 @@ app.layout = dbc.Container(
                                             html.Hr(),
                                             html.H6(
                                                 'Object categories allowed to be attractors (space-separated list of category IDs)'),
-                                            dcc.Input(id='allowed_attractors', type='text'),
+                                            dcc.Input(id='allowed_attractors', type='text', value=attract_params['allowed_attractor_types']),
                                             html.Hr(),
                                             html.H6(
                                                 'Object categories allowed to be attracted (space-separated list of category IDs)'),
-                                            dcc.Input(id='allowed_attracted', type='text'),
+                                            dcc.Input(id='allowed_attracted', type='text', value=attract_params['allowed_attracted_types']),
                                         ], style={'padding': '10px', 'border': '1px solid #ccc','marginTop': '400px', 'width': '70%'})
                                     ]
                                 )

@@ -146,7 +146,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     df_single_euclids_df = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
     df_single_euclids_df.reset_index(inplace=True)
     cols_euclidean_numbers = [
-        re.search(r'\d+', str(col)).group() if re.search(r'\d+', str(col)) else str(col)
+        int(re.search(r'\d+', str(col)).group() if re.search(r'\d+', str(col)) else str(col))
         for col in df_single_euclids_df.columns[1:]
     ]
     df_single_euclids_df.columns = ['Object ID'] + cols_euclidean_numbers
@@ -154,7 +154,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
     df_single_angles_df = pd.DataFrame.from_dict(single_angle_dict, orient='index')
     df_single_angles_df.reset_index(inplace=True)
     angle_col_numbers = [
-        re.search(r'\d+', str(col)).group() if re.search(r'\d+', str(col)) else str(col)
+        int(re.search(r'\d+', str(col)).group()) if re.search(r'\d+', str(col)) else str(col)
         for col in df_single_angles_df.columns[1:]
     ]
     df_single_angles_df.columns = ['Object ID'] + angle_col_numbers
