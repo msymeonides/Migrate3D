@@ -11,19 +11,14 @@ from itertools import product
 import traceback
 import shap
 import matplotlib.pyplot as plt
-
 from shared_state import messages, thread_lock, complete_progress_step
-
+from PCA import apply_category_filter
 
 def signed_log_transformation(x):
     return np.sign(x) * np.log(np.abs(x) + 1)
 
 def select_categories(df, parameters):
-    # Filter if specific categories are given
-    filter_ = parameters['pca_filter']
-    if filter_ is not None:
-        filter_ = [int(x) for x in filter_]
-        df = df[df['Category'].isin(filter_)]
+    df = apply_category_filter(df, parameters.get('pca_filter'))
     with thread_lock:
         messages.append('Starting XGB...')
     df = df.dropna()
@@ -34,16 +29,6 @@ def select_categories(df, parameters):
                 'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
                 'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume'], axis=1)
     return df
-
-# def select_important_features(X, y, k=20):
-#     """
-#     Selects the top k most informative features using mutual information.
-#     """
-#     selector = SelectKBest(score_func=mutual_info_classif, k=k)
-#     X_new = selector.fit_transform(X, y)
-#     selected_features = X.columns[selector.get_support()]
-#     return pd.DataFrame(X_new, columns=selected_features), selected_features
-#
 
 def group_similar_features(df_features, correlation_threshold=0.9):
     """
@@ -132,17 +117,9 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, params):
     y_pred = model.predict(X_test)
     accuracy = accuracy_score(y_test, y_pred)
 
-    # Confusion matrix
-    # cm = confusion_matrix(y_test, y_pred, labels=model.classes_)
-    # cm_df = pd.DataFrame(cm, index=model.classes_, columns=model.classes_)
-
     # Calculate SHAP values
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X_test)
-
-    # Plot summary plot
-    #shap.summary_plot(shap_values, X_test, plot_type="bar")
-    #plt.show()
 
     return accuracy, model
 
@@ -205,7 +182,7 @@ def optimize_hyperparameters(X_train, y_train):
     #return grid_search.best_params_
 
 
-def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
+def process_and_train_with_gridsearch(df_xgb, parameters):
     """
     Main function for processing data, training model, and saving results
     """
@@ -222,18 +199,9 @@ def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
         # Split data into training and test datasets
         X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.4, random_state=42)
 
-        # for i, param_space in enumerate(param_spaces):
-            #    with thread_lock:
-            #       messages.append(f"Starting GridSearch optimization round {i + 1}...")
-
         best_params = optimize_hyperparameters(X_train, y_train)
 
-            # GridSearchCV for the current param_space
-            # best_params = optimize_hyperparameters(X_train, y_train, param_space)
-            # with thread_lock:
-            #   messages.append(f"Best parameters for round {i + 1}: {best_params}")
-
-            # Evaluate model with the best parameters
+        # Evaluate model with the best parameters
         accuracy, model = train_and_evaluate(X_train, y_train, X_test, y_test, best_params)
 
         feature_importance = pd.DataFrame({
@@ -248,13 +216,12 @@ def process_and_train_with_gridsearch(df_xgb, param_spaces, parameters):
         print('Stack trace: ', traceback.format_exc())
 
 
-def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, category_filter=None):
-    # Extract unique categories
-    unique_categories = data[category_col].unique()
+def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, parameters):
 
-    # Apply category filter if provided
-    if category_filter:
-        unique_categories = [cat for cat in unique_categories if cat in category_filter]
+    data = apply_category_filter(data, parameters.get('pca_filter'))
+
+    # Extract unique categories after filtering
+    unique_categories = data[category_col].unique()
 
     # Generate all two-way combinations of categories
     category_pairs = list(itertools.combinations(unique_categories, 2))
@@ -295,41 +262,41 @@ def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, cate
             feature_importance.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Features', index=False)
 
 def xgboost(df_sum, parameters, output_file):
-                try:
-                    # Step 1: Hyperparameter Optimization on the Entire Dataset
-                    param_spaces = [
-                        {'n_estimators': [100, 200, 300, 400, 500], 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3]},
-                        {'max_depth': [3, 5, 7, 9], 'gamma': [0.0, 0.05, 0.1, 0.2]},
-                        {'subsample': [0.6, 0.7, 0.8, 0.9, 1.0], 'colsample_bytree': [0.7, 0.8, 0.9, 1.0]},
-                        {'min_child_weight': [1, 3, 5], 'reg_alpha': [0.0, 0.1, 0.5], 'reg_lambda': [0.0, 0.1, 0.5, 1.0]}
-                    ]
+    try:
+        # Step 1: Hyperparameter Optimization on the Entire Dataset
+        param_spaces = [
+            {'n_estimators': [100, 200, 300, 400, 500], 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3]},
+            {'max_depth': [3, 5, 7, 9], 'gamma': [0.0, 0.05, 0.1, 0.2]},
+            {'subsample': [0.6, 0.7, 0.8, 0.9, 1.0], 'colsample_bytree': [0.7, 0.8, 0.9, 1.0]},
+            {'min_child_weight': [1, 3, 5], 'reg_alpha': [0.0, 0.1, 0.5], 'reg_lambda': [0.0, 0.1, 0.5, 1.0]}
+        ]
 
-                    # Perform grid search and train the model
-                    feature_importance = process_and_train_with_gridsearch(df_sum, param_spaces, parameters)
+        # Perform grid search and train the model
+        feature_importance = process_and_train_with_gridsearch(df_sum, parameters)
 
-                    # Save feature importance results
-                    saveXGB = output_file + '_XGB.xlsx'
-                    with pd.ExcelWriter(saveXGB, engine='xlsxwriter') as workbook:
-                        feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
-                    with thread_lock:
-                        messages.append(f"Grid search results saved to {saveXGB}")
+        # Save feature importance results
+        saveXGB = output_file + '_XGB.xlsx'
+        with pd.ExcelWriter(saveXGB, engine='xlsxwriter') as workbook:
+            feature_importance.to_excel(workbook, sheet_name='Feature importance', index=False)
+        with thread_lock:
+            messages.append(f"Grid search results saved to {saveXGB}")
 
-                    # Step 2: Pairwise Comparisons
-                    category_col = 'Category'  # Replace with the actual category column name
-                    feature_cols = [col for col in df_sum.columns if col not in ['Object ID', 'Category']]  # Adjust as needed
-                    savefile = output_file + '_XGB_Comparisons.xlsx'
+        # Step 2: Pairwise Comparisons
+        category_col = 'Category'  # Replace with the actual category column name
+        feature_cols = [col for col in df_sum.columns if col not in ['Object ID', 'Category']]  # Adjust as needed
+        savefile = output_file + '_XGB_Comparisons.xlsx'
 
-                    perform_xgboost_comparisons(
-                        data=df_sum,
-                        category_col=category_col,
-                        feature_cols=feature_cols,
-                        savefile=savefile,
-                        category_filter=parameters.get('pca_filter')  # Pass PCA filter if available
-                    )
-                    with thread_lock:
-                        messages.append(f"Pairwise comparisons saved to {savefile}")
-                    complete_progress_step("XGB")
-                except Exception as e:
-                    with thread_lock:
-                        messages.append(f"Error during XGBoost analysis: {str(e)}")
-                    complete_progress_step("XGB")
+        perform_xgboost_comparisons(
+            data=df_sum,
+            category_col=category_col,
+            feature_cols=feature_cols,
+            savefile=savefile,
+            parameters=parameters)
+
+        with thread_lock:
+            messages.append(f"Pairwise comparisons saved to {savefile}")
+        complete_progress_step("XGB")
+    except Exception as e:
+        with thread_lock:
+            messages.append(f"Error during XGBoost analysis: {str(e)}")
+        complete_progress_step("XGB")
