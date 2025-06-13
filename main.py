@@ -11,10 +11,7 @@ import threading
 import traceback
 
 from governor import migrate3D
-from graph_all_segments import graph_sorted_segments
-from generate_PCA import generate_PCA
-from summary_statistics_figures import generate_figures
-from shared_state import messages, thread_lock, get_progress, complete_progress_step, init_progress_tracker
+from shared_state import messages, thread_lock, get_progress, init_progress_tracker
 
 # Welcome to Migrate3D version 2.0, released June 2025.
 # Please see README.md before running this package
@@ -28,8 +25,7 @@ parameters = {'arrest_limit': 3,    # Arrest limit
               'contact_length': 12, # Contact length
               'arrested': 0.95,     # Maximum arrest coefficient
               'timelapse': 1,       # Timelapse interval
-              'tau_msd': 10,        # Maximum MSD Tau value
-              'tau_euclid': 5,      # Maximum Euclidean distance Tau value
+              'tau': 10,        # Maximum MSD Tau value
               'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
               'multi_track': False, 'interpolate': False, 'verbose': False,
               'contact': False, 'attractors': False, 'generate_figures': False, 'pca_filter': None,
@@ -246,16 +242,13 @@ app.layout = dbc.Container(
                                 dcc.Input(id='arrested', value=parameters['arrested']),],style={'marginLeft': '5%'}),
                                 html.Hr(),
                                 html.H4('Autodetected parameters'),
-                                html.Div(html.H6('The timelapse interval, maximum MSD Tau value, and maximum Euclidean distance Tau value will be autodetected from the segments file immediately after it is loaded. Any value can be manually entered in case these are not detected correctly.'),style={'marginLeft': '2%'}),
+                                html.Div(html.H6('The timelapse interval and maximum tau value will be autodetected from the segments file immediately after it is loaded. Any value can be manually entered in case these are not detected correctly.'),style={'marginLeft': '2%'}),
                                 html.Hr(),
                                 html.Div([html.H6(children=['Timelapse interval']),
                                 dcc.Input(id='Timelapse', value=parameters['timelapse'], placeholder='Enter timelapse interval'),],style={'marginLeft': '5%'}),
                                 html.Hr(),
-                                html.Div([html.H6(children=['Maximum MSD Tau value (Default: The modal number of timepoints in the dataset)']),
-                                dcc.Input(id='tau_msd', value=parameters['tau_msd'], placeholder='Enter MSD Tau'),],style={'marginLeft': '5%'}),
-                                html.Hr(),
-                                html.Div([html.H6(children=['Maximum Euclidean distance Tau value (Default: Half of the Maximum MSD Tau Value)']),
-                                dcc.Input(id='tau_euclid', value=parameters['tau_euclid'], placeholder='Enter Euclidean Tau'),],style={'marginLeft': '5%'}),
+                                html.Div([html.H6(children=['Maximum Tau value (Default: The maximum number of timepoints in the dataset)']),
+                                dcc.Input(id='tau', value=parameters['tau'], placeholder='Enter max. tau value'),],style={'marginLeft': '5%'}),
                                 html.Hr(),
                                 html.H4(children=['Formatting options']),
                                 dcc.Checklist(
@@ -402,7 +395,7 @@ app.layout = dbc.Container(
 
 def run_migrate_thread(args):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving,
-     contact_length, arrested, tau_msd, tau_euclid, formatting_options, savefile,
+     contact_length, arrested, tau, formatting_options, savefile,
      segments_file_name, tracks_file, parent_id2, category_col_name,
      parameters, pca_filter, attract_params) = args
 
@@ -423,25 +416,9 @@ def run_migrate_thread(args):
         df_segments, df_sum, df_pca = migrate3D(
             parent_id, time_for, x_for, y_for, z_for, float(timelapse),
             float(arrest_limit), int(moving), int(contact_length), float(arrested),
-            int(tau_msd), int(tau_euclid), formatting_options, savefile,
+            int(tau), formatting_options, savefile,
             segments_file_name, tracks_file, parent_id2, category_col_name,
             parameters, pca_filter, attract_params)
-
-        if parameters.get('generate_figures', False):
-            fig_segments = graph_sorted_segments(df_segments, df_sum, parameters['infile_tracks'], savefile)
-            sum_fig = generate_figures(df_sum)
-            sum_fig.append(fig_segments)
-            if df_pca is not None:
-                fig_pca = generate_PCA(df_pca)
-                sum_fig.append(fig_pca)
-                with open(f'{savefile}_figures.html', 'a') as f:
-                    for i in sum_fig:
-                        f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
-            else:
-                with open(f'{savefile}_Figures.html', 'a') as f:
-                    for i in sum_fig:
-                        f.write(i.to_html(full_html=False, include_plotlyjs='cdn'))
-        complete_progress_step("Generate Figures")
 
         with thread_lock:
             messages.append("You may close the Anaconda prompt and the GUI browser tab, or just terminate the Python process.")
@@ -463,8 +440,7 @@ def run_migrate_thread(args):
     Input('moving', 'value'),
     Input('contact_length', 'value'),
     Input('arrested', 'value'),
-    Input('tau_msd', 'value'),
-    Input('tau_euclid', 'value'),
+    Input('tau', 'value'),
     Input('formatting_options', 'value'),
     Input('save_file', 'value'),
     Input('segments_upload', 'contents'),
@@ -487,7 +463,7 @@ def run_migrate_thread(args):
 def run_migrate(*vals):
     (parent_id, time_for, x_for, y_for, z_for,
      timelapse, arrest_limit, moving, contact_length, arrested,
-     tau_msd, tau_euclid, formatting_options, savefile,
+     tau, formatting_options, savefile,
      segments_contents, segments_file,
      category_contents, category_file,
      parent_id2, category_col_name, pca_filter,
@@ -527,8 +503,8 @@ def run_migrate(*vals):
     args = [
         parent_id, time_for, x_for, y_for, z_for,
         float(timelapse), float(arrest_limit), int(moving),
-        int(contact_length), float(arrested), int(tau_msd),
-        int(tau_euclid), formatting_options, savefile,
+        int(contact_length), float(arrested), int(tau),
+        formatting_options, savefile,
         segments_file, category_file,
         parent_id2, category_col_name,
         parameters, pca_filter, attract_params
@@ -631,10 +607,8 @@ def update_alert_box(n):
 @app.callback(
     Output('Timelapse', 'value'),
     Output('Timelapse', 'placeholder'),
-    Output('tau_msd', 'value'),
-    Output('tau_msd', 'placeholder'),
-    Output('tau_euclid', 'value'),
-    Output('tau_euclid', 'placeholder'),
+    Output('tau', 'value'),
+    Output('tau', 'placeholder'),
     Input('segments_upload', 'contents'),
     Input('parent_id', 'value'),
     Input('time_formatting', 'value'),
@@ -644,28 +618,17 @@ def update_time_and_tau(contents, id_col, time_col):
         raise exceptions.PreventUpdate
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
+    manual_list = [None, "Enter timelapse interval manually", None, "Enter max. tau manually"]
     try:
         df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
     except Exception:
-        return (
-            None, "Enter timelapse interval manually",
-            None, "Enter MSD Tau manually",
-            None, "Enter Euclidean Tau manually"
-        )
+        return (manual_list)
     if id_col not in df.columns or time_col not in df.columns:
-        return (
-            None, "Enter timelapse interval manually",
-            None, "Enter MSD Tau manually",
-            None, "Enter Euclidean Tau manually"
-        )
+        return (manual_list)
     try:
         df[time_col] = pd.to_numeric(df[time_col], errors='coerce')
     except Exception:
-        return (
-            None, "Enter timelapse interval manually",
-            None, "Enter MSD Tau manually",
-            None, "Enter Euclidean Tau manually"
-        )
+        return (manual_list)
 
     intervals = []
     for _, group in df.groupby(id_col):
@@ -674,30 +637,17 @@ def update_time_and_tau(contents, id_col, time_col):
             diffs = pd.Series(times).diff().dropna()
             intervals.extend(diffs)
     if not intervals:
-        return (
-            None, "Enter timelapse interval manually",
-            None, "Enter MSD Tau manually",
-            None, "Enter Euclidean Tau manually"
-        )
+        return (manual_list)
     rounded_intervals = pd.Series(intervals).round(6)
     detected_interval = rounded_intervals.mode()
     if detected_interval.empty:
-        return (
-            None, "Enter timelapse interval manually",
-            None, "Enter MSD Tau manually",
-            None, "Enter Euclidean Tau manually"
-        )
+        return (manual_list)
     detected_interval = float(detected_interval.iloc[0])
     counts = df.groupby(id_col)[time_col].nunique()
     if len(counts) == 0:
-        return (
-            None, "Enter timelapse interval manually",
-            None, "Enter MSD Tau manually",
-            None, "Enter Euclidean Tau manually"
-        )
-    msd_tau = int(np.percentile(counts, 80))
-    euclid_tau = int(math.ceil(msd_tau / 2))
-    return detected_interval, "", msd_tau, "", euclid_tau, ""
+        return (manual_list)
+    max_tau = int(np.max(counts))
+    return detected_interval, "", max_tau, ""
 
 @app.callback(
     Output('attractor-settings-div', 'style'),

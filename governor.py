@@ -9,6 +9,7 @@ from pathlib import Path
 from formatting import multi_tracking, interpolate_lazy
 from calculations import calculations
 from summary_sheet import summary_sheet
+from generate_figures import summary_figures, tracks_figure, pca_figure
 from attract import attract
 import parallel_contacts
 from shared_state import messages, thread_lock, complete_progress_step
@@ -16,7 +17,7 @@ pd.set_option('future.no_silent_downcasting', True)
 
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
-              arrested, tau_msd, tau_euclid, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
+              arrested, tau, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
               category_col_name, parameters, pca_filter, attract_params):
     bigtic = tempo.time()
 
@@ -36,8 +37,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     parameters['moving'] = moving
     parameters['contact_length'] = contact_length
     parameters['arrested'] = arrested
-    parameters['tau_msd'] = tau_msd
-    parameters['tau_euclid'] = tau_euclid
+    parameters['tau'] = tau
     parameters['pca_filter'] = pca_filter
     parameters['attract_params'] = attract_params
 
@@ -54,6 +54,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters['contact'] = True
         if 'Attractors' in formatting_options:
             parameters['attractors'] = True
+        if 'Generate Figures' in formatting_options:
+            parameters['generate_figures'] = True
 
     if tracks_file is not None and 'Enter your category .csv file here' not in str(tracks_file):
         parameters['infile_tracks'] = True
@@ -113,7 +115,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     for object in unique_objects:
         object_data = arr_segments[arr_segments[:, 0] == object, :]
         object_id = object_data[0, 0]
-        df_calcs = calculations(object_data, tau_euclid, object_id, parameters)
+        df_calcs = calculations(object_data, tau, object_id, parameters)
         all_calcs.append(df_calcs)
     df_all_calcs = pd.concat(all_calcs)
     mapping = {0: None}
@@ -158,30 +160,17 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         ('Contact length', contact_length),
         ('Max. arrest coeff.', arrested),
         ('Timelapse interval', timelapse_interval),
-        ('Max. MSD Tau', parameters['tau_msd']),
-        ('Max. Euclid. Tau', tau_euclid),
+        ('Max. Tau', parameters['tau']),
         ('Multitracking', parameters['multi_track']),
         ('Interpolation', parameters['interpolate'])
     ]
     df_settings = pd.DataFrame(settings, columns=['Parameter', 'Value'])
 
     df_sum, time_interval, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca = summary_sheet(arr_segments,
-                  df_all_calcs, unique_objects, parameters['tau_msd'], parameters, arr_tracks, savefile)
+                  df_all_calcs, unique_objects, parameters['tau'], parameters, arr_tracks, savefile)
 
-    tic = tempo.time()
-
-    if parameters['attractors'] and parameters['infile_tracks']:
-        with thread_lock:
-            messages.append('Detecting attractors...')
-
-        cell_types = dict(zip(track_df['Object ID'], track_df['Category']))
-        attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, parameters['attract_params'])
-        toc = tempo.time()
-
-        with thread_lock:
-            messages.append('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-            messages.append('')
-        complete_progress_step("Attractors")
+    savepath = savefile + '.xlsx'
+    savecontacts = savefile + '_Contacts.xlsx'
 
     if parameters['contact'] is False:
         pass
@@ -229,39 +218,68 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             with thread_lock:
                 messages.append("No valid contacts detected; skipping summary processing.")
 
-        toc = tempo.time()
-
-        with thread_lock:
-            messages.append('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-        complete_progress_step("Contacts")
-
-    df_all_calcs = df_all_calcs.replace(mapping)
-    df_sum = df_sum.replace(mapping)
-
-    if track_df.shape[0] > 0:
-        df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
-
-    df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
-
-    savepath = savefile + '.xlsx'
-    savecontacts = savefile + '_Contacts.xlsx'
-
-    if parameters['contact'] is False:
-        pass
-    else:
-        with thread_lock:
-            messages.append('Saving contacts output to ' + savecontacts + '...')
-            messages.append('')
-
         with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
             df_contacts.to_excel(workbook, sheet_name='Contacts (all)', index=False)
             df_no_daughter.to_excel(workbook, sheet_name='Contacts (minus dividing)', index=False)
             df_no_dead_.to_excel(workbook, sheet_name='Contacts (minus dead)', index=False)
             df_contact_summary.to_excel(workbook, sheet_name='Contacts Summary', index=False)
 
+        toc = tempo.time()
+
+        with thread_lock:
+            messages.append('Saving contacts output to ' + savecontacts + '...')
+            messages.append('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+            messages.append('')
+        complete_progress_step("Contacts")
+
+    if parameters['attractors'] is False:
+        pass
+    else:
+        if parameters['infile_tracks']:
+            tic = tempo.time()
+            with thread_lock:
+                messages.append('Detecting attractors...')
+
+            cell_types = dict(zip(track_df['Object ID'], track_df['Category']))
+            attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, parameters['attract_params'])
+            toc = tempo.time()
+            with thread_lock:
+                messages.append('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+                messages.append('')
+            complete_progress_step("Attractors")
+
+    if parameters['generate_figures'] is False:
+        pass
+    else:
+        with thread_lock:
+            messages.append("Generating figures...")
+        all_figures = []
+        tracks_fig = tracks_figure(df_segments, df_sum, parameters['infile_tracks'], savefile)
+        all_figures.extend(summary_figures(df_sum))
+        all_figures.append(tracks_fig)
+        if df_pca is not None and not df_pca.empty:
+            pca_fig = pca_figure(df_pca)
+            all_figures.append(pca_fig)
+        else:
+            with thread_lock:
+                messages.append("No valid PCA data found for figure.")
+        with open(f'{savefile}_figures.html', 'w') as f:
+            for fig in all_figures:
+                f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
+        with thread_lock:
+            messages.append("Figures generated.")
+            messages.append('')
+        complete_progress_step('Generate Figures')
+
     with thread_lock:
         messages.append('Saving main output to ' + savepath + '...')
         messages.append('')
+
+    df_all_calcs = df_all_calcs.replace(mapping)
+    df_sum = df_sum.replace(mapping)
+    if track_df.shape[0] > 0:
+        df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
+    df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 
     if parameters['verbose']:
         with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:

@@ -74,7 +74,7 @@ Remember to open the Anaconda Prompt and activate the Migrate3D venv next time y
 conda activate Migrate3D
 python %USERPROFILE%\Migrate3D\Migrate3D-main\main.py
 ```
-In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/). You can now go to this address in your web browser to access the Migrate3D GUI.
+In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
 
 Note that the output result spreadsheets will be saved under C:\Users\your_username\Migrate3D\Migrate3D-main\.
 
@@ -122,6 +122,8 @@ Remember to first activate the Migrate3D venv next time you want to run Migrate3
 conda activate Migrate3D
 python3 ~/Migrate3D/Migrate3D-main/main.py
 ```
+In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
+
 Note that the output result spreadsheets will be saved under /Users/your_username/Migrate3D/Migrate3D-main/.
 
 ### On Linux (tested in Ubuntu 23.10):
@@ -176,6 +178,8 @@ Remember to first activate the Migrate3D venv next time you want to run Migrate3
 source ~/Migrate3D/bin/activate
 python3 ~/Migrate3D/Migrate3D-main/main.py
 ```
+In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
+
 Note that the output result spreadsheets will be saved under ~/Migrate3D/Migrate3D-main/.
 
 
@@ -206,13 +210,9 @@ A floating point variable between 0 and 1 that uses each object's Arrest Coeffic
 
 The time between each observation (assumes the same units as the values in the Time column of your dataset). This is automatically detected from the input dataset, but can be manually overridden in the GUI if necessary.
 
-### Maximum MSD Tau Value:
+### Maximum Tau Value:
 
-An integer variable that controls the number of Mean Squared Displacement intervals to calculate. It is recommended to set this value to a number equal to the total number of timepoints that the majority of the tracks in the dataset have. This is autodetected from the input dataset by calculating the number of timepoints in all object IDs and taking the mode of that set, but can be manually overridden in the GUI if necessary.
-
-### Maximum Euclidean distance Tau value:
-
-An integer variable that controls the range of intervals that Euclidean Distance and Turning Angle calculations will be performed on. This is automatically set to half the number of the MSD Tau Value, but can be manually overriden in the GUI if necessary.
+An integer variable that controls the number of intervals to calculate for Mean Squared Displacement, Euclidean Distances, and Turning Angles. This is autodetected from the input dataset by calculating the maximum number of timepoints in all object IDs, but can be manually overridden in the GUI if necessary.
 
 
 ## Formatting options
@@ -237,11 +237,11 @@ Identifies contacts between objects at each timepoint, and returns a separate re
 
 ### Attractors:
 
-Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event. An additional set of tunable parameters for this function is available in the GUI. The default values for these parameters can be changed at the top of the main.py script.
+Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event. An additional set of tunable parameters for this function is available in the GUI. The default values for these parameters can be changed at the top of the main.py script. Note that this function will only run if a Categories file is provided.
 
 ### Generate Figures:
 
-Generates interactive violin plots for each of the summary statistics, and an interactive plot containing all tracks. These figures will be saved as a single .html file which can be viewed in a browser.
+Generates interactive violin plots for each of the summary statistics, an interactive X/Y/Z plot of all tracks, and an interactive 3D plot of the first three principal components from PCA. These figures will be saved as a single .html file which can be viewed in a browser (note that this file can take a while to fully load once opened).
 
 ### Subset Categories:
 
@@ -383,7 +383,7 @@ $$
 
 ### Mean Squared Displacement (MSD):
 
-The mean squared displacement over a certain number of time lags, or tau (τ) values. Used to show that over t time points an object can be expected to move a certain amount. The maximum number of τ values is a tunable variable.
+The mean squared displacement over a certain number of time intervals, or tau (τ) values. Used to show that over t time points an object can be expected to move a certain amount. The maximum number of τ values is a tunable variable.
 
 $$
 MSD(τ)=\ \lt(x(t + τ) - x(t))^2 \gt 

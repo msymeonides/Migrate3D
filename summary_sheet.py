@@ -12,7 +12,7 @@ from PCA import pca
 from xgb import xgboost
 from shared_state import messages, thread_lock, complete_progress_step
 
-def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameters, arr_tracks, savefile):
+def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, arr_tracks, savefile):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
 
@@ -34,7 +34,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
         z_val = object_data[:, 4]
         vals_msd = []
 
-        for t_diff in range(1, tau_msd + 1):
+        for t_diff in range(1, tau + 1):
             if x_val.size <= t_diff:
                 vals_msd.append(None)
                 continue
@@ -161,7 +161,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau_msd, parameter
 
     df_msd = pd.DataFrame({'Object ID': list(msd_dict.keys()),
                            **pd.DataFrame.from_dict(msd_dict, orient='index').to_dict(orient='list')})
-    existing_cols = [col for col in range(1, tau_msd + 1) if col in df_msd.columns]
+    existing_cols = [col for col in range(1, tau + 1) if col in df_msd.columns]
     df_msd = df_msd[['Object ID'] + existing_cols]
 
     msd_vals = df_msd.set_index('Object ID')[existing_cols]

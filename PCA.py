@@ -128,3 +128,5 @@ def pca(df, parameters, savefile):
         messages.append('...PCA done.')
         messages.append('')
     complete_progress_step("PCA")
+
+    return df_PCscores
