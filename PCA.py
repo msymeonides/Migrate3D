@@ -9,21 +9,14 @@ from shared_state import messages, thread_lock, complete_progress_step
 
 
 def clean_data(df):
-    # Replace infinite values with NaN
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
-
-    # Drop rows with NaN values or fill them with a default value
-    df.dropna(inplace=True)  # Alternatively, use df.fillna(0) to replace NaN with 0
-
-    # Clip extremely large values to a reasonable range
+    df.dropna(inplace=True)
     df = df.clip(lower=-1e10, upper=1e10)
 
     return df
 
 
 def apply_category_filter(df, filter):
-    with thread_lock:
-        messages.append(f"Unique Categories: {df['Category'].unique()}")
     if filter is None:
         return df
     if pd.api.types.is_numeric_dtype(df['Category']):
@@ -31,15 +24,9 @@ def apply_category_filter(df, filter):
             filter_vals = [int(x) for x in filter]
         except ValueError:
             filter_vals = filter
-            with thread_lock:
-                messages.append("Error converting filter values to int. Using original filter values.")
-        with thread_lock:
-            messages.append(f"Filtering categories to {filter_vals}...")
         df['Category'] = df['Category'].astype(int)
     else:
         filter_vals = [str(x) for x in filter]
-        with thread_lock:
-            messages.append(f"Filtering categories to {filter_vals}...")
     filtered_df = df[df['Category'].isin(filter_vals)]
     if filtered_df.empty:
         with thread_lock:
@@ -65,6 +52,13 @@ def pca(df, parameters, savefile):
     df_pca = df_pca.dropna()
     x = np.array(df_pca)
     x = StandardScaler().fit_transform(x)
+    n_samples, n_features = x.shape
+    n_components = min(4, n_samples, n_features)
+    if n_components < 4:
+        with thread_lock:
+            messages.append("Not enough data for PCA (need at least 4 samples and features). Skipping PCA.")
+        complete_progress_step("PCA")
+        return None
     pca_model = PCA(n_components=4)
     PCscores = pca_model.fit_transform(x)
     df_expl_var = pd.DataFrame(pca_model.explained_variance_ratio_)
@@ -105,8 +99,7 @@ def pca(df, parameters, savefile):
     df_PC4 = pd.DataFrame(PC4_test)
 
     savePCA = savefile + '_PCA.xlsx'
-    with thread_lock:
-        messages.append("Saving PCA output to " + savePCA + "...")
+
     writer = pd.ExcelWriter(savePCA, engine='xlsxwriter')
     df.to_excel(writer, sheet_name='Full dataset', index=False)
     df_pca.to_excel(writer, sheet_name='PCA dataset', index=False)
@@ -139,7 +132,8 @@ def pca(df, parameters, savefile):
 
     writer.close()
     with thread_lock:
-        messages.append('...PCA done.')
+        msg = " PCA done."
+        messages[-1] += msg
         messages.append('')
     complete_progress_step("PCA")
 

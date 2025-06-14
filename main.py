@@ -3,7 +3,6 @@ from dash import Dash, dcc, html, Input, Output, State, exceptions
 import dash_bootstrap_components as dbc
 from datetime import date
 import io
-import math
 import numpy as np
 import os
 import pandas as pd

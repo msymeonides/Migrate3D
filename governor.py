@@ -9,7 +9,7 @@ from pathlib import Path
 from formatting import multi_tracking, interpolate_lazy
 from calculations import calculations
 from summary_sheet import summary_sheet
-from generate_figures import summary_figures, tracks_figure, pca_figure
+from generate_figures import summary_figures, tracks_figure, pca_figure, save_all_figures
 from attract import attract
 import parallel_contacts
 from shared_state import messages, thread_lock, complete_progress_step
@@ -250,28 +250,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 messages.append('')
             complete_progress_step("Attractors")
 
-    if parameters['generate_figures'] is False:
-        pass
-    else:
-        with thread_lock:
-            messages.append("Generating figures...")
-        all_figures = []
-        tracks_fig = tracks_figure(df_segments, df_sum, parameters['infile_tracks'], savefile)
-        all_figures.extend(summary_figures(df_sum))
-        all_figures.append(tracks_fig)
-        if df_pca is not None and not df_pca.empty:
-            pca_fig = pca_figure(df_pca)
-            all_figures.append(pca_fig)
-        else:
-            with thread_lock:
-                messages.append("No valid PCA data found for figure.")
-        with open(f'{savefile}_figures.html', 'w') as f:
-            for fig in all_figures:
-                f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
-        with thread_lock:
-            msg = " Figures generated."
-            messages[-1] += msg
-            messages.append('')
+    if parameters['generate_figures']:
+        save_all_figures(df_sum, df_segments, df_pca, savefile, parameters['infile_tracks'], thread_lock, messages)
         complete_progress_step('Generate Figures')
 
     with thread_lock:

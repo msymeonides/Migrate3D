@@ -11,7 +11,7 @@ from scipy.spatial import ConvexHull
 from msd_parallel import main as msd_parallel_main
 from overall_medians import overall_medians
 from PCA import pca
-from xgb import xgboost
+from xgb import xgboost, XGBAbortException
 from shared_state import messages, thread_lock, complete_progress_step
 
 
@@ -219,13 +219,12 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
     complete_progress_step("Summary")
 
     if parameters['infile_tracks']:
-        with thread_lock:
-            messages.append('Object category input found! Running PCA and XGBoost...')
         df_pca = pca(df_sum, parameters, savefile)
-        xgboost(df_sum, parameters, savefile)
+        try:
+            xgboost(df_sum, parameters, savefile)
+        except XGBAbortException:
+            pass
     else:
-        with thread_lock:
-            messages.append('Object category input not found. Skipping PCA and XGBoost.')
         df_pca = None
 
     return df_sum, time_interval, df_single_euclids_df, df_single_angles_df, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca
