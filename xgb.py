@@ -67,77 +67,144 @@ def aggregate_correlated_features(df, feature_groups):
 
 
 def preprocess_features(df, parameters, k=20):
-    """
-    Preprocesses the feature data (log transformation and correlation grouping)
-    """
-    df_features = df.drop(['Object ID', 'Category'], axis=1)
-    y = df['Category']
+    try:
+        df_features = df.drop(['Object ID', 'Category'], axis=1)
+        y = df['Category']
 
-    # Apply signed log transformation and drop any rows with NaN values
-    log_data = signed_log_transformation(df_features)
-    log_data = log_data.dropna()
+        log_data = signed_log_transformation(df_features)
+        log_data = log_data.dropna()
 
-    # Ensure that we drop the corresponding rows from 'y' to maintain alignment with 'X'
-    y = y.loc[log_data.index]
+        y = y.loc[log_data.index]
 
-    scaler = StandardScaler()
-    scaled_data = scaler.fit_transform(log_data)
-    scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns)
+        scaler = StandardScaler()
+        scaled_data = scaler.fit_transform(log_data)
+        scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns)
 
-    # Group highly correlated features
-    #selected_features, feature_names = aggregate_correlated_features(scaled_df, y, k=k)
-    feature_groups = group_similar_features(scaled_df, correlation_threshold=0.9)
-    aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
+        feature_groups = group_similar_features(scaled_df, correlation_threshold=0.9)
+        aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
 
-    return aggregated_features, y, feature_mapping
+        return aggregated_features, y, feature_mapping
+    except KeyError as ke:
+        print("KeyError during preprocessing:", ke)
+    except Exception as e:
+        print("Unexpected error during preprocessing:", e)
+        print("Stack trace:", traceback.format_exc())
 
+# def preprocess_features(df, parameters, k=20):
+#     """
+#     Preprocesses the feature data (log transformation and correlation grouping)
+#     """
+#     df_features = df.drop(['Object ID', 'Category'], axis=1)
+#     y = df['Category']
+#
+#     # Apply signed log transformation and drop any rows with NaN values
+#     log_data = signed_log_transformation(df_features)
+#     log_data = log_data.dropna()
+#
+#     # Ensure that we drop the corresponding rows from 'y' to maintain alignment with 'X'
+#     y = y.loc[log_data.index]
+#
+#     scaler = StandardScaler()
+#     scaled_data = scaler.fit_transform(log_data)
+#     scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns)
+#
+#     # Group highly correlated features
+#     #selected_features, feature_names = aggregate_correlated_features(scaled_df, y, k=k)
+#     feature_groups = group_similar_features(scaled_df, correlation_threshold=0.9)
+#     aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
+#
+#     return aggregated_features, y, feature_mapping
 
 def train_and_evaluate(X_train, y_train, X_test, y_test, params):
-    """
-    Trains XGBoost model and evaluates performance
-    """
-    model = xgb.XGBClassifier(
-        objective='multi:softmax',
-        eval_metric='mlogloss',
-        num_class=len(np.unique(y_train)),
-        early_stopping_rounds=15,
-        n_jobs=-1,
-        **params
-    )
+    try:
+        model = xgb.XGBClassifier(
+            objective='multi:softmax',
+            eval_metric='mlogloss',
+            num_class=len(np.unique(y_train)),
+            early_stopping_rounds=15,
+            n_jobs=-1,
+            **params
+        )
 
-    eval_set = [(X_train, y_train), (X_test, y_test)]
+        eval_set = [(X_train, y_train), (X_test, y_test)]
+        model.fit(X_train, y_train, eval_set=eval_set, verbose=False)
 
-    # Fit model
-    model.fit(
-        X_train, y_train,
-        eval_set=eval_set,
-        verbose=False)
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
 
-    # Predict and evaluate
-    y_pred = model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X_test)
 
-    # Calculate SHAP values
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X_test)
+        return accuracy, model
+    except xgb.core.XGBoostError as xe:
+        print("XGBoostError during training:", xe)
+    except Exception as e:
+        print("Unexpected error during training:", e)
+        print("Stack trace:", traceback.format_exc())
 
-    return accuracy, model
+# def train_and_evaluate(X_train, y_train, X_test, y_test, params):
+#     """
+#     Trains XGBoost model and evaluates performance
+#     """
+#     model = xgb.XGBClassifier(
+#         objective='multi:softmax',
+#         eval_metric='mlogloss',
+#         num_class=len(np.unique(y_train)),
+#         early_stopping_rounds=15,
+#         n_jobs=-1,
+#         **params
+#     )
+#
+#     eval_set = [(X_train, y_train), (X_test, y_test)]
+#
+#     # Fit model
+#     model.fit(
+#         X_train, y_train,
+#         eval_set=eval_set,
+#         verbose=False)
+#
+#     # Predict and evaluate
+#     y_pred = model.predict(X_test)
+#     accuracy = accuracy_score(y_test, y_pred)
+#
+#     # Calculate SHAP values
+#     explainer = shap.TreeExplainer(model)
+#     shap_values = explainer.shap_values(X_test)
+#
+#     return accuracy, model
 
 
 def cross_validate_model(X, y, params, n_splits=5):
-    """
-    Perform cross-validation and return average accuracy.
-    """
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    accuracies = []
-    for train_index, test_index in skf.split(X, y):
-        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+    try:
+        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        accuracies = []
+        for train_index, test_index in skf.split(X, y):
+            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
-        accuracy, _ = train_and_evaluate(X_train, y_train, X_test, y_test, params)
-        accuracies.append(accuracy)
-    avg_accuracy = np.mean(accuracies)
-    return avg_accuracy
+            accuracy, _ = train_and_evaluate(X_train, y_train, X_test, y_test, params)
+            accuracies.append(accuracy)
+        return np.mean(accuracies)
+    except ValueError as ve:
+        print("ValueError during cross-validation:", ve)
+    except Exception as e:
+        print("Unexpected error during cross-validation:", e)
+        print("Stack trace:", traceback.format_exc())
+
+# def cross_validate_model(X, y, params, n_splits=5):
+#     """
+#     Perform cross-validation and return average accuracy.
+#     """
+#     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+#     accuracies = []
+#     for train_index, test_index in skf.split(X, y):
+#         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+#         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+#
+#         accuracy, _ = train_and_evaluate(X_train, y_train, X_test, y_test, params)
+#         accuracies.append(accuracy)
+#     avg_accuracy = np.mean(accuracies)
+#     return avg_accuracy
 
 
 def generate_param_grids(param_space):
@@ -169,18 +236,28 @@ def optimize_hyperparameters(X_train, y_train):
                               num_class=len(np.unique(y_train)),
                               n_jobs=-1)
 
-    random_search = RandomizedSearchCV(
-        model, param_distributions=param_grid,
-        #n_iter=25,  # Reduce the number of combinations
-        cv=3, scoring='accuracy', verbose=0, n_jobs=-1, random_state=42
-    )
-
-    random_search.fit(X_train, y_train)
-    return random_search.best_params_
-    #grid_search = GridSearchCV(model, param_grid, cv=3, scoring='accuracy', verbose=1, n_jobs=-1)
-    #grid_search.fit(X_train, y_train)
-    #return grid_search.best_params_
-
+    try:
+        random_search = RandomizedSearchCV(
+            model, param_distributions=param_grid,
+            cv=3, scoring='accuracy', verbose=0, n_jobs=-1, random_state=42
+        )
+        random_search.fit(X_train, y_train)
+        return random_search.best_params_
+    except Exception as e:
+        print("Error during hyperparameter optimization:", e)
+        print("Stack trace:", traceback.format_exc())
+        # Return default parameters as a fallback
+        return {
+            'n_estimators': 100,
+            'learning_rate': 0.1,
+            'max_depth': 3,
+            'gamma': 0.0,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'min_child_weight': 1,
+            'reg_alpha': 0.0,
+            'reg_lambda': 1.0
+        }
 
 def process_and_train_with_gridsearch(df_xgb, parameters):
     """
