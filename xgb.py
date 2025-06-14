@@ -316,24 +316,21 @@ def perform_xgboost_comparisons(data, category_col, aggregated_features, savefil
         for cat1, cat2 in category_pairs:
             # Filter data for the two categories
             pair_indices = labels.isin([cat1, cat2])
-            pair_data = aggregated_features[pair_indices]
+            # Align indices
+            pair_data = aggregated_features.reindex(labels.index)[pair_indices]
             pair_labels = labels[pair_indices]
 
-            # Encode categories as binary labels
-            label_encoder = LabelEncoder()
-            pair_data = pair_data.copy()
-            pair_data.loc[:, 'label'] = label_encoder.fit_transform(pair_data[category_col])
-
-            # # Split data into features and labels
-            # X = pair_data[feature_cols]
-            # y = pair_data['label']
+            if pair_data.empty or pair_labels.empty:
+                continue  # Skip if no data for this pair
 
             # Encode categories as binary labels
             label_encoder = LabelEncoder()
             pair_labels_encoded = label_encoder.fit_transform(pair_labels)
 
             # Train-test split
-            X_train, X_test, y_train, y_test = train_test_split(pair_data, pair_labels_encoded, test_size=0.3, random_state=42)
+            X_train, X_test, y_train, y_test = train_test_split(
+                pair_data, pair_labels_encoded, test_size=0.3, random_state=42
+            )
 
             # Train XGBoost model
             model = XGBClassifier(eval_metric='logloss')
@@ -347,7 +344,7 @@ def perform_xgboost_comparisons(data, category_col, aggregated_features, savefil
             # Save classification report and feature importance
             report_df.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Report')
             feature_importance = pd.DataFrame({
-                'Feature': aggregated_features.columns,
+                'Feature': pair_data.columns,
                 'Importance': model.feature_importances_
             }).sort_values(by='Importance', ascending=False)
             feature_importance.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Features', index=False)
