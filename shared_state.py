@@ -17,7 +17,7 @@ def get_progress():
 
 def init_progress_tracker(optional_flags):
     global _progress_steps, _completed_steps
-    steps = ["Formatting", "Calculations", "Summary Sheet", "Final results save"]
+    steps = ["Formatting", "Calculations", "MSD", "Summary", "Final results save"]
     if optional_flags.get("pca_xgb", False):
         steps.extend(["PCA", "XGB"])
     if optional_flags.get("contacts", False):

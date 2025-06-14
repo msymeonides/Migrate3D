@@ -90,7 +90,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     tic = tempo.time()
 
     with thread_lock:
-        messages.append(f"Formatting input dataset:\n{seg_path}...")
+        messages.append(f"Formatting input dataset:\n{seg_path}")
 
     if parameters['multi_track']:
         arr_segments = multi_tracking(arr_segments)
@@ -122,7 +122,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     toc = tempo.time()
 
     with thread_lock:
-        messages.append('...Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+        msg = ' Calculations done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
+        messages[-1] += msg
         messages.append('')
     complete_progress_step("Calculations")
 
@@ -227,8 +228,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         toc = tempo.time()
 
         with thread_lock:
-            messages.append('Saving contacts output to ' + savecontacts + '...')
-            messages.append('...Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+            msg = ' Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
+            messages[-1] += msg
             messages.append('')
         complete_progress_step("Contacts")
 
@@ -244,7 +245,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, parameters['attract_params'])
             toc = tempo.time()
             with thread_lock:
-                messages.append('...Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+                msg = ' Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
+                messages[-1] += msg
                 messages.append('')
             complete_progress_step("Attractors")
 
@@ -267,7 +269,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             for fig in all_figures:
                 f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
         with thread_lock:
-            messages.append("Figures generated.")
+            msg = " Figures generated."
+            messages[-1] += msg
             messages.append('')
         complete_progress_step('Generate Figures')
 

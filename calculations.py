@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-def calculations(object_data, num_euclid_spaces, object_id, parameters):
+def calculations(object_data, tau, object_id, parameters):
     num_rows, _ = object_data.shape
 
     instantaneous_displacement = np.zeros(num_rows)
@@ -32,50 +32,52 @@ def calculations(object_data, num_euclid_spaces, object_id, parameters):
     acc_diff = np.diff(instantaneous_velocity, prepend=instantaneous_velocity[0])
     instantaneous_acceleration_filtered[filtered_mask] = acc_diff[filtered_mask] / timelapse
 
-    euclid_array = np.zeros((num_euclid_spaces, num_rows))
-    for num in range(1, num_euclid_spaces + 1):
-        euclid_tp = np.zeros(num_rows)
-        for index in range(num, num_rows):
-            curr_row = object_data[index]
-            prev_row = object_data[index - num]
-            euclid_tp[index] = np.sqrt((curr_row[2] - prev_row[2])**2 +
-                                       (curr_row[3] - prev_row[3])**2 +
-                                       (curr_row[4] - prev_row[4])**2)
-        euclid_array[num - 1] = euclid_tp
+    coords = np.stack([x, y, z], axis=1)
 
-    mod = 3
-    arrest_multiplier = 1
-    space = list(range(1, num_euclid_spaces + 1, 2))
-    num_tps = len(space)
+    idx = np.arange(num_rows)
+    lag_idx = np.arange(1, tau + 1)[:, None]
+    valid = idx[None, :] >= lag_idx
+    prev_idx = idx[None, :] - lag_idx
+    curr_coords = coords[None, :, :]
+    prev_coords = coords[prev_idx.clip(min=0), :]
+    diffs = np.where(valid[..., None], curr_coords - prev_coords, 0)
+    dists = np.linalg.norm(diffs, axis=2) * valid
+    euclid_array = dists
+
+    angle_steps = np.arange(1, tau + 1, 2)
+    num_tps = len(angle_steps)
+    idx = np.arange(num_rows)
+    step_idx = angle_steps[:, None]
+    valid_idx = idx[None, :] >= step_idx * 2
+
+    curr = coords[None, :, :]
+    back_idx = (idx[None, :] - step_idx).clip(min=0)
+    backs_idx = (idx[None, :] - step_idx * 2).clip(min=0)
+    back = coords[back_idx, :]
+    backs = coords[backs_idx, :]
+
+    vec0 = curr - back
+    vec1 = curr - backs
+    norm0 = np.linalg.norm(vec0, axis=2)
+    norm1 = np.linalg.norm(vec1, axis=2)
+    valid_norm = (norm0 > 0) & (norm1 > 0) & valid_idx
+
+    vec0_norm = np.zeros_like(vec0)
+    vec1_norm = np.zeros_like(vec1)
+    vec0_norm[valid_norm] = vec0[valid_norm] / norm0[valid_norm, None]
+    vec1_norm[valid_norm] = vec1[valid_norm] / norm1[valid_norm, None]
+
+    dot_val = np.clip(np.sum(vec0_norm * vec1_norm, axis=2), -1.0, 1.0)
+    angle_rad = np.arccos(dot_val)
+    angle_deg = np.degrees(angle_rad)
     angle_array = np.zeros((num_tps, num_rows))
-    filtered_angle_array = np.zeros((num_tps, num_rows))
+    angle_array[valid_norm] = angle_deg[valid_norm]
 
-    for back_angle in range(num_tps):
-        angle_tp = np.zeros(num_rows)
-        filtered_angle_tp = np.zeros(num_rows)
-        for index in range(back_angle * 2, num_rows):
-            curr = object_data[index]
-            back = object_data[index - back_angle] if back_angle > 0 else object_data[index]
-            backs = object_data[index - back_angle * 2] if back_angle > 0 else object_data[index]
-            vec0 = np.array([curr[2] - back[2], curr[3] - back[3], curr[4] - back[4]])
-            vec1 = np.array([curr[2] - backs[2], curr[3] - backs[3], curr[4] - backs[4]])
-            norm0 = np.linalg.norm(vec0)
-            norm1 = np.linalg.norm(vec1)
-            if norm0 == 0 or norm1 == 0:
-                continue
-            vec0_norm = vec0 / norm0
-            vec1_norm = vec1 / norm1
-            dot_val = np.clip(np.dot(vec0_norm, vec1_norm), -1.0, 1.0)
-            angle_rad = np.arccos(dot_val)
-            angle_deg = angle_rad * 180 / np.pi
-            angle_tp[index] = angle_deg
-            if (norm0 > arrest_limit * arrest_multiplier and
-                norm1 > arrest_limit * arrest_multiplier):
-                filtered_angle_tp[index] = np.abs(angle_deg)
-        angle_array[back_angle] = angle_tp
-        filtered_angle_array[back_angle] = filtered_angle_tp
-        arrest_multiplier += 1
-        mod += 2
+    # Filtered angles
+    arrest_multipliers = np.arange(1, num_tps + 1)[:, None]
+    mask = (norm0 > arrest_limit * arrest_multipliers) & (norm1 > arrest_limit * arrest_multipliers) & valid_norm
+    filtered_angle_array = np.zeros((num_tps, num_rows))
+    filtered_angle_array[mask] = np.abs(angle_deg[mask])
 
     object_calcs = {
         'Object ID': object_id,
