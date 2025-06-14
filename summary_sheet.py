@@ -74,7 +74,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
         straightness = final_euclid / max_path
         tc_straightness = straightness * np.sqrt(duration_val)
         displacement_ratio = final_euclid / max_euclid if max_euclid != 0 else 0
-        tc_convex = convex_hull_volume / np.sqrt(duration_val)
+        tc_convex = convex_hull_volume / np.sqrt(duration_val) if duration_val != 0 else 0
         outreach_ratio = max_euclid / max_path if max_path != 0 else 0
 
         velocity_all = np.array(df_all_calcs.loc[df_all_calcs['Object ID'] == obj, 'Instantaneous Velocity'])

@@ -8,6 +8,19 @@ from scipy import stats
 from shared_state import messages, thread_lock, complete_progress_step
 
 
+def clean_data(df):
+    # Replace infinite values with NaN
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    # Drop rows with NaN values or fill them with a default value
+    df.dropna(inplace=True)  # Alternatively, use df.fillna(0) to replace NaN with 0
+
+    # Clip extremely large values to a reasonable range
+    df = df.clip(lower=-1e10, upper=1e10)
+
+    return df
+
+
 def apply_category_filter(df, filter):
     with thread_lock:
         messages.append(f"Unique Categories: {df['Category'].unique()}")
@@ -34,6 +47,7 @@ def apply_category_filter(df, filter):
     return filtered_df
 
 def pca(df, parameters, savefile):
+    df = clean_data(df)
     filter = parameters.get('pca_filter')
     df = apply_category_filter(df, filter)
 
