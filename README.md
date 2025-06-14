@@ -241,7 +241,7 @@ Identifies instances where an object is attracting other objects towards it (eve
 
 ### Generate Figures:
 
-Generates interactive violin plots for each of the summary statistics, an interactive X/Y/Z plot of all tracks, and an interactive 3D plot of the first three principal components from PCA. These figures will be saved as a single .html file which can be viewed in a browser (note that this file can take a while to fully load once opened).
+Generates interactive violin plots for each of the summary statistics, an interactive X/Y/Z plot of all tracks, and two interactive 3D plots of the PCA results (one with PCs 1, 2, and 3, and one with PCs 2, 3 and 4). These figures will be saved as a single .html file which can be viewed in a browser (note that this file can take a while to fully load once opened).
 
 ### Subset Categories:
 
@@ -349,9 +349,7 @@ $$
 Straightness=\frac{Final\ Euclidean}{Path\ Length}
 $$
 
-### Time Corrected Straightness:
-
-Straightness multiplied by the square root of the duration of that object’s track. Needed when the tracking duration of the objects in the dataset varies, otherwise this will be identical to Straightness.
+This is then multiplied by the square root of the duration of that object’s track. This is helpful when the tracking duration of the objects in the dataset varies.
 
 $$
 Time\ Corrected\ Straightness=Straightness\times\sqrt{Duration}
@@ -395,7 +393,7 @@ If a Categories file is provided, two additional result sheets are given: one ("
 
 ### Convex Hull Volume
 
-The volume of a convex hull contained within the track is calculated. Essentially represents how much volume an object covered during its tracking history. Similarly to Straightness, a Time-Corrected value is also provided by multiplying each Convex Hull Volume value by the square root of the duration of that object’s track (needed when the tracking duration of the objects in the dataset varies). In the case of 2D data, this column will be left blank.
+The volume of a convex hull contained within the track is calculated. Essentially represents how much volume an object covered during its tracking history. Similarly to Straightness, a time correction is applied by multiplying each Convex Hull Volume value by the square root of the duration of that object’s track (helpful when the tracking duration of the objects in the dataset varies). In the case of 2D data, this column will be left blank.
 
 
 ## Machine Learning Analyses
