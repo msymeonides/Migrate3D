@@ -286,16 +286,24 @@ def process_and_train_with_gridsearch(df_xgb, parameters):
             'Importance': model.feature_importances_
             }).sort_values(by='Importance', ascending=False)
 
-        return feature_importance
+        return feature_importance, X
 
     except Exception as e:
         print('Error: ', e)
         print('Stack trace: ', traceback.format_exc())
 
 
-def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, parameters):
+def perform_xgboost_comparisons(data, category_col, aggregated_features, savefile, parameters):
+    # Ensure the 'Category' column exists
+    if category_col not in data.columns:
+        raise KeyError(f"'{category_col}' column is missing from the DataFrame.")
 
     data = apply_category_filter(data, parameters.get('pca_filter'))
+
+    # Ensure the indices of aggregated_features align with the original data
+    #aggregated_features = aggregated_features.loc[data.index]
+    aggregated_features = aggregated_features.reindex(data.index).dropna()
+    labels = data[category_col]
 
     # Extract unique categories after filtering
     unique_categories = data[category_col].unique()
@@ -307,19 +315,25 @@ def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, para
     with pd.ExcelWriter(savefile, engine='xlsxwriter') as writer:
         for cat1, cat2 in category_pairs:
             # Filter data for the two categories
-            pair_data = data[data[category_col].isin([cat1, cat2])]
+            pair_indices = labels.isin([cat1, cat2])
+            pair_data = aggregated_features[pair_indices]
+            pair_labels = labels[pair_indices]
 
             # Encode categories as binary labels
             label_encoder = LabelEncoder()
             pair_data = pair_data.copy()
             pair_data.loc[:, 'label'] = label_encoder.fit_transform(pair_data[category_col])
 
-            # Split data into features and labels
-            X = pair_data[feature_cols]
-            y = pair_data['label']
+            # # Split data into features and labels
+            # X = pair_data[feature_cols]
+            # y = pair_data['label']
+
+            # Encode categories as binary labels
+            label_encoder = LabelEncoder()
+            pair_labels_encoded = label_encoder.fit_transform(pair_labels)
 
             # Train-test split
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+            X_train, X_test, y_train, y_test = train_test_split(pair_data, pair_labels_encoded, test_size=0.3, random_state=42)
 
             # Train XGBoost model
             model = XGBClassifier(eval_metric='logloss')
@@ -333,23 +347,23 @@ def perform_xgboost_comparisons(data, category_col, feature_cols, savefile, para
             # Save classification report and feature importance
             report_df.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Report')
             feature_importance = pd.DataFrame({
-                'Feature': feature_cols,
+                'Feature': aggregated_features.columns,
                 'Importance': model.feature_importances_
             }).sort_values(by='Importance', ascending=False)
             feature_importance.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Features', index=False)
 
 def xgboost(df_sum, parameters, output_file):
     try:
-        # Step 1: Hyperparameter Optimization on the Entire Dataset
-        param_spaces = [
-            {'n_estimators': [100, 200, 300, 400, 500], 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3]},
-            {'max_depth': [3, 5, 7, 9], 'gamma': [0.0, 0.05, 0.1, 0.2]},
-            {'subsample': [0.6, 0.7, 0.8, 0.9, 1.0], 'colsample_bytree': [0.7, 0.8, 0.9, 1.0]},
-            {'min_child_weight': [1, 3, 5], 'reg_alpha': [0.0, 0.1, 0.5], 'reg_lambda': [0.0, 0.1, 0.5, 1.0]}
-        ]
+        # # Step 1: Hyperparameter Optimization on the Entire Dataset
+        # param_spaces = [
+        #     {'n_estimators': [100, 200, 300, 400, 500], 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3]},
+        #     {'max_depth': [3, 5, 7, 9], 'gamma': [0.0, 0.05, 0.1, 0.2]},
+        #     {'subsample': [0.6, 0.7, 0.8, 0.9, 1.0], 'colsample_bytree': [0.7, 0.8, 0.9, 1.0]},
+        #     {'min_child_weight': [1, 3, 5], 'reg_alpha': [0.0, 0.1, 0.5], 'reg_lambda': [0.0, 0.1, 0.5, 1.0]}
+        # ]
 
         # Perform grid search and train the model
-        feature_importance = process_and_train_with_gridsearch(df_sum, parameters)
+        feature_importance, aggregated_features = process_and_train_with_gridsearch(df_sum, parameters)
 
         # Save feature importance results
         saveXGB = output_file + '_XGB.xlsx'
@@ -360,13 +374,14 @@ def xgboost(df_sum, parameters, output_file):
 
         # Step 2: Pairwise Comparisons
         category_col = 'Category'  # Replace with the actual category column name
-        feature_cols = [col for col in df_sum.columns if col not in ['Object ID', 'Category']]  # Adjust as needed
+        #feature_cols = [col for col in df_sum.columns if col not in ['Object ID', 'Category']]  # Adjust as needed
         savefile = output_file + '_XGB_Comparisons.xlsx'
 
         perform_xgboost_comparisons(
             data=df_sum,
             category_col=category_col,
-            feature_cols=feature_cols,
+            aggregated_features=aggregated_features,
+            #feature_cols=feature_cols,
             savefile=savefile,
             parameters=parameters)
 
