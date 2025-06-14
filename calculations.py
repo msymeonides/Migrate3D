@@ -73,7 +73,6 @@ def calculations(object_data, tau, object_id, parameters):
     angle_array = np.zeros((num_tps, num_rows))
     angle_array[valid_norm] = angle_deg[valid_norm]
 
-    # Filtered angles
     arrest_multipliers = np.arange(1, num_tps + 1)[:, None]
     mask = (norm0 > arrest_limit * arrest_multipliers) & (norm1 > arrest_limit * arrest_multipliers) & valid_norm
     filtered_angle_array = np.zeros((num_tps, num_rows))
@@ -90,7 +89,6 @@ def calculations(object_data, tau, object_id, parameters):
         'Instantaneous Velocity Filtered': instantaneous_velocity_filtered,
         'Instantaneous Acceleration Filtered': instantaneous_acceleration_filtered,
     }
-    # Collect new columns in a dict
     new_cols = {}
     for i, arr in enumerate(euclid_array, 1):
         new_cols[f'Euclid {i} TP'] = arr

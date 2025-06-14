@@ -32,11 +32,10 @@ def select_categories(df, parameters):
         messages.append('Starting XGBoost...')
     df = df.dropna()
     df = df.drop(
-        labels=['Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
-                'Velocity Mean', 'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean',
-                'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
-                'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
-                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume'], axis=1)
+        labels=['Duration', 'Path Length', 'Final Euclidean', 'Velocity filtered Mean', 'Velocity Mean',
+                'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean', 'Absolute Acceleration Mean',
+                'Absolute Acceleration Median', 'Acceleration Filtered Mean', 'Acceleration Filtered Median',
+                'Acceleration Filtered Standard Deviation', 'Acceleration Median', 'Overall Euclidean Median'], axis=1)
     return df
 
 def group_similar_features(df_features, correlation_threshold=0.9):
@@ -51,7 +50,6 @@ def group_similar_features(df_features, correlation_threshold=0.9):
             used_features.update(correlated_features)
     return feature_groups
 
-
 def aggregate_correlated_features(df, feature_groups):
     aggregated_data = []
     feature_mapping = {}
@@ -65,7 +63,6 @@ def aggregate_correlated_features(df, feature_groups):
     aggregated_df.columns = [", ".join(group) for group in feature_groups]
 
     return aggregated_df, feature_mapping
-
 
 def preprocess_features(df):
     try:
@@ -92,7 +89,6 @@ def preprocess_features(df):
     except Exception:
         error()
 
-
 def train_and_evaluate(X_train, y_train, X_test, y_test, params):
     try:
         model = xgb.XGBClassifier(
@@ -118,7 +114,6 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, params):
     except Exception:
         error()
 
-
 def cross_validate_model(X, y, params, n_splits=5):
     try:
         skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
@@ -137,12 +132,10 @@ def cross_validate_model(X, y, params, n_splits=5):
     except Exception:
         error()
 
-
 def generate_param_grids(param_space):
     keys = param_space.keys()
     values = param_space.values()
     return [dict(zip(keys, combo)) for combo in product(*values)]
-
 
 def optimize_hyperparameters(X_train, y_train):
     param_grid = {
@@ -189,11 +182,7 @@ def process_and_train_with_gridsearch(df_xgb, parameters):
         label_encoder = LabelEncoder()
         y_encoded = label_encoder.fit_transform(y)
         if len(X) < 2:
-            with thread_lock:
-                messages.append("Not enough samples to split data for training/testing. Skipping XGBoost analysis.")
-                messages.append('')
-            complete_progress_step("XGB")
-            return None, X, None, None
+            error()
 
         X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.4, random_state=42)
         best_params = optimize_hyperparameters(X_train, y_train)
@@ -211,7 +200,6 @@ def process_and_train_with_gridsearch(df_xgb, parameters):
         raise
     except Exception:
         error()
-
 
 def perform_xgboost_comparisons(data, category_col, aggregated_features, writer, parameters):
     if category_col not in data.columns:
@@ -249,7 +237,6 @@ def perform_xgboost_comparisons(data, category_col, aggregated_features, writer,
         report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
         report_df = pd.DataFrame(report).transpose()
         report_df.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Report')
-
 
 def xgboost(df_sum, parameters, output_file):
     try:

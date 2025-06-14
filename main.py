@@ -502,7 +502,7 @@ def run_migrate(*vals):
     args = [
         parent_id, time_for, x_for, y_for, z_for,
         float(timelapse), float(arrest_limit), int(moving),
-        int(contact_length), float(arrested), int(tau),
+        float(contact_length), float(arrested), int(tau),
         formatting_options, savefile,
         segments_file, category_file,
         parent_id2, category_col_name,

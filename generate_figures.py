@@ -1,7 +1,5 @@
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
 
 colors = ['Black', 'Blue', 'Red', 'Purple', 'Orange', 'Green', 'Pink', 'Navy', 'Grey', 'Cyan',
           'darkgray', 'aqua', 'crimson', 'darkviolet', 'orangered', 'darkolivegreen', 'darksalmon', 'Blue', 'Black',
@@ -72,7 +70,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, color_map=None):
     tracks_fig.update_layout(title=f'{save_file} Tracks', plot_bgcolor='white')
     return tracks_fig
 
-def pca_figure(df, color_map=None):
+def pca123_figure(df, color_map=None):
     categories = sorted(df['Category'].dropna().unique(), key=lambda x: str(x))
     if color_map is None:
         color_map = get_category_color_map(categories)
@@ -89,27 +87,65 @@ def pca_figure(df, color_map=None):
             showlegend=True,
             legendgroup=str(cat)
         ))
-    pca_fig = go.Figure(data=traces)
-    pca_fig.update_layout(title='PCA', plot_bgcolor='white')
-    return pca_fig
+    pca123_fig = go.Figure(data=traces)
+    pca123_fig.update_layout(
+        title='PCA',
+        plot_bgcolor='white',
+        scene=dict(
+            xaxis_title='PC1',
+            yaxis_title='PC2',
+            zaxis_title='PC3'
+        )
+    )
+    return pca123_fig
+
+def pca234_figure(df, color_map=None):
+    categories = sorted(df['Category'].dropna().unique(), key=lambda x: str(x))
+    if color_map is None:
+        color_map = get_category_color_map(categories)
+    traces = []
+    for cat in categories:
+        df_cat = df[df['Category'] == cat]
+        traces.append(go.Scatter3d(
+            x=df_cat['PC2'],
+            y=df_cat['PC3'],
+            z=df_cat['PC4'],
+            mode='markers',
+            marker=dict(color=color_map.get(cat, colors[0])),
+            name=f'Category {cat}',
+            showlegend=True,
+            legendgroup=str(cat)
+        ))
+    pca234_fig = go.Figure(data=traces)
+    pca234_fig.update_layout(
+        title='PCA (PC2, PC3, PC4)',
+        plot_bgcolor='white',
+        scene=dict(
+            xaxis_title='PC2',
+            yaxis_title='PC3',
+            zaxis_title='PC4'
+        )
+    )
+    return pca234_fig
 
 def save_all_figures(df_sum, df_segments, df_pca, savefile, cat_provided, thread_lock=None, messages=None):
     all_figures = summary_figures(df_sum, color_map=get_category_color_map(df_sum['Category'].unique()))
     color_map = get_category_color_map(df_sum['Category'].unique())
     tracks_fig = tracks_figure(df_segments, df_sum, cat_provided, savefile, color_map=color_map)
-    pca_fig = None
     if df_pca is not None and not df_pca.empty:
-        pca_fig = pca_figure(df_pca, color_map=color_map)
+        pca123_fig = pca123_figure(df_pca, color_map=color_map)
+        pca234_fig = pca234_figure(df_pca, color_map=color_map)
         tracks_html = tracks_fig.to_html(full_html=True, include_plotlyjs='cdn')
-        pca_html = pca_fig.to_html(full_html=True, include_plotlyjs='cdn')
+        pca123_html = pca123_fig.to_html(full_html=True, include_plotlyjs='cdn')
+        pca234_html = pca234_fig.to_html(full_html=True, include_plotlyjs='cdn')
         with open(f'{savefile}_Tracks Figure.html', 'w') as f:
             f.write(tracks_html)
-        with open(f'{savefile}_PCA Figure.html', 'w') as f:
-            f.write(pca_html)
+        with open(f'{savefile}_PCA123_Figure.html', 'w') as f:
+            f.write(pca123_html)
+        with open(f'{savefile}_PCA234_Figure.html', 'w') as f:
+            f.write(pca234_html)
     else:
-        if thread_lock and messages is not None:
-            with thread_lock:
-                messages.append("No valid PCA data found for figure.")
+        pass
 
     with open(f'{savefile}_Summary Figures.html', 'w') as f:
         for fig in all_figures:

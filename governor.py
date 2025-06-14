@@ -9,12 +9,11 @@ from pathlib import Path
 from formatting import multi_tracking, interpolate_lazy
 from calculations import calculations
 from summary_sheet import summary_sheet
-from generate_figures import summary_figures, tracks_figure, pca_figure, save_all_figures
-from attract import attract
-import parallel_contacts
+from generate_figures import save_all_figures
+from attractors import attract
+import contacts_parallel
 from shared_state import messages, thread_lock, complete_progress_step
 pd.set_option('future.no_silent_downcasting', True)
-
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
               arrested, tau, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
@@ -167,8 +166,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     ]
     df_settings = pd.DataFrame(settings, columns=['Parameter', 'Value'])
 
-    df_sum, time_interval, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca = summary_sheet(arr_segments,
-                  df_all_calcs, unique_objects, parameters['tau'], parameters, arr_tracks, savefile)
+    df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca \
+        = summary_sheet(arr_segments, df_all_calcs, unique_objects, parameters['tau'], parameters, arr_tracks, savefile)
 
     savepath = savefile + '.xlsx'
     savecontacts = savefile + '_Contacts.xlsx'
@@ -182,13 +181,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             messages.append('Detecting contacts...')
 
         unique_timepoints = np.unique(arr_segments[:, 1])
-        df_contacts, df_no_daughter, df_no_dead_ = parallel_contacts.main(
+        df_contacts, df_no_daughter, df_no_dead_ = contacts_parallel.main(
             unique_timepoints,
             arr_segments,
             parameters['contact_length'],
             df_sum,
             parameters['arrested'],
-            timelapse_interval
         )
         if not df_no_dead_.empty:
             summary_list = []

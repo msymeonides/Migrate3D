@@ -1,6 +1,5 @@
 import statistics
 
-
 def overall_medians(object, df_all_calcs, cols_angles, cols_euclidean):
     list_of_angle_medians = []
     list_of_euclidean_medians = []

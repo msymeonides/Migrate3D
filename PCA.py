@@ -7,14 +7,11 @@ from scipy import stats
 
 from shared_state import messages, thread_lock, complete_progress_step
 
-
 def clean_data(df):
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df.dropna(inplace=True)
     df = df.clip(lower=-1e10, upper=1e10)
-
     return df
-
 
 def apply_category_filter(df, filter):
     if filter is None:
@@ -43,22 +40,31 @@ def pca(df, parameters, savefile):
 
     df = df.dropna()
     df_pca = df.drop(
-        labels=['Object ID', 'Duration', 'Path Length', 'Final Euclidean', 'Straightness', 'Velocity filtered Mean',
+        labels=['Object ID', 'Duration', 'Path Length', 'Final Euclidean', 'Velocity filtered Mean',
                 'Velocity Mean', 'Velocity Median', 'Acceleration Filtered Mean', 'Acceleration Mean',
                 'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
                 'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
-                'Acceleration Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Category'], axis=1)
+                'Acceleration Median', 'Overall Euclidean Median', 'Category'], axis=1)
     df_pca.columns = df_pca.columns.str.strip()
     df_pca = df_pca.dropna()
+    if df_pca.empty:
+        with thread_lock:
+            messages.append("Not enough data for PCA, bypassing...")
+            messages.append('')
+        complete_progress_step("PCA")
+        return None
+
     x = np.array(df_pca)
     x = StandardScaler().fit_transform(x)
     n_samples, n_features = x.shape
     n_components = min(4, n_samples, n_features)
     if n_components < 4:
         with thread_lock:
-            messages.append("Not enough data for PCA (need at least 4 samples and features). Skipping PCA.")
+            messages.append("Not enough data for PCA, bypassing...")
+            messages.append('')
         complete_progress_step("PCA")
         return None
+
     pca_model = PCA(n_components=4)
     PCscores = pca_model.fit_transform(x)
     df_expl_var = pd.DataFrame(pca_model.explained_variance_ratio_)
