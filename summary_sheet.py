@@ -244,7 +244,10 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
     cat_idx = cols.index("Category")
     cols.insert(cat_idx, cols.pop(final_msd_idx))
     df_sum = df_sum[cols]
-    df_msdloglogfits = msd_loglogfits(df_msd)
+    if parameters.get("infile_tracks", False):
+        df_msd_loglogfits = msd_loglogfits(df_msd)
+    else:
+        df_msd_loglogfits = None
 
     toc = tempo.time()
     with thread_lock:
@@ -263,4 +266,4 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
         df_pca = None
 
     return (df_sum, df_single_euclids_df, df_single_angles_df, df_msd, df_msd_sum_all,
-            df_msd_avg_per_cat, df_msd_std_per_cat, df_msdloglogfits, df_pca)
+            df_msd_avg_per_cat, df_msd_std_per_cat, df_msd_loglogfits, df_pca)
