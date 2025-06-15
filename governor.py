@@ -166,8 +166,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     ]
     df_settings = pd.DataFrame(settings, columns=['Parameter', 'Value'])
 
-    df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat, df_pca \
-        = summary_sheet(arr_segments, df_all_calcs, unique_objects, parameters['tau'], parameters, arr_tracks, savefile)
+    (df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat,
+     df_msd_loglogfits, df_pca) = summary_sheet(arr_segments, df_all_calcs, unique_objects, parameters['tau'],
+                                               parameters, arr_tracks, savefile)
 
     savepath = savefile + '.xlsx'
     savecontacts = savefile + '_Contacts.xlsx'
@@ -258,9 +259,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     else:
         if parameters['infile_tracks']:
             with thread_lock:
-                messages.append('Generating figures and performing MSD log-log analysis...')
+                messages.append('Generating figures...')
             tic = tempo.time()
-            df_msd_loglogfits = save_all_figures(df_sum, df_segments, df_pca, df_msd, savefile, parameters['infile_tracks'])
+            save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, savefile, parameters['infile_tracks'])
             toc = tempo.time()
             with thread_lock:
                 msg = ' Done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
@@ -272,7 +273,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 messages.append('Figure generation bypassed; no category file provided.')
                 messages.append('')
             complete_progress_step('Generate Figures')
-            df_msd_loglogfits = None
 
     with thread_lock:
         messages.append('Saving main output to ' + savepath + '...')

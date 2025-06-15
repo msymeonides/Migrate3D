@@ -1,7 +1,6 @@
 import multiprocessing as mp
 import numpy as np
 import pandas as pd
-import plotly.graph_objs as go
 
 window_size = 4     # Tunable parameter for bootstrapping window size
 r2_thresh = 0.995   # Tunable parameter for R-squared minimum threshold
@@ -46,10 +45,10 @@ def bootstrap_worker(task):
         slopes.append(slope_bs)
     return slopes
 
-def run_msd_graphs(df_msd, color_map):
+def main(df_msd):
     max_processes = max(1, min(61, mp.cpu_count() - 1))
     n_workers = max_processes
-    mp.set_start_method("spawn", force=True)
+
 
     df = df_msd.copy()
     id_cols = ['Object ID', 'Category']
@@ -60,25 +59,12 @@ def run_msd_graphs(df_msd, color_map):
     df_long['log_tau'] = np.log10(df_long['tau'])
     df_long['log_msd'] = np.log10(df_long['msd'])
 
-    x_min, x_max = df_long['log_tau'].min(), df_long['log_tau'].max()
-    y_min, y_max = df_long['log_msd'].min(), df_long['log_msd'].max()
-
     categories = sorted([int(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
 
     fit_stats = {}
-    category_figs = {}
 
     for category in categories:
         cat_df = df_long[df_long['Category'] == category]
-        fig = go.Figure()
-        for obj_id, group in cat_df.groupby('Object ID'):
-            fig.add_trace(go.Scatter(
-                x=group['log_tau'],
-                y=group['log_msd'],
-                mode='lines',
-                line=dict(color='lightgrey', width=1),
-                showlegend=False
-            ))
         mean_log = cat_df.groupby('log_tau')['log_msd'].mean().reset_index()
         x = mean_log['log_tau'].values
         y = mean_log['log_msd'].values
@@ -112,90 +98,12 @@ def run_msd_graphs(df_msd, color_map):
         max_tau = 10 ** x_fit[-1]
         fit_stats[category] = [slope, ci_low, ci_high, r2, max_tau]
 
-        annotation_text = (
-            f"Slope: {slope:.3f}<br>"
-            f"95% CI: [{ci_low:.3f}, {ci_high:.3f}]<br>"
-        )
-
-        fig.add_trace(go.Scatter(
-            x=x,
-            y=y,
-            mode='lines',
-            line=dict(color='black', width=3),
-            name='Mean log(MSD)'
-        ))
-        fig.add_trace(go.Scatter(
-            x=x,
-            y=y_fit_line,
-            mode='lines',
-            line=dict(color='red', width=2, dash='dash'),
-            name=f'Linear fit (tau {10**x_fit[0]:.2g}–{10**x_fit[-1]:.2g})'
-        ))
-        fig.add_annotation(
-            xref='paper', yref='paper',
-            x=0.05, y=0.95,
-            text=annotation_text,
-            showarrow=False,
-            align='left',
-            font=dict(size=14, color='red'),
-            bgcolor='white'
-        )
-        fig.update_layout(
-            title=f'Category {category}',
-            xaxis_title='log10(Tau)',
-            yaxis_title='log10(MSD)',
-            template='simple_white',
-            xaxis=dict(range=[x_min, x_max]),
-            yaxis=dict(range=[y_min, y_max])
-        )
-        category_figs[category] = fig
-
     df_msd_loglogfits = pd.DataFrame(
         {cat: fit_stats[cat] for cat in categories},
         index=['Slope', 'Lower 95% CI', 'Upper 95% CI', 'Fit R2', 'Fit Max. Tau']
     )
 
-    fig_all = go.Figure()
-    for category in categories:
-        cat_df = df_long[df_long['Category'] == category]
-        mean_log = cat_df.groupby('log_tau')['log_msd'].mean().reset_index()
-        x = mean_log['log_tau'].values
-        y = mean_log['log_msd'].values
-
-        start, end, _ = find_best_linear_window(x, y)
-        x_fit = x[start:end]
-        y_fit = y[start:end]
-        coeffs = np.polyfit(x_fit, y_fit, 1)
-        y_fit_line = np.polyval(coeffs, x)
-
-        color = color_map[int(category)]
-
-        fig_all.add_trace(go.Scatter(
-            x=x,
-            y=y,
-            mode='lines',
-            name=f'Category {category}',
-            line=dict(color=color, width=3)
-        ))
-        fig_all.add_trace(go.Scatter(
-            x=x,
-            y=y_fit_line,
-            mode='lines',
-            name=f'Linear fit (Category {category}, tau {10 ** x_fit[0]:.2g}–{10 ** x_fit[-1]:.2g})',
-            line=dict(color=color, width=2, dash='dash'),
-            showlegend=True
-        ))
-
-    fig_all.update_layout(
-        title='Mean log(MSD) for All Categories',
-        xaxis_title='log10(Tau)',
-        yaxis_title='log10(MSD)',
-        template='simple_white',
-        xaxis=dict(range=[x_min, x_max]),
-        yaxis=dict(range=[y_min, y_max])
-    )
-
-    return df_msd_loglogfits, fig_all, category_figs
+    return df_msd_loglogfits
 
 if __name__ == '__main__':
-    run_msd_graphs()
+    mp.set_start_method("spawn", force=True)

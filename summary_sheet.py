@@ -8,6 +8,7 @@ from pandas.errors import PerformanceWarning
 from scipy.spatial import ConvexHull
 
 from msd_parallel import main as msd_parallel_main
+from msd_loglogfits import main as msd_loglogfits
 from PCA import pca
 from xgb import xgboost, XGBAbortException
 from shared_state import messages, thread_lock, complete_progress_step
@@ -126,6 +127,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
         messages.append("Calculating mean square displacements...")
     tic = tempo.time()
     df_msd = msd_parallel_main(arr_segments, unique_objects, tau)
+
     toc = tempo.time()
     with thread_lock:
         msg = " MSD calculations done in {:.0f} seconds.".format(int(round((toc - tic), 1)))
@@ -242,6 +244,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
     cat_idx = cols.index("Category")
     cols.insert(cat_idx, cols.pop(final_msd_idx))
     df_sum = df_sum[cols]
+    df_msdloglogfits = msd_loglogfits(df_msd)
 
     toc = tempo.time()
     with thread_lock:
@@ -260,4 +263,4 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
         df_pca = None
 
     return (df_sum, df_single_euclids_df, df_single_angles_df, df_msd, df_msd_sum_all,
-            df_msd_avg_per_cat, df_msd_std_per_cat, df_pca)
+            df_msd_avg_per_cat, df_msd_std_per_cat, df_msdloglogfits, df_pca)

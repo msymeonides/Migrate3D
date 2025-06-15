@@ -1,10 +1,10 @@
 import math
+import numpy as np
 import pandas as pd
 import plotly.colors
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from itertools import combinations
-from msd_graphs import run_msd_graphs
 
 colors = plotly.colors.qualitative.Plotly
 
@@ -185,7 +185,141 @@ def pca_figures(df_pca, color_map=None):
 
     return pcafig_1d, pcafig_2d, pcafig_3d
 
-def save_all_figures(df_sum, df_segments, df_pca, df_msd, savefile, cat_provided):
+def run_msd_graphs(df_msd, df_msd_loglogfits, color_map):
+    fit_stats = {}
+    for col in df_msd_loglogfits.columns:
+        try:
+            cat = int(col)
+        except (ValueError, TypeError):
+            cat = col
+        fit_stats[cat] = {
+            'slope': df_msd_loglogfits.at['Slope', col],
+            'ci_low': df_msd_loglogfits.at['Lower 95% CI', col],
+            'ci_high': df_msd_loglogfits.at['Upper 95% CI', col],
+            'r2': df_msd_loglogfits.at['Fit R2', col],
+            'max_tau': df_msd_loglogfits.at['Fit Max. Tau', col]
+        }
+    id_cols = ['Object ID', 'Category']
+    tau_cols = [col for col in df_msd.columns if col not in id_cols]
+    df_long = df_msd.melt(id_vars=id_cols, value_vars=tau_cols, var_name='tau', value_name='msd')
+    df_long['tau'] = df_long['tau'].astype(float)
+    df_long = df_long[(df_long['tau'] > 0) & (df_long['msd'] > 0)]
+    df_long['log_tau'] = np.log10(df_long['tau'])
+    df_long['log_msd'] = np.log10(df_long['msd'])
+
+    x_min, x_max = df_long['log_tau'].min(), df_long['log_tau'].max()
+    y_min, y_max = df_long['log_msd'].min(), df_long['log_msd'].max()
+    categories = sorted([int(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
+    msd_figure_categories = {}
+
+    for category in categories:
+        cat_df = df_long[df_long['Category'] == category]
+        fig = go.Figure()
+        for obj_id, group in cat_df.groupby('Object ID'):
+            fig.add_trace(go.Scatter(
+                x=group['log_tau'],
+                y=group['log_msd'],
+                mode='lines',
+                line=dict(color='lightgrey', width=1),
+                showlegend=False
+            ))
+        mean_log = cat_df.groupby('log_tau')['log_msd'].mean().reset_index()
+        x = mean_log['log_tau'].values
+        y = mean_log['log_msd'].values
+
+        stats = fit_stats.get(category, {})
+        slope = stats.get('slope', np.nan)
+        # Compute the intercept from the first point of the mean curve
+        intercept = y[0] - slope * x[0] if not np.isnan(slope) else np.nan
+        # Extend the fit line from the first to the last log_tau value from the data
+        x_fit_start = x[0]
+        x_fit_end = x[-1]
+        x_fit = [x_fit_start, x_fit_end]
+        y_fit_line = [slope * xi + intercept for xi in x_fit]
+
+        annotation_text = (
+            f"Slope: {slope:.3f}<br>"
+            f"95% CI: [{stats.get('ci_low', np.nan):.3f}, {stats.get('ci_high', np.nan):.3f}]<br>"
+            f"R2: {stats.get('r2', np.nan):.3f}"
+        )
+
+        # Plot the mean curve
+        fig.add_trace(go.Scatter(
+            x=x, y=y,
+            mode='lines',
+            line=dict(color='black', width=3),
+            name='Mean log(MSD)'
+        ))
+        # Add the dashed linear fit spanning the full data range
+        fig.add_trace(go.Scatter(
+            x=x_fit,
+            y=y_fit_line,
+            mode='lines',
+            line=dict(color='red', width=2, dash='dash'),
+            name=f'Linear fit (tau {10**x_fit_start:.2g}–{10**x_fit_end:.2g})'
+        ))
+        fig.add_annotation(
+            xref='paper', yref='paper',
+            x=0.05, y=0.95,
+            text=annotation_text,
+            showarrow=False,
+            align='left',
+            font=dict(size=14, color='red'),
+            bgcolor='white'
+        )
+        fig.update_layout(
+            title=f'Category {category}',
+            xaxis_title='log10(Tau)',
+            yaxis_title='log10(MSD)',
+            template='simple_white',
+            xaxis=dict(range=[x_min, x_max]),
+            yaxis=dict(range=[y_min, y_max])
+        )
+        msd_figure_categories[category] = fig
+
+    # Overall figure for all categories
+    msd_figure_all = go.Figure()
+    for category in categories:
+        cat_df = df_long[df_long['Category'] == category]
+        mean_log = cat_df.groupby('log_tau')['log_msd'].mean().reset_index()
+        x = mean_log['log_tau'].values
+        y = mean_log['log_msd'].values
+        stats = fit_stats.get(category, {})
+        slope = stats.get('slope', np.nan)
+        intercept = y[0] - slope * x[0] if not np.isnan(slope) else np.nan
+        x_fit_start = x[0]
+        x_fit_end = np.log10(stats.get('max_tau', x[-1])) if not np.isnan(stats.get('max_tau', np.nan)) else x[-1]
+        x_fit = [x_fit_start, x_fit_end]
+        y_fit_line = [slope * xi + intercept for xi in x_fit]
+
+        color = color_map.get(category, 'blue')
+        # Mean curve trace
+        msd_figure_all.add_trace(go.Scatter(
+            x=x, y=y,
+            mode='lines',
+            name=f'Category {category}',
+            line=dict(color=color, width=3)
+        ))
+        # Dashed linear fit trace spanning the full range of data
+        msd_figure_all.add_trace(go.Scatter(
+            x=x_fit, y=y_fit_line,
+            mode='lines',
+            name=f'Linear fit (Cat {category}, tau {10**x_fit_start:.2g}–{10**x_fit_end:.2g})',
+            line=dict(color=color, width=2, dash='dash'),
+            showlegend=True
+        ))
+    msd_figure_all.update_layout(
+        title='Mean log(MSD) for All Categories',
+        xaxis_title='log10(Tau)',
+        yaxis_title='log10(MSD)',
+        template='simple_white',
+        xaxis=dict(range=[x_min, x_max]),
+        yaxis=dict(range=[y_min, y_max])
+    )
+
+    return msd_figure_all, msd_figure_categories
+
+def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, savefile, cat_provided):
     color_map = get_category_color_map(df_sum['Category'].unique())
 
     sumstat_figs = summary_figures(df_sum, color_map=color_map)
@@ -210,10 +344,10 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, savefile, cat_provided
     else:
         pass
 
-    df_msd_loglogfits, msd_fig_all, msd_category_figs = run_msd_graphs(df_msd, color_map)
+    msd_fig_all, msd_category_figs = run_msd_graphs(df_msd, df_msd_loglogfits, color_map)
     with open(f'{savefile}_Figure_MSD.html', 'w', encoding='utf-8') as f:
         f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
         for fig in msd_category_figs.values():
             f.write(fig.to_html(full_html=True, include_plotlyjs=False, config={'responsive': True}))
 
-    return df_msd_loglogfits
+    return
