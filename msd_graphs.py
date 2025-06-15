@@ -1,12 +1,11 @@
-import io
 import multiprocessing as mp
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
-import plotly.io as pio
 
 window_size = 4     # Tunable parameter for bootstrapping window size
 r2_thresh = 0.995   # Tunable parameter for R-squared minimum threshold
+n_boot = 500        # Number of bootstrap iterations (keep this between 100 and 1000)
 
 def find_best_linear_window(x, y):
     n = len(x)
@@ -48,7 +47,6 @@ def bootstrap_worker(task):
     return slopes
 
 def run_msd_graphs(df_msd, color_map):
-    n_boot=1000
     max_processes = max(1, min(61, mp.cpu_count() - 1))
     n_workers = max_processes
     mp.set_start_method("spawn", force=True)

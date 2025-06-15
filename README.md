@@ -244,7 +244,7 @@ Identifies instances where an object is attracting other objects towards it (eve
 If a Categories file is provided, the following figures are generated:
 - **Summary Stats**: Interactive violin plots for each of the summary statistics, per category.
 - **Tracks**: An interactive 3D (X/Y/Z) plot of all tracks.
-- **PCA**: Two interactive 3D plots of the PCA results, one with PCs 1, 2, and 3, and one with PCs 1, 2, and 4.
+- **PCA**: A set of plots of the four PCs will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
 - **MSD**: A log-log plot of the mean per-category MSD vs. τ, each with its linear fit line (dashed), and, for each category, a plot of all per-track MSD values vs. τ (gray traces), with the mean of all tracks overlaid (dark trace) plus the linear fit (dashed red line). The slope and 95% confidence interval of the linear fit for that category mean is also shown on each figure.
 
 The color used for each category will be consistent across all of these figures. The outputs are in .html format which can be viewed in a browser (note that for large datasets, the tracks file can take a while to fully load once opened, and may be poorly responsive).
