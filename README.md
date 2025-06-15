@@ -241,7 +241,13 @@ Identifies instances where an object is attracting other objects towards it (eve
 
 ### Generate Figures:
 
-Generates interactive violin plots for each of the summary statistics, an interactive X/Y/Z plot of all tracks, and two interactive 3D plots of the PCA results (one with PCs 1, 2, and 3, and one with PCs 2, 3 and 4). These figures will be saved as a single .html file which can be viewed in a browser (note that this file can take a while to fully load once opened).
+If a Categories file is provided, the following figures are generated:
+- **Summary Stats**: Interactive violin plots for each of the summary statistics, per category.
+- **Tracks**: An interactive 3D (X/Y/Z) plot of all tracks.
+- **PCA**: Two interactive 3D plots of the PCA results, one with PCs 1, 2, and 3, and one with PCs 1, 2, and 4.
+- **MSD**: A log-log plot of the mean per-category MSD vs. τ, each with its linear fit line (dashed), and, for each category, a plot of all per-track MSD values vs. τ (gray traces), with the mean of all tracks overlaid (dark trace) plus the linear fit (dashed red line). The slope and 95% confidence interval of the linear fit for that category mean is also shown on each figure.
+
+The color used for each category will be consistent across all of these figures. The outputs are in .html format which can be viewed in a browser (note that for large datasets, the tracks file can take a while to fully load once opened, and may be poorly responsive).
 
 ### Subset Categories:
 
@@ -389,11 +395,18 @@ $$
 
 In the output file, two MSD result sheets are provided: one ("Mean Squared Displacements") with the MSD at each τ value (columns) for each object (rows), and one (MSD Summary) with the average and standard deviation of the MSD (columns) at each τ value (rows) across the whole dataset.
  
-If a Categories file is provided, two additional result sheets are given: one ("MSD Avg Per Category") with the mean MSD at each τ value (rows) for each object category (columns), and one ("MSD StDev Per Category") with the standard deviation of MSD at each τ value (rows) for each object category (columns). These can be used to plot MSD log-log plots and evaluate whether a category of object is moving with a certain pattern. 
+If a Categories file is provided, three additional result sheets are given:
+- **MSD Mean Per Category**: The mean MSD at each τ value (rows) for each object category (columns).
+- **MSD StDev Per Category**: the standard deviation of MSD at each τ value (rows) for each object category (columns).
+- **MSD Log-Log Fits**: The linear fit parameters for the log-log plot of mean per-category MSD vs. τ. The slope of the line is indicative of the type of motion exhibited by the object, with a slope of 1 indicating diffusion, and a slope of 2 indicating ballistic motion. The "Fit Max. Tau" is the upper limit of the τ values used to calculate the slope (always beginning at τ=1).
 
 ### Convex Hull Volume
 
 The volume of a convex hull contained within the track is calculated. Essentially represents how much volume an object covered during its tracking history. Similarly to Straightness, a time correction is applied by multiplying each Convex Hull Volume value by the square root of the duration of that object’s track (helpful when the tracking duration of the objects in the dataset varies). In the case of 2D data, this column will be left blank.
+
+### Maximum MSD
+
+The highest value of MSD that each object reached during its tracking history at any value of τ.
 
 
 ## Machine Learning Analyses

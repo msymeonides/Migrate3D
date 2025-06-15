@@ -100,7 +100,7 @@ def pca123_figure(df, color_map=None):
     )
     return pca123_fig
 
-def pca234_figure(df, color_map=None):
+def pca124_figure(df, color_map=None):
     categories = sorted(df['Category'].dropna().unique(), key=lambda x: str(x))
     if color_map is None:
         color_map = get_category_color_map(categories)
@@ -108,8 +108,8 @@ def pca234_figure(df, color_map=None):
     for cat in categories:
         df_cat = df[df['Category'] == cat]
         traces.append(go.Scatter3d(
-            x=df_cat['PC2'],
-            y=df_cat['PC3'],
+            x=df_cat['PC1'],
+            y=df_cat['PC2'],
             z=df_cat['PC4'],
             mode='markers',
             marker=dict(color=color_map.get(cat, colors[0])),
@@ -117,17 +117,17 @@ def pca234_figure(df, color_map=None):
             showlegend=True,
             legendgroup=str(cat)
         ))
-    pca234_fig = go.Figure(data=traces)
-    pca234_fig.update_layout(
-        title='PCA (PC2, PC3, PC4)',
+    pca124_fig = go.Figure(data=traces)
+    pca124_fig.update_layout(
+        title='PCA (PC1, PC2, PC4)',
         plot_bgcolor='white',
         scene=dict(
-            xaxis_title='PC2',
-            yaxis_title='PC3',
+            xaxis_title='PC1',
+            yaxis_title='PC2',
             zaxis_title='PC4'
         )
     )
-    return pca234_fig
+    return pca124_fig
 
 def save_all_figures(df_sum, df_segments, df_pca, df_msd, savefile, cat_provided):
     all_figures = summary_figures(df_sum, color_map=get_category_color_map(df_sum['Category'].unique()))
@@ -135,16 +135,16 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, savefile, cat_provided
     tracks_fig = tracks_figure(df_segments, df_sum, cat_provided, savefile, color_map=color_map)
     if df_pca is not None and not df_pca.empty:
         pca123_fig = pca123_figure(df_pca, color_map=color_map)
-        pca234_fig = pca234_figure(df_pca, color_map=color_map)
+        pca124_fig = pca124_figure(df_pca, color_map=color_map)
         tracks_html = tracks_fig.to_html(full_html=True, include_plotlyjs='cdn')
         pca123_html = pca123_fig.to_html(full_html=True, include_plotlyjs='cdn')
-        pca234_html = pca234_fig.to_html(full_html=True, include_plotlyjs='cdn')
+        pca124_html = pca124_fig.to_html(full_html=True, include_plotlyjs='cdn')
         with open(f'{savefile}_Figure_Tracks.html', 'w') as f:
             f.write(tracks_html)
         with open(f'{savefile}_Figure_PCA123.html', 'w') as f:
             f.write(pca123_html)
-        with open(f'{savefile}_Figure_PCA234.html', 'w') as f:
-            f.write(pca234_html)
+        with open(f'{savefile}_Figure_PCA124.html', 'w') as f:
+            f.write(pca124_html)
     else:
         pass
 

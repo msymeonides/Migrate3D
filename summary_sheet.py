@@ -224,30 +224,21 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
         df_single_angles_df = insert_category(df_single_angles_df)
         df_msd = insert_category(df_msd)
 
-    final_msd_dict = {}
-    arrest_limit = parameters["arrest_limit"]
+    max_msd_dict = {}
     msd_cols = [col for col in df_msd.columns if isinstance(col, int)]
     for obj in unique_objects:
         obj_val = float(obj)
-        if obj in df_all_calcs["Object ID"].values:
-            obj_calcs = df_all_calcs[df_all_calcs["Object ID"] == obj]
-            disp = obj_calcs["Instantaneous Displacement"].values if "Instantaneous Displacement" in obj_calcs else np.array([])
-            moving_idxs = np.where(disp > arrest_limit)[0] if disp.size > 0 else np.array([])
-            if moving_idxs.size > 0 and msd_cols:
-                last_idx = moving_idxs[-1]
-                msd_col = max([col for col in msd_cols if col <= last_idx], default=msd_cols[-1])
-                msd_row = df_msd[df_msd["Object ID"] == obj_val]
-                final_msd = msd_row[msd_col].values[0] if not msd_row.empty else np.nan
-            else:
-                final_msd = np.nan
+        msd_row = df_msd[df_msd["Object ID"] == obj_val]
+        if not msd_row.empty and msd_cols:
+            max_msd = msd_row[msd_cols].max(axis=1, skipna=True).values[0]
         else:
-            final_msd = np.nan
-        final_msd_dict[obj_val] = final_msd
+            max_msd = np.nan
+        max_msd_dict[obj_val] = max_msd
 
-    df_sum["Final MSD"] = df_sum["Object ID"].map(final_msd_dict)
+    df_sum["Maximum MSD"] = df_sum["Object ID"].map(max_msd_dict)
 
     cols = list(df_sum.columns)
-    final_msd_idx = cols.index("Final MSD")
+    final_msd_idx = cols.index("Maximum MSD")
     cat_idx = cols.index("Category")
     cols.insert(cat_idx, cols.pop(final_msd_idx))
     df_sum = df_sum[cols]
