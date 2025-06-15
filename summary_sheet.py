@@ -235,7 +235,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
             moving_idxs = np.where(disp > arrest_limit)[0] if disp.size > 0 else np.array([])
             if moving_idxs.size > 0 and msd_cols:
                 last_idx = moving_idxs[-1]
-                msd_col = max([col for col in msd_cols if col <= (last_idx + 1)], default=msd_cols[-1])
+                msd_col = max([col for col in msd_cols if col <= last_idx], default=msd_cols[-1])
                 msd_row = df_msd[df_msd["Object ID"] == obj_val]
                 final_msd = msd_row[msd_col].values[0] if not msd_row.empty else np.nan
             else:

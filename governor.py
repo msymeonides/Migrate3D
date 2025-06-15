@@ -181,16 +181,16 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             messages.append('Detecting contacts...')
 
         unique_timepoints = np.unique(arr_segments[:, 1])
-        df_contacts, df_no_daughter, df_no_dead_ = contacts_parallel.main(
+        df_contacts_all, df_contacts_nodividing, df_contacts_nodead = contacts_parallel.main(
             unique_timepoints,
             arr_segments,
             parameters['contact_length'],
             df_sum,
             parameters['arrested'],
         )
-        if not df_no_dead_.empty:
+        if not df_contacts_nodead.empty:
             summary_list = []
-            df_contacts_final = df_no_dead_
+            df_contacts_final = df_contacts_nodead
             for object_id, group in df_contacts_final.groupby("Object ID"):
                 unique_contacts = group["Object Compare"].unique()
                 num_contacts = len(unique_contacts)
@@ -211,17 +211,17 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                     "Total Time Spent in Contact": total_time,
                     "Median Contact Duration": med_time
                 })
-            df_contact_summary = pd.DataFrame(summary_list)
+            df_contacts_summary = pd.DataFrame(summary_list)
         else:
-            df_contact_summary = pd.DataFrame()
+            df_contacts_summary = pd.DataFrame()
             with thread_lock:
                 messages.append("No valid contacts detected; skipping summary processing.")
 
         with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
-            df_contacts.to_excel(workbook, sheet_name='Contacts (all)', index=False)
-            df_no_daughter.to_excel(workbook, sheet_name='Contacts (minus dividing)', index=False)
-            df_no_dead_.to_excel(workbook, sheet_name='Contacts (minus dead)', index=False)
-            df_contact_summary.to_excel(workbook, sheet_name='Contacts Summary', index=False)
+            df_contacts_all.to_excel(workbook, sheet_name='Contacts (all)', index=False)
+            df_contacts_nodividing.to_excel(workbook, sheet_name='Contacts (minus dividing)', index=False)
+            df_contacts_nodead.to_excel(workbook, sheet_name='Contacts (minus dead)', index=False)
+            df_contacts_summary.to_excel(workbook, sheet_name='Contacts Summary', index=False)
 
         toc = tempo.time()
 
@@ -229,7 +229,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             msg = ' Contacts done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
             messages[-1] += msg
             messages.append('')
-        complete_progress_step("Contacts")
+        complete_progress_step('Contacts')
 
     if parameters['attractors'] is False:
         pass
@@ -246,11 +246,33 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 msg = ' Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
                 messages[-1] += msg
                 messages.append('')
-            complete_progress_step("Attractors")
+            complete_progress_step('Attractors')
+        else:
+            with thread_lock:
+                messages.append('Attractors bypassed; no category file provided.')
+                messages.append('')
+            complete_progress_step('Attractors')
 
-    if parameters['generate_figures']:
-        save_all_figures(df_sum, df_segments, df_pca, savefile, parameters['infile_tracks'], thread_lock, messages)
-        complete_progress_step('Generate Figures')
+    if parameters['generate_figures'] is False:
+        pass
+    else:
+        if parameters['infile_tracks']:
+            with thread_lock:
+                messages.append('Generating figures and performing MSD log-log analysis...')
+            tic = tempo.time()
+            df_msd_loglogfits = save_all_figures(df_sum, df_segments, df_pca, df_msd, savefile, parameters['infile_tracks'])
+            toc = tempo.time()
+            with thread_lock:
+                msg = ' Done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
+                messages[-1] += msg
+                messages.append('')
+            complete_progress_step('Generate Figures')
+        else:
+            with thread_lock:
+                messages.append('Figure generation bypassed; no category file provided.')
+                messages.append('')
+            complete_progress_step('Generate Figures')
+            df_msd_loglogfits = None
 
     with thread_lock:
         messages.append('Saving main output to ' + savepath + '...')
@@ -273,8 +295,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
             df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summaries All', index=True)
             if parameters['infile_tracks']:
-                df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Avg Per Category', index=True)
+                df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
                 df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
+                df_msd_loglogfits.to_excel(workbook, sheet_name='MSD Log-Log Fits', index=True)
             else:
                 pass
 
@@ -287,8 +310,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
             df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summary', index=True)
             if parameters['infile_tracks']:
-                df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Avg Per Category', index=True)
+                df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
                 df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
+                df_msd_loglogfits.to_excel(workbook, sheet_name='MSD Log-Log Fits', index=True)
             else:
                 pass
 

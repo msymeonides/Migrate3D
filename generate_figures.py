@@ -1,5 +1,6 @@
 import pandas as pd
 import plotly.graph_objects as go
+from msd_graphs import run_msd_graphs
 
 colors = ['Black', 'Blue', 'Red', 'Purple', 'Orange', 'Green', 'Pink', 'Navy', 'Grey', 'Cyan',
           'darkgray', 'aqua', 'crimson', 'darkviolet', 'orangered', 'darkolivegreen', 'darksalmon', 'Blue', 'Black',
@@ -128,7 +129,7 @@ def pca234_figure(df, color_map=None):
     )
     return pca234_fig
 
-def save_all_figures(df_sum, df_segments, df_pca, savefile, cat_provided, thread_lock=None, messages=None):
+def save_all_figures(df_sum, df_segments, df_pca, df_msd, savefile, cat_provided):
     all_figures = summary_figures(df_sum, color_map=get_category_color_map(df_sum['Category'].unique()))
     color_map = get_category_color_map(df_sum['Category'].unique())
     tracks_fig = tracks_figure(df_segments, df_sum, cat_provided, savefile, color_map=color_map)
@@ -138,21 +139,24 @@ def save_all_figures(df_sum, df_segments, df_pca, savefile, cat_provided, thread
         tracks_html = tracks_fig.to_html(full_html=True, include_plotlyjs='cdn')
         pca123_html = pca123_fig.to_html(full_html=True, include_plotlyjs='cdn')
         pca234_html = pca234_fig.to_html(full_html=True, include_plotlyjs='cdn')
-        with open(f'{savefile}_Tracks Figure.html', 'w') as f:
+        with open(f'{savefile}_Figure_Tracks.html', 'w') as f:
             f.write(tracks_html)
-        with open(f'{savefile}_PCA123_Figure.html', 'w') as f:
+        with open(f'{savefile}_Figure_PCA123.html', 'w') as f:
             f.write(pca123_html)
-        with open(f'{savefile}_PCA234_Figure.html', 'w') as f:
+        with open(f'{savefile}_Figure_PCA234.html', 'w') as f:
             f.write(pca234_html)
     else:
         pass
 
-    with open(f'{savefile}_Summary Figures.html', 'w') as f:
+    df_msd_loglogfits, msd_fig_all, msd_category_figs = run_msd_graphs(df_msd, color_map)
+
+    with open(f'{savefile}_Figure_Summary-Stats.html', 'w') as f:
         for fig in all_figures:
             f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
 
-    if thread_lock and messages is not None:
-        with thread_lock:
-            msg = "Figures generated."
-            messages.append(msg)
-            messages.append('')
+    with open(f'{savefile}_Figure_MSD.html', 'w', encoding='utf-8') as f:
+        f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn'))
+        for fig in msd_category_figs.values():
+            f.write(fig.to_html(full_html=False, include_plotlyjs=False))
+
+    return df_msd_loglogfits
