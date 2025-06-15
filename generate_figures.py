@@ -229,9 +229,7 @@ def run_msd_graphs(df_msd, df_msd_loglogfits, color_map):
 
         stats = fit_stats.get(category, {})
         slope = stats.get('slope', np.nan)
-        # Compute the intercept from the first point of the mean curve
         intercept = y[0] - slope * x[0] if not np.isnan(slope) else np.nan
-        # Extend the fit line from the first to the last log_tau value from the data
         x_fit_start = x[0]
         x_fit_end = x[-1]
         x_fit = [x_fit_start, x_fit_end]
@@ -239,24 +237,22 @@ def run_msd_graphs(df_msd, df_msd_loglogfits, color_map):
 
         annotation_text = (
             f"Slope: {slope:.3f}<br>"
-            f"95% CI: [{stats.get('ci_low', np.nan):.3f}, {stats.get('ci_high', np.nan):.3f}]<br>"
+            f"95% CI: {stats.get('ci_low', np.nan):.3f}, {stats.get('ci_high', np.nan):.3f}<br>"
             f"R2: {stats.get('r2', np.nan):.3f}"
         )
 
-        # Plot the mean curve
         fig.add_trace(go.Scatter(
             x=x, y=y,
             mode='lines',
             line=dict(color='black', width=3),
             name='Mean log(MSD)'
         ))
-        # Add the dashed linear fit spanning the full data range
         fig.add_trace(go.Scatter(
             x=x_fit,
             y=y_fit_line,
             mode='lines',
             line=dict(color='red', width=2, dash='dash'),
-            name=f'Linear fit (tau {10**x_fit_start:.2g}–{10**x_fit_end:.2g})'
+            name=f'Linear fit (tau {10**x_fit_start:.2g}–{stats.get("max_tau", x[-1]):.2g})'
         ))
         fig.add_annotation(
             xref='paper', yref='paper',
@@ -277,7 +273,6 @@ def run_msd_graphs(df_msd, df_msd_loglogfits, color_map):
         )
         msd_figure_categories[category] = fig
 
-    # Overall figure for all categories
     msd_figure_all = go.Figure()
     for category in categories:
         cat_df = df_long[df_long['Category'] == category]
@@ -288,23 +283,21 @@ def run_msd_graphs(df_msd, df_msd_loglogfits, color_map):
         slope = stats.get('slope', np.nan)
         intercept = y[0] - slope * x[0] if not np.isnan(slope) else np.nan
         x_fit_start = x[0]
-        x_fit_end = np.log10(stats.get('max_tau', x[-1])) if not np.isnan(stats.get('max_tau', np.nan)) else x[-1]
+        x_fit_end = x[-1]
         x_fit = [x_fit_start, x_fit_end]
         y_fit_line = [slope * xi + intercept for xi in x_fit]
 
         color = color_map.get(category, 'blue')
-        # Mean curve trace
         msd_figure_all.add_trace(go.Scatter(
             x=x, y=y,
             mode='lines',
             name=f'Category {category}',
             line=dict(color=color, width=3)
         ))
-        # Dashed linear fit trace spanning the full range of data
         msd_figure_all.add_trace(go.Scatter(
             x=x_fit, y=y_fit_line,
             mode='lines',
-            name=f'Linear fit (Cat {category}, tau {10**x_fit_start:.2g}–{10**x_fit_end:.2g})',
+            name=f'Linear fit (Cat {category}, tau {10**x_fit_start:.2g}–{stats.get("max_tau", x[-1]):.2g})',
             line=dict(color=color, width=2, dash='dash'),
             showlegend=True
         ))
