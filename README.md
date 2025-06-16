@@ -20,7 +20,7 @@ A Segments input file is required to run Migrate3D. Optionally, a Categories inp
 
 ### Segments
 
-The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the number of timepoints elapsed.
+The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the number of timepoints elapsed. If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation formatting option is used. The IDs of dropped objects will be reported in the GUI message box. If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
 
 ### Categories
 
@@ -126,61 +126,84 @@ In the prompt, you will see a notification that the GUI is now available ("Dash 
 
 Note that the output result spreadsheets will be saved under /Users/your_username/Migrate3D/Migrate3D-main/.
 
-### On Linux (tested in Ubuntu 23.10):
+### On Linux (tested in Linux Mint 22.1):
 
-1. Python 3 is already installed in Ubuntu. Begin by checking the installed version of python:
+It is easiest to do everything in the terminal, so begin by opening a Terminal window.
+
+1. Python 3 is already installed in Linux Mint. Begin by checking the installed version of python:
 ```powershell
 python3 --version
 ```
-On a fresh installation of Ubuntu 23.10, that should return "Python 3.11.6". Python versions 3.12.x and 3.13.x will also work, but earlier versions may not. If you have an earlier version of python, you may need to update it before proceeding.
+On a fresh installation of Linux Mint 22.1, that should return "Python 3.12.3". Python versions 3.13.x and 3.11.x will also work, but earlier versions may not. If you have an earlier version of python, you may need to update it before proceeding.
 
-2. If you have not previously configured a python virtual environment (venv) or installed python packages using pip, you will first need to get set up to do that:
-Open a Terminal window and enter the following commands:
+2. If you have not previously configured a python virtual environment (venv) or installed python packages using pip, you will first need to get set up to do that (if you are already set up for that, skip to step 4).
+
+First, update your system:
 ```powershell
 sudo apt update
 sudo apt upgrade
-sudo apt-get install python3-pip python3-venv
 ```
 
-3. Make a new directory (e.g. named "Migrate3D") and create a venv in it:
+Then install some necessary packages (this is all one line, paste the whole thing in one go):
 ```powershell
-mkdir ~/Migrate3D
-python3 -m venv ~/Migrate3D
+sudo apt install build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+libsqlite3-dev curl git libncursesw5-dev xz-utils tk-dev libxml2-dev \
+libxmlsec1-dev libffi-dev liblzma-dev python3.12-venv
 ```
 
-4. Download Migrate3D from GitHub and extract the ZIP file into the /home/Migrate3D directory you just created:
+Now we need to configure PyEnv to be able to set up a venv:
+```powershell
+curl https://pyenv.run | bash
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.profile
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.profile
+echo 'eval "$(pyenv init -)"' >> ~/.profile
+```
+Now log out of your Linux account and log back in, then open a new Terminal window. You are now able to create python venvs.
+
+4. Create a dedicated venv:
+```powershell
+pyenv virtualenv migrate3d
+```
+
+5. Download Migrate3D from GitHub and extract the ZIP file into the /home/Migrate3D directory you just created:
 ```powershell
 wget https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
-unzip Migrate3D-main.zip -d ~/Migrate3D
+unzip Migrate3D-main.zip -d ~/.pyenv/versions/migrate3d
 ```
 
-5. You now need to activate the venv:
+6. You now need to activate the venv:
 ```powershell
-source ~/Migrate3D/bin/activate
+pyenv activate migrate3d
 ```
 Note: if you would like to exit the venv, i.e. return to your normal Linux terminal, simply enter:
 ```powershell
-deactivate
+pyenv deactivate migrate3d
 ```
 
-6. Install the required dependencies:
+7. Install the required dependencies:
 ```powershell
-pip install -r ~/Migrate3D/Migrate3D-main/requirements.txt
+cd ~/.pyenv/versions/migrate3d/Migrate3D-main
+pip install -r requirements.txt
 ```
 Note that these packages are only installed within the venv you just created and will not affect your python installation.
 
-7. Finally, to run Migrate3D:
+8. Finally, to run Migrate3D:
 ```powershell
-python3 ~/Migrate3D/Migrate3D-main/main.py
+cd ~/.pyenv/versions/migrate3d/Migrate3D-main
+python3 main.py
 ```
 Remember to first activate the Migrate3D venv next time you want to run Migrate3D before executing the main script:
 ```powershell
-source ~/Migrate3D/bin/activate
-python3 ~/Migrate3D/Migrate3D-main/main.py
+pyenv activate migrate3d
+cd ~/.pyenv/versions/migrate3d/Migrate3D-main
+python3 main.py
 ```
 In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
 
-Note that the output result spreadsheets will be saved under ~/Migrate3D/Migrate3D-main/.
+Note that the output result spreadsheets will be saved under ~/.pyenv/versions/migrate3d/Migrate3D-main/. In the file explorer app, you will need to enable "Show hidden files" to see this folder.
 
 
 ## Tunable Parameters

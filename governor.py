@@ -6,7 +6,7 @@ import base64
 import io
 from pathlib import Path
 
-from formatting import multi_tracking, interpolate_lazy
+from formatting import multi_tracking, interpolate_lazy, remove_tracks_with_gaps
 from calculations import calculations
 from summary_sheet import summary_sheet
 from generate_figures import save_all_figures
@@ -91,10 +91,25 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     with thread_lock:
         messages.append(f"Formatting input dataset:\n{seg_path}")
 
+    dropped_objects = []
+    df_removed = pd.DataFrame()
+
     if parameters['multi_track']:
         arr_segments = multi_tracking(arr_segments)
     if parameters['interpolate']:
-        arr_segments = interpolate_lazy(arr_segments, timelapse_interval, unique_objects)
+        arr_segments = interpolate_lazy(arr_segments, timelapse_interval)
+    if not parameters.get('interpolate', False):
+        original_objects = set(unique_objects)
+        arr_segments_filtered = remove_tracks_with_gaps(arr_segments, unique_objects, timelapse_interval)
+        filtered_objects = set(np.unique(arr_segments_filtered[:, 0]))
+        dropped_objects = sorted(float(obj) for obj in (original_objects - filtered_objects))
+        arr_segments = arr_segments_filtered
+        unique_objects = np.unique(arr_segments[:, 0])
+        if dropped_objects:
+            df_removed = pd.DataFrame({'Object ID': dropped_objects})
+            with thread_lock:
+                messages.append(f"Removed {len(dropped_objects)} object(s) with timepoint gaps "
+                                f"(object IDs have been recorded in 'Removed Objects' sheet in the main output file).")
 
     df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', z_for])
     toc = tempo.time()
@@ -284,37 +299,22 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
     df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 
-    if parameters['verbose']:
-        with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
-            df_settings.to_excel(workbook, sheet_name='Settings', index=False)
+    with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
+        df_settings.to_excel(workbook, sheet_name='Settings', index=False)
+        if dropped_objects:
+            df_removed.to_excel(workbook, sheet_name='Removed Objects', index=False)
+        if parameters['verbose']:
             df_segments.to_excel(workbook, sheet_name='Object Data', index=False)
             df_all_calcs.to_excel(workbook, sheet_name='Calculations', index=False)
-            df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
-            df_single_euclid.to_excel(workbook, sheet_name='Euclidean Medians', index=False)
-            df_single_angle.to_excel(workbook, sheet_name='Turning Angles', index=False)
-            df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
-            df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summaries All', index=True)
-            if parameters['infile_tracks']:
-                df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
-                df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
-                df_msd_loglogfits.to_excel(workbook, sheet_name='MSD Log-Log Fits', index=True)
-            else:
-                pass
-
-    else:
-        with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
-            df_settings.to_excel(workbook, sheet_name='Settings', index=False)
-            df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
-            df_single_euclid.to_excel(workbook, sheet_name='Euclidean Medians', index=False)
-            df_single_angle.to_excel(workbook, sheet_name='Turning Angles', index=False)
-            df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
-            df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summary', index=True)
-            if parameters['infile_tracks']:
-                df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
-                df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
-                df_msd_loglogfits.to_excel(workbook, sheet_name='MSD Log-Log Fits', index=True)
-            else:
-                pass
+        df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
+        df_single_euclid.to_excel(workbook, sheet_name='Euclidean Medians', index=False)
+        df_single_angle.to_excel(workbook, sheet_name='Turning Angles', index=False)
+        df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
+        df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summary', index=True)
+        if parameters['infile_tracks']:
+            df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
+            df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
+            df_msd_loglogfits.to_excel(workbook, sheet_name='MSD Log-Log Fits', index=True)
 
     complete_progress_step("Final results save")
     bigtoc = tempo.time()
