@@ -126,8 +126,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     all_calcs = []
 
-    for object in unique_objects:
-        object_data = arr_segments[arr_segments[:, 0] == object, :]
+    for obj in unique_objects:
+        object_data = arr_segments[arr_segments[:, 0] == obj, :]
         object_id = object_data[0, 0]
         df_calcs = calculations(object_data, tau, object_id, parameters)
         all_calcs.append(df_calcs)
@@ -204,6 +204,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             df_sum,
             parameters['arrested'],
         )
+
         if not df_contacts_nodead.empty:
             summary_list = []
             df_contacts_final = df_contacts_nodead
@@ -212,7 +213,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 num_contacts = len(unique_contacts)
                 total_time = len(group) * timelapse_interval
                 n = len(group)
-
                 durations = [(i + 1) * timelapse_interval for i in range(n)]
                 if n == 1:
                     med_time = durations[0]
@@ -220,7 +220,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                     med_time = sum(durations) / 2
                 else:
                     med_time = statistics.median(durations)
-
                 summary_list.append({
                     "Object ID": object_id,
                     "Number of Contacts": num_contacts,
@@ -230,14 +229,59 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             df_contacts_summary = pd.DataFrame(summary_list)
         else:
             df_contacts_summary = pd.DataFrame()
-            with thread_lock:
-                messages.append("No valid contacts detected; skipping summary processing.")
+
+        if parameters['infile_tracks']:
+            if not df_contacts_summary.empty and 'Category' not in df_contacts_summary.columns:
+                df_contacts_summary = df_contacts_summary.merge(
+                    df_sum[['Object ID', 'Category']],
+                    on='Object ID',
+                    how='left'
+                )
+                cols = ['Object ID', 'Category'] + [col for col in df_contacts_summary.columns if
+                                                    col not in ['Object ID', 'Category']]
+                df_contacts_summary = df_contacts_summary[cols]
+
+            all_objects = df_sum[['Object ID', 'Category']].copy()
+            df_contacting = all_objects.merge(
+                df_contacts_summary[
+                    ['Object ID', 'Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']],
+                on='Object ID', how='left'
+            ).fillna({
+                'Number of Contacts': 0,
+                'Total Time Spent in Contact': 0,
+                'Median Contact Duration': 0
+            })
+
+            per_cat = []
+            for cat, group in df_contacting.groupby('Category'):
+                total = group.shape[0]
+                with_contact = group[group['Number of Contacts'] > 0]
+                with_3plus = group[group['Number of Contacts'] >= 3]
+                n_with_contact = with_contact.shape[0]
+                n_with_3plus = with_3plus.shape[0]
+                median_contacts = with_contact['Number of Contacts'].median() if n_with_contact > 0 else np.nan
+                median_contact_time = with_contact['Total Time Spent in Contact'].median() if n_with_contact > 0 else np.nan
+                median_duration = with_contact['Median Contact Duration'].median() if n_with_contact > 0 else np.nan
+                per_cat.append({
+                    'Category': cat,
+                    'Total Objects': total,
+                    'Pct With Contact': 100 * n_with_contact / total if total else np.nan,
+                    'Pct With >=3 Contacts': 100 * n_with_3plus / total if total else np.nan,
+                    'Median Contacts Per Object': median_contacts,
+                    'Median Time Spent in Contact': median_contact_time,
+                    'Median Contact Duration': median_duration,
+                })
+            df_contacts_per_category = pd.DataFrame(per_cat)
+        else:
+            df_contacts_per_category = pd.DataFrame()
 
         with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
             df_contacts_all.to_excel(workbook, sheet_name='Contacts (all)', index=False)
             df_contacts_nodividing.to_excel(workbook, sheet_name='Contacts (minus dividing)', index=False)
             df_contacts_nodead.to_excel(workbook, sheet_name='Contacts (minus dead)', index=False)
             df_contacts_summary.to_excel(workbook, sheet_name='Contacts Summary', index=False)
+            if not df_contacts_per_category.empty:
+                df_contacts_per_category.to_excel(workbook, sheet_name='Contacts Per Category', index=False)
 
         toc = tempo.time()
 
