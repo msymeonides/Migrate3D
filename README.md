@@ -212,7 +212,7 @@ Note that you can change the default values of these variables at the top of the
 
 ### Arrest Limit:
 
-A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed, however if they pass this threshold, they will survive the filter and be reported again in their own column (in verbose mode). Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements.
+A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed, however if they pass this threshold, they will survive the filter and be reported again in their own column (in verbose mode). Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature and it will be excluded from all output results.
 
 ### Minimum Timepoints:
 
@@ -404,7 +404,7 @@ $$
 
 ### Arrest Coefficient:
 
-A metric used to determine how motile an object is, with values between 0 and 1, where a value of 0 denotes an object that moved throughout its history, and a value of 1 denotes an object that did not move at all throughout its history. The instantaneous displacement threshold used to determine whether an object is moving at a given timepoint is a tunable variable (Arrest limit).
+A metric used to determine how motile an object is, with values between 0 and 1, where a value of 0 denotes an object that moved throughout its history, and a value of 1 denotes an object that did not move at all throughout its history. The instantaneous displacement threshold used to determine whether an object is moving at a given timepoint is a tunable variable (Arrest limit). If Arrest Limit is set to 0, this metric will not be calculated and the column will be removed from the output file.
 
 $$
 Arrest\ Coefficient = \frac{Time\ spent\ arrested}{Duration}
@@ -427,7 +427,7 @@ If a Categories file is provided, three additional result sheets are given:
 
 ### Convex Hull Volume
 
-The volume of a convex hull contained within the track is calculated. Essentially represents how much volume an object covered during its tracking history. Similarly to Straightness, a time correction is applied by multiplying each Convex Hull Volume value by the square root of the duration of that object’s track (helpful when the tracking duration of the objects in the dataset varies). In the case of 2D data, this column will be left blank.
+The volume of a convex hull contained within the track is calculated. Essentially represents how much volume an object covered during its tracking history. Similarly to Straightness, a time correction is applied by multiplying each Convex Hull Volume value by the square root of the duration of that object’s track (helpful when the tracking duration of the objects in the dataset varies). In the case of 2D data, this column will be removed from the output data.
 
 ### Maximum MSD
 

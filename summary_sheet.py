@@ -13,7 +13,7 @@ from machine_learning import ml_analysis, XGBAbortException
 from shared_state import messages, thread_lock, complete_progress_step
 from overall_medians import overall_medians
 
-def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, parameters):
+def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, parameters, summary_columns):
     object_data = arr_segments[arr_segments[:, 0] == obj, :]
     x_val, y_val, z_val = object_data[:, 2], object_data[:, 3], object_data[:, 4]
 
@@ -93,21 +93,47 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
     time_under = valid_disp[valid_disp < parameters['arrest_limit']] if valid_disp.size > 0 else np.array([])
     arrest_coefficient = (time_under.size * time_interval) / duration_val if duration_val != 0 else 0
 
-    summary_tuple = (
-        obj, duration_val, final_euclid, max_euclid, max_path, straightness,
-        displacement_ratio, outreach_ratio, velocity_mean,
-        velocity_median, velocity_filtered_mean, velocity_filtered_median,
-        velocity_filtered_stdev, acceleration_mean, acceleration_median,
-        accel_abs_mean, accel_abs_median, acceleration_filtered_mean, acceleration_filtered_median,
-        acceleration_filtered_stdev, accel_filtered_abs_mean, accel_filtered_abs_median,
-        accel_filtered_abs_stdev, arrest_coefficient, overall_angle_median,
-        overall_euclidean_median, convex, category
-    )
+    summary_dict = {
+        'Object ID': obj,
+        'Duration': duration_val,
+        'Final Euclidean': final_euclid,
+        'Max Euclidean': max_euclid,
+        'Path Length': max_path,
+        'Straightness': straightness,
+        'Displacement Ratio': displacement_ratio,
+        'Outreach Ratio': outreach_ratio,
+        'Velocity Mean': velocity_mean,
+        'Velocity Median': velocity_median,
+        'Velocity filtered Mean': velocity_filtered_mean,
+        'Velocity Filtered Median': velocity_filtered_median,
+        'Velocity Filtered Standard Deviation': velocity_filtered_stdev,
+        'Acceleration Mean': acceleration_mean,
+        'Acceleration Median': acceleration_median,
+        'Absolute Acceleration Mean': accel_abs_mean,
+        'Absolute Acceleration Median': accel_abs_median,
+        'Acceleration Filtered Mean': acceleration_filtered_mean,
+        'Acceleration Filtered Median': acceleration_filtered_median,
+        'Acceleration Filtered Standard Deviation': acceleration_filtered_stdev,
+        'Absolute Acceleration Filtered Mean': accel_filtered_abs_mean,
+        'Absolute Acceleration Filtered Median': accel_filtered_abs_median,
+        'Absolute Acceleration Filtered Standard Deviation': accel_filtered_abs_stdev,
+        'Arrest Coefficient': arrest_coefficient,
+        'Overall Angle Median': overall_angle_median,
+        'Overall Euclidean Median': overall_euclidean_median,
+        'Convex Hull Volume': convex,
+        'Category': category
+    }
+
+    summary_tuple = tuple(summary_dict[col] for col in summary_columns)
     return obj, summary_tuple, single_euclid, single_angle
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, arr_tracks, savefile):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
+
+    z_is_2d = False
+    if arr_segments.shape[1] < 5 or np.all(arr_segments[:, 4] == 0):
+        z_is_2d = True
 
     summary_columns = [
         'Object ID', 'Duration', 'Final Euclidean', 'Max Euclidean', 'Path Length',
@@ -117,9 +143,14 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
         'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
         'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
         'Absolute Acceleration Filtered Mean', 'Absolute Acceleration Filtered Median',
-        'Absolute Acceleration Filtered Standard Deviation', 'Arrest Coefficient',
-        'Overall Angle Median', 'Overall Euclidean Median', 'Convex Hull Volume', 'Category'
+        'Absolute Acceleration Filtered Standard Deviation', 'Overall Angle Median', 'Overall Euclidean Median',
+        'Category'
     ]
+    if parameters['arrest_limit'] != 0:
+        summary_columns.insert(23, 'Arrest Coefficient')
+    if not z_is_2d:
+        summary_columns.insert(-1, 'Convex Hull Volume')
+
     n_summary_cols = len(summary_columns)
 
     with thread_lock:
@@ -148,7 +179,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
         futures = {
             executor.submit(
                 compute_object_summary, obj, arr_segments,
-                df_all_calcs_by_obj.get(obj, pd.DataFrame()), arr_tracks, parameters): obj
+                df_all_calcs_by_obj.get(obj, pd.DataFrame()), arr_tracks, parameters, summary_columns): obj
             for obj in unique_objects}
         for future in concurrent.futures.as_completed(futures):
             obj = futures[future]
@@ -170,7 +201,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
 
     summary_rows = [sum_[obj] for obj in unique_objects]
     df_sum = pd.DataFrame(summary_rows, columns=summary_columns)
-    df_sum["Object ID"] = df_sum["Object ID"].astype(float)
+    df_sum["Object ID"] = df_sum["Object ID"].astype(int)
 
     df_single_euclids_df = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
     df_single_euclids_df.reset_index(inplace=True)
@@ -189,7 +220,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
 
     existing_cols = [col for col in range(1, tau + 1) if col in df_msd.columns]
     df_msd = df_msd[["Object ID"] + existing_cols]
-    df_msd["Object ID"] = df_msd["Object ID"].astype(float)
+    df_msd["Object ID"] = df_msd["Object ID"].astype(int)
 
     msd_vals = df_msd.set_index("Object ID")[existing_cols]
     if parameters.get("infile_tracks", False):
@@ -215,7 +246,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
 
     category_df = pd.DataFrame(arr_tracks, columns=["Object ID", "Category"])
     if not category_df.empty:
-        category_df["Object ID"] = category_df["Object ID"].astype(float)
+        category_df["Object ID"] = category_df["Object ID"].astype(int)
         def insert_category(df):
             merged = pd.merge(df, category_df, on="Object ID", how="left")
             cols = merged.columns.tolist()

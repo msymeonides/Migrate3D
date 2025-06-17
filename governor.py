@@ -23,6 +23,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     with thread_lock:
         messages.append('Starting Migrate3D...')
         messages.append('')
+        print()
 
     parameters['savefile'] = savefile
     parameters['x_col_name'] = x_for
@@ -345,7 +346,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_sum = df_sum.replace(mapping)
     if track_df.shape[0] > 0:
         df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
-    df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
+    if parameters['arrest_limit'] != 0:
+        df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 
     with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
         df_settings.to_excel(workbook, sheet_name='Settings', index=False)

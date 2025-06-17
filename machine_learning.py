@@ -85,10 +85,13 @@ def preprocess_features(df):
         aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
         return aggregated_features, categories, feature_mapping
     except XGBAbortException:
+        complete_progress_step("PCA")
         raise
     except KeyError:
+        complete_progress_step("PCA")
         error()
     except Exception:
+        complete_progress_step("PCA")
         error()
 
 def optimize_hyperparameters(x_train, y_train):
@@ -237,7 +240,8 @@ def pca(df_selected, df_processed, categories, savefile):
         return None
     valid_idx = ~df_processed.isnull().any(axis=1)
     df_processed = df_processed[valid_idx]
-    categories = categories[valid_idx]
+    categories = categories.reset_index(drop=True)
+    categories = categories[valid_idx.reset_index(drop=True)]
     pca_model = PCA(n_components=4)
     pcscores = pca_model.fit_transform(df_processed)
     df_expl_var = pd.DataFrame(pca_model.explained_variance_ratio_)
@@ -309,6 +313,14 @@ def ml_analysis(df_sum, parameters, savefile):
     with thread_lock:
         messages.append("Starting machine learning analysis...")
     tic = time.time()
+    exclude_features = []
+    if parameters['arrest_limit'] == 0 and 'Arrest Coefficient' in df_sum.columns:
+        exclude_features.append('Arrest Coefficient')
+    if 'Convex Hull Volume' in df_sum.columns and (
+            'z_col_name' not in parameters or parameters['z_col_name'] is None or
+            (df_sum['Convex Hull Volume'] == 0).all()):
+        exclude_features.append('Convex Hull Volume')
+    df_sum = df_sum.drop(columns=exclude_features, errors='ignore')
     class_counts = df_sum['Category'].value_counts()
     to_drop = class_counts[class_counts < min_required].index.tolist()
     if to_drop:
@@ -319,6 +331,7 @@ def ml_analysis(df_sum, parameters, savefile):
                 )
         df_sum = df_sum[~df_sum['Category'].isin(to_drop)]
         if df_sum.empty:
+            complete_progress_step("PCA")
             error()
 
     df_selected = apply_category_filter(df_sum, parameters.get('pca_filter'))

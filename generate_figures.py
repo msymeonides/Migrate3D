@@ -115,7 +115,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, color_map=None):
         cat_row = df_sum.loc[df_sum['Object ID'] == object_, 'Category']
         if cat_row.empty:
             continue
-        cat = int(cat_row.iloc[0])
+        cat = cat_row.iloc[0]
         df_object = df.loc[df['Object ID'] == object_]
         time_data = list(df_object.loc[:, 'Time'])
         time_data = [f'Time point {x} Category {cat}' for x in time_data]

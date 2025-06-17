@@ -38,6 +38,7 @@ def complete_progress_step(step_name):
             return
         _completed_steps.add(step_name)
         _update_progress()
+        print(f"Completed {step_name}")
 
 def _update_progress():
     total = sum(_progress_steps.get(step, 0) for step in _completed_steps)
