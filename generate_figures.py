@@ -49,7 +49,7 @@ def summary_figures(df, fit_stats, color_map=None):
             type='category',
             row=row + 1, col=col_idx + 1
         )
-    # MSD log-log fit slope subplot (same idea)
+
     if fit_stats is not None:
         i = len(columns)
         row, col_idx = divmod(i, n_cols)
@@ -88,7 +88,7 @@ def summary_figures(df, fit_stats, color_map=None):
             type='category',
             row=row + 1, col=col_idx + 1
         )
-        fig.update_yaxes(title_text='Slope', row=row + 1, col=col_idx + 1)
+        fig.update_yaxes(title_text='Slope', range=[0, None], row=row + 1, col=col_idx + 1)
     fig.update_layout(
         violinmode='group',
         plot_bgcolor='white',
@@ -466,10 +466,11 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
         for fig in msd_category_figs.values():
             f.write(fig.to_html(full_html=True, include_plotlyjs=False, config={'responsive': True}))
 
-    contacts_figs = contacts_figures(df_contacts, df_contpercat, color_map=color_map)
-    with open(f'{savefile}_Figures_Contacts.html', 'w', encoding='utf-8') as f:
-        for fig in contacts_figs:
-            f.write(fig.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
+    if df_contacts is not None and df_contpercat is not None and not df_contacts.empty and not df_contpercat.empty:
+        contacts_figs = contacts_figures(df_contacts, df_contpercat, color_map=color_map)
+        with open(f'{savefile}_Figures_Contacts.html', 'w', encoding='utf-8') as f:
+            for fig in contacts_figs:
+                f.write(fig.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
 
     sumstat_figs = summary_figures(df_sum, fit_stats, color_map=color_map)
     with open(f'{savefile}_Figures_Summary-Stats.html', 'w') as f:

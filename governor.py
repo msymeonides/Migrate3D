@@ -188,6 +188,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     savepath = savefile + '_Results.xlsx'
     savecontacts = savefile + '_Contacts.xlsx'
 
+    df_contacts_summary = None
+    df_contacts_per_category = None
+
     if parameters['contact'] is False:
         pass
     else:
