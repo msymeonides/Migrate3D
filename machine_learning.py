@@ -235,6 +235,9 @@ def pca(df_selected, df_processed, categories, savefile):
             messages.append('')
         complete_progress_step("PCA")
         return None
+    valid_idx = ~df_processed.isnull().any(axis=1)
+    df_processed = df_processed[valid_idx]
+    categories = categories[valid_idx]
     pca_model = PCA(n_components=4)
     pcscores = pca_model.fit_transform(df_processed)
     df_expl_var = pd.DataFrame(pca_model.explained_variance_ratio_)
@@ -323,7 +326,7 @@ def ml_analysis(df_sum, parameters, savefile):
     df_selected = df_selected.drop(
         labels=['Duration', 'Path Length'], axis=1)
     df_processed, categories, feature_mapping = preprocess_features(df_selected)
-
+    df_processed = df_processed.dropna()
     df_pcscores = pca(df_selected, df_processed, categories, savefile)
     xgboost(df_sum, parameters, savefile, df_processed, categories, feature_mapping)
     toc = time.time()
