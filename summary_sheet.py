@@ -9,8 +9,7 @@ from scipy.spatial import ConvexHull
 
 from msd_parallel import main as msd_parallel_main
 from msd_loglogfits import main as msd_loglogfits
-from PCA import pca
-from xgb import xgboost, XGBAbortException
+from machine_learning import ml_analysis, XGBAbortException
 from shared_state import messages, thread_lock, complete_progress_step
 from overall_medians import overall_medians
 
@@ -257,13 +256,10 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
     complete_progress_step("Summary")
 
     if parameters.get("infile_tracks", False):
-        df_pca = pca(df_sum.copy(), parameters, savefile)
         try:
-            xgboost(df_sum.copy(), parameters, savefile)
+            df_pca = ml_analysis(df_sum.copy(), parameters, savefile)
         except XGBAbortException:
             pass
-    else:
-        df_pca = None
 
     return (df_sum, df_single_euclids_df, df_single_angles_df, df_msd, df_msd_sum_all,
             df_msd_avg_per_cat, df_msd_std_per_cat, df_msd_loglogfits, df_pca)

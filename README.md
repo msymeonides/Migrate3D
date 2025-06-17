@@ -434,13 +434,17 @@ The highest value of MSD that each object reached during its tracking history at
 
 ## Machine Learning Analyses
 
+Features that are highly correlated with each other (i.e. with a Pearson correlation coefficient greater than 0.9) are aggregated into a single feature by taking the mean of the values for those features within each object and casting that to the new aggregated feature. The correlation threshold can be adjusted at the top of machine_learning.py.
+
+Any categories containing fewer than 5 objects will be excluded from these analyses. This default threshold can be adjusted at the top of machine_learning.py.
+
 ### Principal Component Analysis (PCA):
 
 PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. A Kruskal-Wallis test is performed on the PCA results to determine whether each principal component is significantly different between the provided categories of objects.
 
 ### XGBoost:
 
-XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. The results are saved in a separate .xlsx file, and include the feature importance scores for each summary statistic (after eliminating redundant parameters) when looking at the entire dataset, as well as for all possible pairs of category-to-category comparisons. Note that any categories containing fewer than 5 objects will be excluded from the analysis (this default threshold can be adjusted at the top of xgb.py).
+XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. The results are saved in a separate .xlsx file, and include the feature importance scores for each summary statistic (after eliminating redundant parameters) when looking at the entire dataset, as well as for all possible pairs of category-to-category comparisons.
 
 
 ## Contacts

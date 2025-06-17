@@ -421,6 +421,7 @@ def run_migrate_thread(args):
 
         with thread_lock:
             messages.append("You may close the GUI browser tab and terminate the Python process.")
+        print()
         print("Migrate3D run completed. You may close the GUI browser tab and terminate the Python process.")
 
     except Exception as e:

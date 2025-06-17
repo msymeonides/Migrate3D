@@ -1,0 +1,334 @@
+import numpy as np
+import pandas as pd
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+import scikit_posthocs as sp
+from scipy import stats
+import xgboost.sklearn as xgb
+from xgboost import XGBClassifier
+from xgboost.core import XGBoostError
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.metrics import accuracy_score, classification_report
+import itertools
+import time
+
+from shared_state import messages, thread_lock, complete_progress_step
+
+class XGBAbortException(Exception):
+    pass
+
+min_required = 5    # Minimum number of samples required for a category to be included in PCA and XGBoost
+correlation_threshold = 0.9  # Pearson correlation threshold. Features with correlation above this threshold will be grouped together.
+
+def error():
+    with thread_lock:
+        messages.append('Error in XGBoost, bypassing...')
+        messages.append('Usually these errors are due to too low N within one of the object categories. Use the category filter to exclude these low-N categories.')
+        messages.append('')
+    complete_progress_step("XGB")
+    raise XGBAbortException()
+
+def apply_category_filter(df, cat_filter):
+    if cat_filter is None:
+        return df
+    df = df.copy()
+    if pd.api.types.is_numeric_dtype(df['Category']):
+        try:
+            filter_vals = [int(x) for x in cat_filter]
+        except ValueError:
+            filter_vals = cat_filter
+        df.loc[:, 'Category'] = df['Category'].astype(int)
+    else:
+        filter_vals = [str(x) for x in cat_filter]
+    filtered_df = df[df['Category'].isin(filter_vals)]
+    if filtered_df.empty:
+        with thread_lock:
+            messages.append('No data available for the selected categories.')
+
+    return filtered_df
+
+def group_similar_features(df_features):
+    corr_matrix = df_features.corr().abs()
+    feature_groups = []
+    used_features = set()
+    for feature in corr_matrix.columns:
+        if feature not in used_features:
+            correlated_features = set(corr_matrix.index[corr_matrix[feature] > correlation_threshold])
+            feature_groups.append(correlated_features)
+            used_features.update(correlated_features)
+
+    return feature_groups
+
+def aggregate_correlated_features(df, feature_groups):
+    aggregated_data = []
+    feature_mapping = {}
+    for i, group in enumerate(feature_groups):
+        group_features_label = ", ".join(group)
+        aggregated_data.append(df[list(group)].mean(axis=1))
+        feature_mapping[group_features_label] = list(group)
+    aggregated_df = pd.DataFrame(aggregated_data).T
+    aggregated_df.columns = [", ".join(group) for group in feature_groups]
+
+    return aggregated_df, feature_mapping
+
+def preprocess_features(df):
+    try:
+        df_features = df.drop(['Object ID', 'Category'], axis=1)
+        categories = df['Category']
+        log_data = np.sign(df_features) * np.log(np.abs(df_features) + 1)
+        log_data = log_data.dropna()
+        categories = categories.loc[log_data.index]
+        scaler = StandardScaler()
+        scaled_data = scaler.fit_transform(log_data)
+        scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns)
+        feature_groups = group_similar_features(scaled_df)
+        aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
+        return aggregated_features, categories, feature_mapping
+    except XGBAbortException:
+        raise
+    except KeyError:
+        error()
+    except Exception:
+        error()
+
+def optimize_hyperparameters(x_train, y_train):
+    param_grid = {
+        'n_estimators': [50, 100, 200, 300, 400, 500],
+        'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3],
+        'max_depth': [3, 5, 7, 9, 11],
+        'gamma': [0.0, 0.05, 0.1, 0.2, 0.3],
+        'subsample': [0.6, 0.7, 0.8, 0.9, 1.0],
+        'colsample_bytree': [0.6, 0.7, 0.8, 0.9, 1.0],
+        'min_child_weight': [1, 3, 5, 7],
+        'reg_alpha': [0.0, 0.1, 0.5],
+        'reg_lambda': [0.0, 0.1, 0.5]
+    }
+    model = xgb.XGBClassifier(objective='multi:softmax',
+                              eval_metric='mlogloss',
+                              num_class=len(np.unique(y_train)),
+                              n_jobs=-1)
+    try:
+        random_search = RandomizedSearchCV(
+            model, param_distributions=param_grid,
+            cv=3, scoring='accuracy', verbose=0, n_jobs=-1, random_state=42
+        )
+        random_search.fit(x_train, y_train)
+        return random_search.best_params_
+    except Exception:
+        return {
+            'n_estimators': 100,
+            'learning_rate': 0.1,
+            'max_depth': 3,
+            'gamma': 0.0,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'min_child_weight': 1,
+            'reg_alpha': 0.0,
+            'reg_lambda': 1.0
+        }
+
+def train_and_evaluate(x_train, y_train, x_test, y_test, params):
+    try:
+        model = xgb.XGBClassifier(
+            objective='multi:softmax',
+            eval_metric='mlogloss',
+            num_class=len(np.unique(y_train)),
+            early_stopping_rounds=15,
+            n_jobs=-1,
+            **params
+        )
+        eval_set = [(x_train, y_train), (x_test, y_test)]
+        model.fit(x_train, y_train, eval_set=eval_set, verbose=False)
+        y_pred = model.predict(x_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        return accuracy, model
+    except XGBAbortException:
+        raise
+    except XGBoostError:
+        error()
+    except Exception:
+        error()
+
+def perform_xgboost_comparisons(data, category_col, aggregated_features, writer, parameters):
+    if category_col not in data.columns:
+        raise KeyError(f"'{category_col}' column is missing from the DataFrame.")
+    data = apply_category_filter(data, parameters.get('pca_filter'))
+    aggregated_features = aggregated_features.reindex(data.index).dropna()
+    labels = data[category_col]
+    unique_categories = data[category_col].unique()
+    category_pairs = list(itertools.combinations(unique_categories, 2))
+    for cat1, cat2 in category_pairs:
+        pair_indices = labels.isin([cat1, cat2])
+        pair_data = aggregated_features.reindex(labels.index)[pair_indices]
+        pair_labels = labels[pair_indices]
+        if pair_data.empty or pair_labels.empty:
+            continue
+        label_encoder = LabelEncoder()
+        pair_labels_encoded = label_encoder.fit_transform(pair_labels)
+        x_train, x_test, y_train, y_test = train_test_split(
+            pair_data, pair_labels_encoded, test_size=0.3, random_state=42
+        )
+        model = XGBClassifier(eval_metric='logloss')
+        model.fit(x_train, y_train)
+        y_pred = model.predict(x_test)
+        feature_importance = pd.DataFrame({
+            'Feature': pair_data.columns,
+            'Importance': model.feature_importances_
+        }).sort_values(by='Importance', ascending=False)
+        feature_importance.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Features', index=False)
+        report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+        report_df = pd.DataFrame(report).transpose()
+        report_df.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Report')
+
+def xgboost(df_sum, parameters, output_file, features, categories, feature_mapping):
+    with thread_lock:
+        messages.append('Starting XGBoost...')
+    try:
+        save_xgb = output_file + '_XGB.xlsx'
+        category_col = 'Category'
+        with pd.ExcelWriter(save_xgb, engine='xlsxwriter') as writer:
+            label_encoder = LabelEncoder()
+            y_encoded = label_encoder.fit_transform(categories)
+            x_train, x_test, y_train, y_test = train_test_split(features, y_encoded, test_size=0.4, random_state=42)
+            best_params = optimize_hyperparameters(x_train, y_train)
+            _, model = train_and_evaluate(x_train, y_train, x_test, y_test, best_params)
+            y_pred = model.predict(x_test)
+            feature_importance = pd.DataFrame({
+                'Features': [",".join(map(str, feature_mapping[col])) for col in features.columns],
+                'Importance': model.feature_importances_
+            }).sort_values(by='Importance', ascending=False)
+            feature_importance.to_excel(writer, sheet_name='Dataset Features', index=False)
+            if y_test is not None and y_pred is not None:
+                report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+                report_df = pd.DataFrame(report).transpose()
+                report_df.to_excel(writer, sheet_name='Dataset Report')
+            perform_xgboost_comparisons(
+                data=df_sum,
+                category_col=category_col,
+                aggregated_features=features,
+                writer=writer,
+                parameters=parameters
+            )
+        with thread_lock:
+            msg = " XGBoost done."
+            messages[-1] += msg
+        complete_progress_step("XGB")
+    except XGBAbortException:
+        raise
+    except Exception:
+        error()
+
+def pca(df_selected, df_processed, categories, savefile):
+    if df_processed.empty or len(df_processed) < 4 or df_processed.shape[1] < 4:
+        with thread_lock:
+            messages.append("Not enough data for PCA, bypassing...")
+            messages.append('')
+        complete_progress_step("PCA")
+        return None
+    with thread_lock:
+        messages.append('Starting PCA...')
+    n_samples, n_features = df_processed.shape
+    n_components = min(4, n_samples, n_features)
+    if n_components < 4:
+        with thread_lock:
+            messages.append("Not enough data for PCA, bypassing...")
+            messages.append('')
+        complete_progress_step("PCA")
+        return None
+    pca_model = PCA(n_components=4)
+    pcscores = pca_model.fit_transform(df_processed)
+    df_expl_var = pd.DataFrame(pca_model.explained_variance_ratio_)
+    df_expl_var.columns = ["Explained variance ratio"]
+    df_expl_var.index = ['PC1', 'PC2', 'PC3', 'PC4']
+    df_pcscores = pd.DataFrame(pcscores)
+    df_pcscores.columns = ['PC1', 'PC2', 'PC3', 'PC4']
+    df_pcscores["Category"] = categories.values
+    df_features = pd.DataFrame(pca_model.components_)
+    df_features.columns = df_processed.columns
+    df_features.index = ['PC1', 'PC2', 'PC3', 'PC4']
+    kruskal_result_list = []
+    def kw_test(pc_kw):
+        kruskal = stats.kruskal(
+            *[group[pc_kw].values for name, group in df_pcscores.groupby('Category')],
+            nan_policy='omit'
+        )
+        df_result = pd.DataFrame({kruskal})
+        return df_result
+    for pc_kw_no in range(1, 5):
+        pc_current = f"PC{pc_kw_no}"
+        kruskal_result_list.append(kw_test(pc_current))
+    df_kruskal = pd.concat(kruskal_result_list)
+    df_kruskal.index = ['PC1', 'PC2', 'PC3', 'PC4']
+    pc1_test = sp.posthoc_dunn(df_pcscores, val_col='PC1', group_col='Category', p_adjust='bonferroni')
+    pc2_test = sp.posthoc_dunn(df_pcscores, val_col='PC2', group_col='Category', p_adjust='bonferroni')
+    pc3_test = sp.posthoc_dunn(df_pcscores, val_col='PC3', group_col='Category', p_adjust='bonferroni')
+    pc4_test = sp.posthoc_dunn(df_pcscores, val_col='PC4', group_col='Category', p_adjust='bonferroni')
+    df_pc1 = pd.DataFrame(pc1_test)
+    df_pc2 = pd.DataFrame(pc2_test)
+    df_pc3 = pd.DataFrame(pc3_test)
+    df_pc4 = pd.DataFrame(pc4_test)
+    save_pca = savefile + '_PCA.xlsx'
+    writer = pd.ExcelWriter(save_pca, engine='xlsxwriter')
+    df_selected.to_excel(writer, sheet_name='Full dataset', index=False)
+    df_processed.to_excel(writer, sheet_name='PCA dataset', index=False)
+    df_expl_var.to_excel(writer, sheet_name='PC explained variance', index=True)
+    df_pcscores.to_excel(writer, sheet_name='PC scores', index=False)
+    df_features.to_excel(writer, sheet_name='PC features', index=True)
+    df_kruskal.to_excel(writer, sheet_name='Kruskal-Wallis', index=True)
+    df_pc1.to_excel(writer, sheet_name='PC1 tests', index=True)
+    df_pc2.to_excel(writer, sheet_name='PC2 tests', index=True)
+    df_pc3.to_excel(writer, sheet_name='PC3 tests', index=True)
+    df_pc4.to_excel(writer, sheet_name='PC4 tests', index=True)
+    workbook = writer.book
+    format_white = workbook.add_format({'bg_color': 'white'})
+    format_yellow = workbook.add_format({'bg_color': 'yellow'})
+    def highlight_objs(x):
+        x.conditional_format('A1:ZZ100', {'type': 'blanks', 'format': format_white})
+        x.conditional_format('B2:L12', {
+            'type': 'cell',
+            'criteria': '<=',
+            'value': 0.05,
+            'format': format_yellow
+        })
+    sheets = ['Kruskal-Wallis', 'PC1 tests', 'PC2 tests', 'PC3 tests', 'PC4 tests']
+    for sheet in sheets:
+        worksheet = writer.sheets[sheet]
+        highlight_objs(worksheet)
+    writer.close()
+    with thread_lock:
+        msg = " PCA done."
+        messages[-1] += msg
+    complete_progress_step("PCA")
+
+    return df_pcscores
+
+def ml_analysis(df_sum, parameters, savefile):
+    with thread_lock:
+        messages.append("Starting machine learning analysis...")
+    tic = time.time()
+    class_counts = df_sum['Category'].value_counts()
+    to_drop = class_counts[class_counts < min_required].index.tolist()
+    if to_drop:
+        for group in to_drop:
+            with thread_lock:
+                messages.append(
+                    f"Excluded category '{group}'. Only {class_counts[group]} objects (requires at least {min_required})."
+                )
+        df_sum = df_sum[~df_sum['Category'].isin(to_drop)]
+        if df_sum.empty:
+            error()
+
+    df_selected = apply_category_filter(df_sum, parameters.get('pca_filter'))
+    df_selected = df_selected.dropna()
+    df_selected = df_selected.drop(
+        labels=['Duration', 'Path Length'], axis=1)
+    df_processed, categories, feature_mapping = preprocess_features(df_selected)
+
+    df_pcscores = pca(df_selected, df_processed, categories, savefile)
+    xgboost(df_sum, parameters, savefile, df_processed, categories, feature_mapping)
+    toc = time.time()
+    with thread_lock:
+        messages.append("Machine learning analysis done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+        messages.append('')
+
+    return df_pcscores
