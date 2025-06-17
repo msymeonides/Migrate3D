@@ -25,81 +25,77 @@ def summary_figures(df, fit_stats, color_map=None):
         rows=n_rows, cols=n_cols, subplot_titles=columns + ['MSD log-log fit slope'],
         vertical_spacing=0.05, horizontal_spacing=0.05
     )
-    fig.update_layout(
-        height=400 * n_rows,
-        width=None,
-        autosize=True,
-        title={
-            'text': 'Summary Statistics',
-            'x': 0.5,
-            'font': {'size': 28}
-        },
-        plot_bgcolor='white',
-        violinmode='group'
-    )
     for i, col in enumerate(columns):
         row, col_idx = divmod(i, n_cols)
         for cat in categories:
             df_cat = df[df['Category'] == cat]
             fig.add_trace(
                 go.Violin(
-                    x=[cat] * len(df_cat),
+                    x=[str(cat)] * len(df_cat),
                     y=df_cat[col],
                     marker_color=color_map.get(cat, 'black'),
-                    showlegend=False,
+                    legendgroup=f'cat{cat}',
+                    showlegend=(i == 0),
                     scalegroup=f'{col}',
                     scalemode='count',
                     width=0.8,
                     box_visible=True,
+                    hoverinfo='skip',
+                    name=f'Cat {cat}'
+                ),
+                row=row + 1, col=col_idx + 1
+            )
+        fig.update_xaxes(
+            type='category',
+            row=row + 1, col=col_idx + 1
+        )
+    # MSD log-log fit slope subplot (same idea)
+    if fit_stats is not None:
+        i = len(columns)
+        row, col_idx = divmod(i, n_cols)
+        for cat in categories:
+            stats = fit_stats.get(cat, {})
+            slope = stats.get('slope', None)
+            ci_low = stats.get('slope', 0) - stats.get('ci_low', 0)
+            ci_high = stats.get('ci_high', 0) - stats.get('slope', 0)
+            fig.add_trace(
+                go.Scatter(
+                    x=[str(cat)],
+                    y=[slope],
+                    mode='markers',
+                    marker=dict(
+                        color=color_map.get(cat, 'black'),
+                        size=11,
+                        line=dict(width=1, color=color_map.get(cat, 'black'))
+                    ),
+                    error_y=dict(
+                        type='data',
+                        symmetric=False,
+                        array=[ci_high],
+                        arrayminus=[ci_low],
+                        thickness=1,
+                        color='black',
+                        width=8
+                    ),
+                    legendgroup=f'cat{cat}',
+                    showlegend=False,
+                    name=f'Cat {cat}',
                     hoverinfo='skip'
                 ),
                 row=row + 1, col=col_idx + 1
             )
         fig.update_xaxes(
-            tickmode='array',
-            tickvals=categories,
-            ticktext=[str(cat) for cat in categories],
-            row=row + 1, col=col_idx + 1
-        )
-    if fit_stats is not None:
-        i = len(columns)
-        row, col_idx = divmod(i, n_cols)
-        cats = sorted(fit_stats.keys())
-        slopes = [fit_stats[cat]['slope'] for cat in cats]
-        ci_low = [fit_stats[cat]['slope'] - fit_stats[cat]['ci_low'] for cat in cats]
-        ci_high = [fit_stats[cat]['ci_high'] - fit_stats[cat]['slope'] for cat in cats]
-        colors_list = [color_map.get(cat, 'black') for cat in cats]
-        fig.add_trace(
-            go.Scatter(
-                x=cats,
-                y=slopes,
-                mode='markers',
-                marker=dict(
-                    color=colors_list,
-                    size=11,
-                    line=dict(width=1, color=colors_list)
-                ),
-                error_y=dict(
-                    type='data',
-                    symmetric=False,
-                    array=ci_high,
-                    arrayminus=ci_low,
-                    thickness=1,
-                    color='black',
-                    width=8
-                ),
-                showlegend=False,
-                hoverinfo='skip'
-            ),
-            row=row + 1, col=col_idx + 1
-        )
-        fig.update_xaxes(
-            tickmode='array',
-            tickvals=cats,
-            ticktext=[str(cat) for cat in cats],
+            type='category',
             row=row + 1, col=col_idx + 1
         )
         fig.update_yaxes(title_text='Slope', row=row + 1, col=col_idx + 1)
+    fig.update_layout(
+        violinmode='group',
+        plot_bgcolor='white',
+        title={'text': 'Summary Statistics', 'x': 0.5, 'font': {'size': 28}},
+        height=400 * n_rows,
+        autosize=True
+    )
     return [fig]
 
 def tracks_figure(df, df_sum, cat_provided, save_file, color_map=None):
