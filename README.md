@@ -1,6 +1,6 @@
 # README
 
-Last Edited: June 12, 2025 (Migrate3D version 2.0)
+Last Edited: June 17, 2025 (Migrate3D version 2.0)
 
 # Migrate3D
 
@@ -256,7 +256,7 @@ Includes the results of all intermediate step-wise calculations in the output .x
 
 ### Contacts:
 
-Identifies contacts between objects at each timepoint, and returns a separate results .xlsx file containing each detected contact as well as a summary of contact history for each object (excluding objects that had no detected contacts).
+Identifies contacts between objects at each timepoint, and returns a separate results .xlsx file containing each detected contact as well as a summary of contact history for each object (excluding objects that had no detected contacts), as well as per-category summary statistics.
 
 ### Attractors:
 
@@ -264,13 +264,15 @@ Identifies instances where an object is attracting other objects towards it (eve
 
 ### Generate Figures:
 
-If a Categories file is provided, the following figures are generated:
-- **Summary Stats**: Interactive violin plots for each of the summary statistics, per category.
+If a Categories file is provided, the following plotly figures are generated:
+
+- **Summary Stats**: Per-category interactive violin plots for each of the summary statistics, plus the MSD log-log linear fit slope (error bars = 95% confidence interval).
+- **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
 - **Tracks**: An interactive 3D (X/Y/Z) plot of all tracks.
 - **PCA**: A set of plots of the four PCs will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
 - **MSD**: A log-log plot of the mean per-category MSD vs. τ, each with its linear fit line (dashed), and, for each category, a plot of all per-track MSD values vs. τ (gray traces), with the mean of all tracks overlaid (dark trace) plus the linear fit (dashed red line). The slope and 95% confidence interval of the linear fit for that category mean is also shown on each figure.
 
-The color used for each category will be consistent across all of these figures. The outputs are in .html format which can be viewed in a browser (note that for large datasets, the tracks file can take a while to fully load once opened, and may be poorly responsive).
+The color used for each category will be consistent across all of these figures. For all violin plots, an inner box plot is overlayed showing the median and upper and lower quartiles. All outputs are in .html format which can be viewed in a browser (note that for large datasets, the tracks file can take a while to fully load once opened, and may be poorly responsive).
 
 ### Subset Categories:
 

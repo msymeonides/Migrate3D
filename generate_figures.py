@@ -226,7 +226,7 @@ def pca_figures(df_pca, color_map=None):
 
     return pcafig_1d, pcafig_2d, pcafig_3d
 
-def run_msd_graphs(df_msd, df_msd_loglogfits, color_map):
+def msd_graphs(df_msd, df_msd_loglogfits, color_map):
     fit_stats = {}
     for col in df_msd_loglogfits.columns:
         try:
@@ -353,18 +353,106 @@ def run_msd_graphs(df_msd, df_msd_loglogfits, color_map):
 
     return msd_figure_all, msd_figure_categories, fit_stats
 
-def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, savefile, cat_provided):
+def contacts_figures(df_contacts, df_contpercat, color_map=None):
+    violin_metrics = [
+        'Number of Contacts',
+        'Total Time Spent in Contact',
+        'Median Contact Duration'
+    ]
+    bar_metrics = [
+        'Pct With Contact',
+        'Pct With >=3 Contacts'
+    ]
+    subplot_titles = [
+        'Number of Contacts',
+        'Total Time Spent in Contact',
+        'Median Contact Duration',
+        'Pct With Contact',
+        'Pct With >=3 Contacts'
+    ]
+    n_cols = 3
+    n_rows = 2
+
+    categories = sorted(df_contacts['Category'].dropna().unique())
+    if color_map is None:
+        color_map = get_category_color_map(categories)
+
+    fig = make_subplots(
+        rows=n_rows, cols=n_cols,
+        subplot_titles=subplot_titles,
+        vertical_spacing=0.2, horizontal_spacing=0.05
+    )
+
+    # Violin plots (object-level, grouped by category)
+    for i, col in enumerate(violin_metrics):
+        row, col_idx = divmod(i, n_cols)
+        for j, cat in enumerate(categories):
+            df_cat = df_contacts[df_contacts['Category'] == cat]
+            fig.add_trace(
+                go.Violin(
+                    x=[str(cat)] * len(df_cat),
+                    y=df_cat[col],
+                    marker_color=color_map.get(cat, 'black'),
+                    legendgroup=f'cat{cat}',
+                    showlegend=(i == 0),
+                    scalegroup=col,
+                    scalemode='count',
+                    width=0.8,
+                    box_visible=True,
+                    name=f'Cat {cat}',
+                    line_color=color_map.get(cat, 'black'),
+                    meanline_visible=True
+                ),
+                row=row + 1, col=col_idx + 1
+            )
+        fig.update_xaxes(type='category', row=row + 1, col=col_idx + 1)
+
+    # Bar plots (category-level)
+    for i, col in enumerate(bar_metrics, start=3):
+        row, col_idx = divmod(i, n_cols)
+        for j, cat in enumerate(categories):
+            y = df_contpercat[df_contpercat['Category'] == cat][col]
+            fig.add_trace(
+                go.Bar(
+                    x=[str(cat)],
+                    y=y,
+                    marker_color=color_map.get(cat, 'black'),
+                    name=f'Cat {cat}',
+                    legendgroup=f'cat{cat}',
+                    showlegend=False,
+                    width=0.5
+                ),
+                row=row + 1, col=col_idx + 1
+            )
+        fig.update_xaxes(type='category', row=row + 1, col=col_idx + 1)
+
+    fig.update_xaxes(visible=False, row=2, col=3)
+    fig.update_yaxes(visible=False, row=2, col=3)
+
+    fig.update_layout(
+        violinmode='group',
+        barmode='group',
+        plot_bgcolor='white',
+        title={'text': 'Contacts', 'x': 0.5, 'font': {'size': 28}},
+        height=400 * n_rows,
+        autosize=True,
+        legend_title_text='Category'
+    )
+    return [fig]
+
+def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_contacts, df_contpercat,
+                     savefile, cat_provided):
     color_map = get_category_color_map(df_sum['Category'].unique())
 
     tracks_fig = tracks_figure(df_segments, df_sum, cat_provided, savefile, color_map=color_map)
     tracks_html = tracks_fig.to_html(full_html=True, include_plotlyjs='cdn')
-    with open(f'{savefile}_Figure_Tracks.html', 'w') as f:
+    with open(f'{savefile}_Figures_Tracks.html', 'w') as f:
         f.write(tracks_html)
 
     if df_pca is not None and not df_pca.empty:
         pca_figs = pca_figures(df_pca, color_map=color_map)
         fig_1d, fig_2d, fig_3d = pca_figs
-        with open(f'{savefile}_Figure_PCA.html', 'w', encoding='utf-8') as f:
+        with open(f'{savefile}_Figures_PCA.html', 'w', encoding='utf-8') as f:
             f.write(fig_1d.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
             f.write(fig_2d.to_html(full_html=True, include_plotlyjs=False, config={'responsive': True}))
             fig3d_html = fig_3d.to_html(full_html=False, include_plotlyjs=False, config={'responsive': True})
@@ -372,14 +460,19 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, sav
     else:
         pass
 
-    msd_fig_all, msd_category_figs, fit_stats = run_msd_graphs(df_msd, df_msd_loglogfits, color_map)
-    with open(f'{savefile}_Figure_MSD.html', 'w', encoding='utf-8') as f:
+    msd_fig_all, msd_category_figs, fit_stats = msd_graphs(df_msd, df_msd_loglogfits, color_map)
+    with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
         f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
         for fig in msd_category_figs.values():
             f.write(fig.to_html(full_html=True, include_plotlyjs=False, config={'responsive': True}))
 
+    contacts_figs = contacts_figures(df_contacts, df_contpercat, color_map=color_map)
+    with open(f'{savefile}_Figures_Contacts.html', 'w', encoding='utf-8') as f:
+        for fig in contacts_figs:
+            f.write(fig.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
+
     sumstat_figs = summary_figures(df_sum, fit_stats, color_map=color_map)
-    with open(f'{savefile}_Figure_Summary-Stats.html', 'w') as f:
+    with open(f'{savefile}_Figures_Summary-Stats.html', 'w') as f:
         for fig in sumstat_figs:
             fig_html = fig.to_html(full_html=False, include_plotlyjs='cdn', config={'responsive': True})
             f.write(f"<div style='width:95vw;'>{fig_html}</div>")

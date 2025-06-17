@@ -185,7 +185,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
      df_msd_loglogfits, df_pca) = summary_sheet(arr_segments, df_all_calcs, unique_objects, parameters['tau'],
                                                parameters, arr_tracks, savefile)
 
-    savepath = savefile + '.xlsx'
+    savepath = savefile + '_Results.xlsx'
     savecontacts = savefile + '_Contacts.xlsx'
 
     if parameters['contact'] is False:
@@ -320,7 +320,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             with thread_lock:
                 messages.append('Generating figures...')
             tic = tempo.time()
-            save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, savefile, parameters['infile_tracks'])
+            save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_contacts_summary,
+                             df_contacts_per_category, savefile, parameters['infile_tracks'])
             toc = tempo.time()
             with thread_lock:
                 msg = ' Done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))

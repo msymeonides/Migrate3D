@@ -24,8 +24,8 @@ parameters = {'arrest_limit': 3,    # Arrest limit
               'contact_length': 12, # Contact length
               'arrested': 0.95,     # Maximum arrest coefficient
               'timelapse': 1,       # Timelapse interval
-              'tau': 10,        # Maximum MSD Tau value
-              'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D_Results',
+              'tau': 10,            # Maximum MSD Tau value
+              'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D',
               'multi_track': False, 'interpolate': False, 'verbose': False,
               'contact': False, 'attractors': False, 'generate_figures': False, 'pca_filter': None,
               'infile_tracks': False,

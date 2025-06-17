@@ -255,6 +255,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
         messages.append("")
     complete_progress_step("Summary")
 
+    df_pca = None
     if parameters.get("infile_tracks", False):
         try:
             df_pca = ml_analysis(df_sum.copy(), parameters, savefile)
