@@ -398,7 +398,7 @@ def run_migrate_thread(args):
      segments_file_name, tracks_file, parent_id2, category_col_name,
      parameters, pca_filter, attract_params) = args
 
-    if tracks_file is not None and 'Enter your category .csv file here' not in str(tracks_file):
+    if tracks_file is not None:
          parameters['infile_tracks'] = True
     else:
          parameters['infile_tracks'] = False

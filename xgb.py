@@ -15,6 +15,8 @@ from PCA import apply_category_filter
 class XGBAbortException(Exception):
     pass
 
+min_required = 5    # Minimum number of samples required in each category for XGBoost to proceed
+
 def error():
     with thread_lock:
         messages.append('Error in XGBoost, bypassing...')
@@ -114,24 +116,6 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, params):
     except Exception:
         error()
 
-def cross_validate_model(X, y, params, n_splits=5):
-    try:
-        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-        accuracies = []
-        for train_index, test_index in skf.split(X, y):
-            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-
-            accuracy, _ = train_and_evaluate(X_train, y_train, X_test, y_test, params)
-            accuracies.append(accuracy)
-        return np.mean(accuracies)
-    except XGBAbortException:
-        raise
-    except ValueError:
-        error()
-    except Exception:
-        error()
-
 def generate_param_grids(param_space):
     keys = param_space.keys()
     values = param_space.values()
@@ -177,6 +161,18 @@ def optimize_hyperparameters(X_train, y_train):
 
 def process_and_train_with_gridsearch(df_xgb, parameters):
     try:
+        class_counts = df_xgb['Category'].value_counts()
+        to_drop = class_counts[class_counts < min_required].index.tolist()
+        if to_drop:
+            for group in to_drop:
+                with thread_lock:
+                    messages.append(
+                        f"Excluded group '{group}' from XGBoost: only {class_counts[group]} samples (requires at least {min_required})."
+                    )
+            df_xgb = df_xgb[~df_xgb['Category'].isin(to_drop)]
+            if df_xgb.empty:
+                error()
+
         df_xgb = select_categories(df_xgb, parameters)
         X, y, feature_mapping = preprocess_features(df_xgb)
         label_encoder = LabelEncoder()

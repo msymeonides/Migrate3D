@@ -285,7 +285,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             complete_progress_step('Generate Figures')
         else:
             with thread_lock:
-                messages.append('Figure generation bypassed; no category file provided.')
+                messages.append('Figure generation bypassed; no categories file provided.')
                 messages.append('')
             complete_progress_step('Generate Figures')
 

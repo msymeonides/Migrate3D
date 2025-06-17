@@ -4,7 +4,7 @@ import pandas as pd
 
 window_size = 4     # Tunable parameter for bootstrapping window size
 r2_thresh = 0.995   # Tunable parameter for R-squared minimum threshold
-n_boot = 500        # Number of bootstrap iterations (keep this between 100 and 1000)
+n_boot = 1000       # Number of bootstrap iterations
 
 def find_best_linear_window(x, y):
     n = len(x)
@@ -27,13 +27,25 @@ def find_best_linear_window(x, y):
 
 def bootstrap_worker(task):
     cat_df, object_ids, n_iter = task
+    obj_ids_arr = cat_df['Object ID'].to_numpy()
+    log_tau_arr = cat_df['log_tau'].to_numpy()
+    log_msd_arr = cat_df['log_msd'].to_numpy()
+    id_to_indices = {oid: np.where(obj_ids_arr == oid)[0] for oid in object_ids}
     slopes = []
+    n_obj = len(object_ids)
     for _ in range(n_iter):
-        sampled_ids = np.random.choice(object_ids, size=len(object_ids), replace=True)
-        sample_df = pd.concat([cat_df[cat_df['Object ID'] == oid] for oid in sampled_ids])
-        mean_log_bs = sample_df.groupby('log_tau')['log_msd'].mean().reset_index()
-        x_bs = mean_log_bs['log_tau'].values
-        y_bs = mean_log_bs['log_msd'].values
+        sampled_ids = np.random.choice(object_ids, size=n_obj, replace=True)
+        indices = np.concatenate([id_to_indices[oid] for oid in sampled_ids])
+        sample_log_tau = log_tau_arr[indices]
+        sample_log_msd = log_msd_arr[indices]
+        if len(sample_log_tau) < window_size:
+            continue
+        unique_tau, inv = np.unique(sample_log_tau, return_inverse=True)
+        mean_log_msd = np.zeros_like(unique_tau)
+        for i, tau in enumerate(unique_tau):
+            mean_log_msd[i] = sample_log_msd[inv == i].mean()
+        x_bs = unique_tau
+        y_bs = mean_log_msd
         if len(x_bs) < window_size:
             continue
         s, e, _ = find_best_linear_window(x_bs, y_bs)
@@ -46,10 +58,6 @@ def bootstrap_worker(task):
     return slopes
 
 def main(df_msd):
-    max_processes = max(1, min(61, mp.cpu_count() - 1))
-    n_workers = max_processes
-
-
     df = df_msd.copy()
     id_cols = ['Object ID', 'Category']
     tau_cols = [col for col in df.columns if col not in id_cols]
@@ -60,11 +68,21 @@ def main(df_msd):
     df_long['log_msd'] = np.log10(df_long['msd'])
 
     categories = sorted([int(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
+    n_workers = len(categories)
 
     fit_stats = {}
 
+    tasks = []
     for category in categories:
         cat_df = df_long[df_long['Category'] == category]
+        object_ids = cat_df['Object ID'].unique()
+        tasks.append((cat_df, object_ids, n_boot))
+
+    with mp.Pool(processes=n_workers) as pool:
+        results = pool.map(bootstrap_worker, tasks)
+
+    for idx, category in enumerate(categories):
+        cat_df = tasks[idx][0]
         mean_log = cat_df.groupby('log_tau')['log_msd'].mean().reset_index()
         x = mean_log['log_tau'].values
         y = mean_log['log_msd'].values
@@ -74,24 +92,15 @@ def main(df_msd):
         y_fit = y[start:end]
         coeffs = np.polyfit(x_fit, y_fit, 1)
         slope, intercept = coeffs
-        y_fit_line = np.polyval(coeffs, x)
 
         y_fit_pred = np.polyval(coeffs, x_fit)
         ss_res = np.sum((y_fit - y_fit_pred) ** 2)
         ss_tot = np.sum((y_fit - np.mean(y_fit)) ** 2)
         r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
 
-        object_ids = cat_df['Object ID'].unique()
-        boot_per_worker = n_boot // n_workers
-        tasks = [
-            (cat_df, object_ids, boot_per_worker)
-            for _ in range(n_workers)
-        ]
-        with mp.Pool(processes=n_workers) as pool:
-            results = pool.map(bootstrap_worker, tasks)
-        slopes = [s for sublist in results for s in sublist]
+        slopes = results[idx]
         if slopes:
-            ci_low, ci_high = np.percentile(slopes, [2.5, 97.5])
+            ci_low, ci_high = np.percentile(slopes, [5, 95])
         else:
             ci_low, ci_high = np.nan, np.nan
 

@@ -440,7 +440,7 @@ PCA is performed on the summary statistics of each object, and the results are s
 
 ### XGBoost:
 
-XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. The results are saved in a separate .xlsx file, and include the feature importance scores for each summary statistic (after eliminating redundant parameters) when looking at the entire dataset, as well as for all possible pairs of category-to-category comparisons.
+XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. The results are saved in a separate .xlsx file, and include the feature importance scores for each summary statistic (after eliminating redundant parameters) when looking at the entire dataset, as well as for all possible pairs of category-to-category comparisons. Note that any categories containing fewer than 5 objects will be excluded from the analysis (this default threshold can be adjusted at the top of xgb.py).
 
 
 ## Contacts

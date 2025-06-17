@@ -13,7 +13,7 @@ def get_category_color_map(categories):
     categories = sorted(set(categories))
     return {cat: colors[i % len(colors)] for i, cat in enumerate(categories)}
 
-def summary_figures(df, color_map=None):
+def summary_figures(df, fit_stats, color_map=None):
     columns = [col for col in df.columns if col not in ('Object ID', 'Category')]
     categories = sorted(df['Category'].dropna().unique())
     if color_map is None:
@@ -22,7 +22,7 @@ def summary_figures(df, color_map=None):
     n_cols = 4
     n_rows = math.ceil(n_plots / n_cols)
     fig = make_subplots(
-        rows=n_rows, cols=n_cols, subplot_titles=columns,
+        rows=n_rows, cols=n_cols, subplot_titles=columns + ['MSD log-log fit slope'],
         vertical_spacing=0.05, horizontal_spacing=0.05
     )
     fig.update_layout(
@@ -45,11 +45,13 @@ def summary_figures(df, color_map=None):
                 go.Violin(
                     x=[cat] * len(df_cat),
                     y=df_cat[col],
-                    marker_color=color_map.get(cat, colors[0]),
+                    marker_color=color_map.get(cat, 'black'),
                     showlegend=False,
                     scalegroup=f'{col}',
                     scalemode='count',
-                    width=0.9,
+                    width=0.8,
+                    box_visible=True,
+                    hoverinfo='skip'
                 ),
                 row=row + 1, col=col_idx + 1
             )
@@ -59,6 +61,45 @@ def summary_figures(df, color_map=None):
             ticktext=[str(cat) for cat in categories],
             row=row + 1, col=col_idx + 1
         )
+    if fit_stats is not None:
+        i = len(columns)
+        row, col_idx = divmod(i, n_cols)
+        cats = sorted(fit_stats.keys())
+        slopes = [fit_stats[cat]['slope'] for cat in cats]
+        ci_low = [fit_stats[cat]['slope'] - fit_stats[cat]['ci_low'] for cat in cats]
+        ci_high = [fit_stats[cat]['ci_high'] - fit_stats[cat]['slope'] for cat in cats]
+        colors_list = [color_map.get(cat, 'black') for cat in cats]
+        fig.add_trace(
+            go.Scatter(
+                x=cats,
+                y=slopes,
+                mode='markers',
+                marker=dict(
+                    color=colors_list,
+                    size=11,
+                    line=dict(width=1, color=colors_list)
+                ),
+                error_y=dict(
+                    type='data',
+                    symmetric=False,
+                    array=ci_high,
+                    arrayminus=ci_low,
+                    thickness=1,
+                    color='black',
+                    width=8
+                ),
+                showlegend=False,
+                hoverinfo='skip'
+            ),
+            row=row + 1, col=col_idx + 1
+        )
+        fig.update_xaxes(
+            tickmode='array',
+            tickvals=cats,
+            ticktext=[str(cat) for cat in cats],
+            row=row + 1, col=col_idx + 1
+        )
+        fig.update_yaxes(title_text='Slope', row=row + 1, col=col_idx + 1)
     return [fig]
 
 def tracks_figure(df, df_sum, cat_provided, save_file, color_map=None):
@@ -87,7 +128,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, color_map=None):
         z_data = list(df_object.iloc[:, 4])
         traces_.append(go.Scatter3d(
             x=x_data, y=y_data, z=z_data, hovertext=time_data, name=object_, mode='lines',
-            marker=dict(size=12), marker_color=color_map.get(cat, colors[0])
+            marker=dict(size=12), marker_color=color_map.get(cat, 'black')
         ))
     tracks_fig = go.Figure(traces_)
     tracks_fig.update_layout(title=f'{save_file} Tracks', plot_bgcolor='white')
@@ -112,6 +153,8 @@ def pca_figures(df_pca, color_map=None):
                     line_color=color_map[cat],
                     legendgroup=f'cat{cat}',
                     showlegend=(i == 0),
+                    box_visible=True,
+                    hoverinfo='skip'
                 ),
                 row=row + 1, col=col + 1
             )
@@ -128,10 +171,11 @@ def pca_figures(df_pca, color_map=None):
                     x=df_cat[x],
                     y=df_cat[y],
                     mode='markers',
-                    marker=dict(color=color_map[cat]),
+                    marker=dict(color=color_map[cat], size=10),
                     name=f'Cat {cat}',
                     legendgroup=f'cat{cat}',
                     showlegend=(i == 0),
+                    hoverinfo='skip'
                 ),
                 row=row + 1, col=col + 1
             )
@@ -166,10 +210,11 @@ def pca_figures(df_pca, color_map=None):
                 go.Scatter3d(
                     x=df_cat[x], y=df_cat[y], z=df_cat[z],
                     mode='markers',
-                    marker=dict(color=color_map[cat]),
+                    marker=dict(color=color_map[cat], size=6),
                     name=f'Cat {cat}',
                     legendgroup=f'cat{cat}',
-                    showlegend=(i == 0)
+                    showlegend=(i == 0),
+                    hoverinfo='skip'
                 ),
                 row=row + 1, col=col + 1
             )
@@ -310,16 +355,10 @@ def run_msd_graphs(df_msd, df_msd_loglogfits, color_map):
         yaxis=dict(range=[y_min, y_max])
     )
 
-    return msd_figure_all, msd_figure_categories
+    return msd_figure_all, msd_figure_categories, fit_stats
 
 def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, savefile, cat_provided):
     color_map = get_category_color_map(df_sum['Category'].unique())
-
-    sumstat_figs = summary_figures(df_sum, color_map=color_map)
-    with open(f'{savefile}_Figure_Summary-Stats.html', 'w') as f:
-        for fig in sumstat_figs:
-            fig_html = fig.to_html(full_html=False, include_plotlyjs='cdn', config={'responsive': True})
-            f.write(f"<div style='width:95vw;'>{fig_html}</div>")
 
     tracks_fig = tracks_figure(df_segments, df_sum, cat_provided, savefile, color_map=color_map)
     tracks_html = tracks_fig.to_html(full_html=True, include_plotlyjs='cdn')
@@ -337,10 +376,16 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, sav
     else:
         pass
 
-    msd_fig_all, msd_category_figs = run_msd_graphs(df_msd, df_msd_loglogfits, color_map)
+    msd_fig_all, msd_category_figs, fit_stats = run_msd_graphs(df_msd, df_msd_loglogfits, color_map)
     with open(f'{savefile}_Figure_MSD.html', 'w', encoding='utf-8') as f:
         f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
         for fig in msd_category_figs.values():
             f.write(fig.to_html(full_html=True, include_plotlyjs=False, config={'responsive': True}))
+
+    sumstat_figs = summary_figures(df_sum, fit_stats, color_map=color_map)
+    with open(f'{savefile}_Figure_Summary-Stats.html', 'w') as f:
+        for fig in sumstat_figs:
+            fig_html = fig.to_html(full_html=False, include_plotlyjs='cdn', config={'responsive': True})
+            f.write(f"<div style='width:95vw;'>{fig_html}</div>")
 
     return
