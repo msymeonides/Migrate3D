@@ -192,6 +192,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_contacts_summary = None
     df_contacts_per_category = None
 
+    df_sum_for_contacts = df_sum.copy()
+    if parameters['arrest_limit'] == 0 and 'Arrest Coefficient' not in df_sum_for_contacts.columns:
+        df_sum_for_contacts['Arrest Coefficient'] = 0.0
+
     if parameters['contact'] is False:
         pass
     else:
@@ -205,7 +209,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             unique_timepoints,
             arr_segments,
             parameters['contact_length'],
-            df_sum,
+            df_sum_for_contacts,
             parameters['arrested'],
         )
 
@@ -237,7 +241,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         if parameters['infile_tracks']:
             if not df_contacts_summary.empty and 'Category' not in df_contacts_summary.columns:
                 df_contacts_summary = df_contacts_summary.merge(
-                    df_sum[['Object ID', 'Category']],
+                    df_sum_for_contacts[['Object ID', 'Category']],
                     on='Object ID',
                     how='left'
                 )
@@ -245,7 +249,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                                                     col not in ['Object ID', 'Category']]
                 df_contacts_summary = df_contacts_summary[cols]
 
-            all_objects = df_sum[['Object ID', 'Category']].copy()
+            all_objects = df_sum_for_contacts[['Object ID', 'Category']].copy()
             df_contacting = all_objects.merge(
                 df_contacts_summary[
                     ['Object ID', 'Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']],

@@ -1,14 +1,16 @@
 # README
 
-Last Edited: June 17, 2025 (Migrate3D version 2.0)
+Last Edited: June 18, 2025 (Migrate3D version 2.0)
 
 # Migrate3D
 
-Migrate3D is a Python program that streamlines and automates biological object motion (e.g. cell migration) analysis, returning meaningful metrics that help the user evaluate biological questions. This program does not handle imaging data, only previously generated tracking data, so it is not meant to replace functions already performed very well by programs such as Imaris, Arivis Pro, CellProfiler, TrackMate etc. Migrate3D’s purpose is to take the tracks produced from any of these programs and quickly and easily process the data to generate various metrics of interest in a transparent and tunable fashion, all done through an intuitive graphical user interface (GUI).
+Migrate3D is a Python program that streamlines and automates biological object motion (e.g. cell migration) analysis, returning meaningful metrics that help the user evaluate biological questions. This program does not handle imaging data, only previously generated tracking data, so it is not meant to replace functions already performed very well by programs such as Imaris, Arivis Pro, CellProfiler, TrackMate etc. Migrate3D’s purpose is to take the tracks produced from any of these programs and quickly and easily process the data to generate various metrics of interest in a transparent and tunable fashion, all done through an intuitive graphical user interface (GUI). In addition to motion analysis, Migrate3D can also detect and quantify object-object interactions, such as contacts or attractions.
 
 These results can be used in downstream analyses to compare different conditions, categories of objects, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity and arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement across selectable time lags, relative turn angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
 
-Migrate3D requires a .csv file input that contains data from object movements through two- or three-dimensional space. After execution, the program will return a set of .xlsx files, each with several worksheets, containing track-by-track summary metrics, mean squared displacement analysis, etc. If the user imports a Categories .csv file (simply listing the category for each object ID), two additional analyses will be performed: dimensionality reduction using principal component analysis (PCA), and decision tree analysis using XGBoost. There is no guarantee that these will be performed in a statistically-sound way, that is left up to the user to ensure, but the libraries used to perform these analyses are widely used.
+Migrate3D requires a .csv file input that contains data from object movements through two- or three-dimensional space. After execution, the program will return a set of .xlsx files, each with several worksheets, containing track-by-track summary metrics, mean squared displacement analysis, etc.
+
+If the user imports a Categories .csv file (simply listing the category for each object ID), two additional analyses will be performed: dimensionality reduction using principal component analysis (PCA), and decision tree analysis using XGBoost. There is no guarantee that these will be performed in a statistically-sound way, that is left up to the user to ensure, but the libraries used to perform these analyses are widely used. Supplying a Categories file will also enable additional mean squared displacement analysis, and enable the ability to generate plotly figures comparing the different categories across all calculated parameters.
 
 A limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
 
@@ -20,7 +22,7 @@ A Segments input file is required to run Migrate3D. Optionally, a Categories inp
 
 ### Segments
 
-The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the number of timepoints elapsed. If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation formatting option is used. The IDs of dropped objects will be reported in the GUI message box. If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
+The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the number of timepoints elapsed. If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation formatting option is used. The IDs of dropped objects will be recorded in the results output. If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
 
 ### Categories
 
@@ -212,7 +214,7 @@ Note that you can change the default values of these variables at the top of the
 
 ### Arrest Limit:
 
-A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed, however if they pass this threshold, they will survive the filter and be reported again in their own column (in verbose mode). Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature and it will be excluded from all output results.
+A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed, however if they pass this threshold, they will survive the filter and be reported again in their own column (in verbose mode). Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature, and it will be excluded from all output results.
 
 ### Minimum Timepoints:
 
@@ -423,7 +425,7 @@ In the output file, two MSD result sheets are provided: one ("Mean Squared Displ
 If a Categories file is provided, three additional result sheets are given:
 - **MSD Mean Per Category**: The mean MSD at each τ value (rows) for each object category (columns).
 - **MSD StDev Per Category**: the standard deviation of MSD at each τ value (rows) for each object category (columns).
-- **MSD Log-Log Fits**: The linear fit parameters for the log-log plot of mean per-category MSD vs. τ. The slope of the line is indicative of the type of motion exhibited by the object, with a slope of 1 indicating diffusion, and a slope of 2 indicating ballistic motion. The "Fit Max. Tau" is the upper limit of the τ values used to calculate the slope (always beginning at τ=1).
+- **MSD Log-Log Fits**: The linear fit parameters for the log-log plot of mean per-category MSD vs. τ. The slope of the line is indicative of the type of motion exhibited by the object, with a slope of 1 indicating diffusion, and a slope of 2 indicating ballistic motion. The "Fit Max. Tau" is the upper limit of the τ values used to calculate the slope (always beginning at τ=1), above which the log-log relationship was judged to deviate from linearity.
 
 ### Convex Hull Volume
 
@@ -451,19 +453,23 @@ XGBoost is a decision tree-based machine learning algorithm that can reveal whic
 
 ## Contacts
 
-Contacts will iterate over all the objects in the dataset comparing their X, Y, and Z coordinates at each timepoint. If two objects are closer in these dimensions than the "Contact Length" tunable variable, it will be recorded as a contact. This option reports all contacts, and specific to cells, also contacts that are not mitotic, contacts that are alive, and a summary of each object’s contacts.
+Contacts will iterate over all the objects in the dataset comparing their X, Y, and Z coordinates at each timepoint. If two objects are closer in these dimensions than the "Contact Length" tunable variable, it will be recorded as a contact. This option is most relevant to analyses of cell migration, where contacts between migrating cells are of interest.
 
 ### Contacts (minus dividing):
 
-Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Cell IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Cell IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Cell IDs happen to differ by 1 regardless of mitosis. Manual spot-checking of contacts is recommended.
+Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Object IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Object IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Object IDs happen to differ by 1 but were not daughter cells resulting from the same mitosis. Manual spot-checking of contacts is recommended.
 
 ### Contacts (minus dead):
 
-Utilizes the "Maximum arrest coefficient" tunable variable to filter out contacts that involve "dead" or non-motile objects based on their Arrest Coefficient.
+Utilizes the "Maximum arrest coefficient" tunable variable to filter out contacts that involve "dead" or non-motile cells based on their Arrest Coefficient.
 
 ### Contacts Summary:
 
-A summary of contact history for each individual object. For each object (excluding objects which had no contacts at all), the number of contacts, the total time spent in contact, and the median contact duration are reported. Note that, in the case of cells, this summary comes after filtering out of mitotic contacts and contacts involving "dead" cells.
+A summary of contact history for each individual object. For each object (excluding objects which had no contacts at all), the number of contacts, the total time spent in contact, and the median contact duration are reported. Note that this summary comes after filtering out contacts involving dividing cells or "dead" (non-moving) cells.
+
+### Contacts Per Category:
+
+A per-category analysis of contacts, including the number of objects in each category that had at least one or at least three contacts, the median number of contacts per object, the median total time each object spent in contact, and the median duration of each contact event.
 
 
 ## Attractors
