@@ -124,6 +124,14 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
         horizontal_spacing=0.05
     )
 
+    fig_objects = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=["Zeroed Tracks", "Raw Tracks"],
+        specs=specs,
+        horizontal_spacing=0.05
+    )
+
+    # Add category legend entries
     for cat in all_categories:
         if twodim_mode:
             fig_category.add_trace(
@@ -150,6 +158,16 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                 row=1, col=1
             )
 
+    # Collect all data points to calculate axis ranges for 3D plots
+    if not twodim_mode:
+        x_all = []
+        y_all = []
+        z_all = []
+        x_zeroed_all = []
+        y_zeroed_all = []
+        z_zeroed_all = []
+
+    # Add traces for each object
     for object_ in unique_ids:
         cat_row = df_sum.loc[df_sum['Object ID'] == object_, 'Category']
         if cat_row.empty:
@@ -167,6 +185,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
         y_zeroed = [y - y_start for y in y_data]
 
         if twodim_mode:
+            # Add 2D traces
             fig_category.add_trace(
                 go.Scatter(
                     x=x_zeroed, y=y_zeroed,
@@ -194,10 +213,47 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                 ),
                 row=1, col=2
             )
+
+            fig_objects.add_trace(
+                go.Scatter(
+                    x=x_zeroed, y=y_zeroed,
+                    hovertext=time_data,
+                    name=f"{object_} (Cat {cat})",
+                    mode='lines',
+                    line=dict(width=2),
+                    marker_color=color_map.get(cat, 'black'),
+                    showlegend=True,
+                    legendgroup=f"obj_{object_}"
+                ),
+                row=1, col=1
+            )
+
+            fig_objects.add_trace(
+                go.Scatter(
+                    x=x_data, y=y_data,
+                    hovertext=time_data,
+                    name=f"{object_} (Cat {cat})",
+                    mode='lines',
+                    line=dict(width=2),
+                    marker_color=color_map.get(cat, 'black'),
+                    showlegend=False,
+                    legendgroup=f"obj_{object_}"
+                ),
+                row=1, col=2
+            )
         else:
+            # 3D mode
             z_data = list(df_object.iloc[:, 4])
             z_start = z_data[0] if z_data else 0
             z_zeroed = [z - z_start for z in z_data]
+
+            # Collect data for axis range calculations
+            x_all.extend(x_data)
+            y_all.extend(y_data)
+            z_all.extend(z_data)
+            x_zeroed_all.extend(x_zeroed)
+            y_zeroed_all.extend(y_zeroed)
+            z_zeroed_all.extend(z_zeroed)
 
             fig_category.add_trace(
                 go.Scatter3d(
@@ -229,62 +285,6 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                 row=1, col=2
             )
 
-    fig_objects = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=["Zeroed Tracks", "Raw Tracks"],
-        specs=specs,
-        horizontal_spacing=0.05
-    )
-
-    for object_ in unique_ids:
-        cat_row = df_sum.loc[df_sum['Object ID'] == object_, 'Category']
-        if cat_row.empty:
-            continue
-        cat = cat_row.iloc[0]
-
-        df_object = df.loc[df['Object ID'] == object_]
-        time_data = list(df_object.loc[:, 'Time'])
-        time_data = [f'Time point {x} Category {cat}' for x in time_data]
-        x_data = list(df_object.iloc[:, 2])
-        y_data = list(df_object.iloc[:, 3])
-        x_start = x_data[0] if x_data else 0
-        y_start = y_data[0] if y_data else 0
-        x_zeroed = [x - x_start for x in x_data]
-        y_zeroed = [y - y_start for y in y_data]
-
-        if twodim_mode:
-            fig_objects.add_trace(
-                go.Scatter(
-                    x=x_zeroed, y=y_zeroed,
-                    hovertext=time_data,
-                    name=f"{object_} (Cat {cat})",
-                    mode='lines',
-                    line=dict(width=2),
-                    marker_color=color_map.get(cat, 'black'),
-                    showlegend=True,
-                    legendgroup=f"obj_{object_}"
-                ),
-                row=1, col=1
-            )
-
-            fig_objects.add_trace(
-                go.Scatter(
-                    x=x_data, y=y_data,
-                    hovertext=time_data,
-                    name=f"{object_} (Cat {cat})",
-                    mode='lines',
-                    line=dict(width=2),
-                    marker_color=color_map.get(cat, 'black'),
-                    showlegend=False,
-                    legendgroup=f"obj_{object_}"
-                ),
-                row=1, col=2
-            )
-        else:
-            z_data = list(df_object.iloc[:, 4])
-            z_start = z_data[0] if z_data else 0
-            z_zeroed = [z - z_start for z in z_data]
-
             fig_objects.add_trace(
                 go.Scatter3d(
                     x=x_zeroed, y=y_zeroed, z=z_zeroed,
@@ -315,20 +315,63 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                 row=1, col=2
             )
 
-    for fig in [fig_category, fig_objects]:
-        if twodim_mode:
+    # Update axes for both figures
+    if twodim_mode:
+        for fig in [fig_category, fig_objects]:
             fig.update_xaxes(title="X", row=1, col=1)
             fig.update_yaxes(title="Y", row=1, col=1)
             fig.update_xaxes(title="X", row=1, col=2)
             fig.update_yaxes(title="Y", row=1, col=2)
-        else:
-            fig.update_scenes(
-                aspectmode='cube',
-                xaxis_title="X",
-                yaxis_title="Y",
-                zaxis_title="Z"
+    else:
+        # Calculate ranges for proportional 3D axes
+        # Raw tracks
+        x_range = max(x_all) - min(x_all) if x_all else 1
+        y_range = max(y_all) - min(y_all) if y_all else 1
+        z_range = max(z_all) - min(z_all) if z_all else 1
+        max_range = max(x_range, y_range, z_range)
+
+        x_center = (max(x_all) + min(x_all)) / 2 if x_all else 0
+        y_center = (max(y_all) + min(y_all)) / 2 if y_all else 0
+        z_center = (max(z_all) + min(z_all)) / 2 if z_all else 0
+
+        x_min, x_max = x_center - max_range/2, x_center + max_range/2
+        y_min, y_max = y_center - max_range/2, y_center + max_range/2
+        z_min, z_max = z_center - max_range/2, z_center + max_range/2
+
+        # Zeroed tracks
+        x_zeroed_range = max(x_zeroed_all) - min(x_zeroed_all) if x_zeroed_all else 1
+        y_zeroed_range = max(y_zeroed_all) - min(y_zeroed_all) if y_zeroed_all else 1
+        z_zeroed_range = max(z_zeroed_all) - min(z_zeroed_all) if z_zeroed_all else 1
+        zeroed_max_range = max(x_zeroed_range, y_zeroed_range, z_zeroed_range)
+
+        x_zeroed_center = (max(x_zeroed_all) + min(x_zeroed_all)) / 2 if x_zeroed_all else 0
+        y_zeroed_center = (max(y_zeroed_all) + min(y_zeroed_all)) / 2 if y_zeroed_all else 0
+        z_zeroed_center = (max(z_zeroed_all) + min(z_zeroed_all)) / 2 if z_zeroed_all else 0
+
+        x_zeroed_min, x_zeroed_max = x_zeroed_center - zeroed_max_range/2, x_zeroed_center + zeroed_max_range/2
+        y_zeroed_min, y_zeroed_max = y_zeroed_center - zeroed_max_range/2, y_zeroed_center + zeroed_max_range/2
+        z_zeroed_min, z_zeroed_max = z_zeroed_center - zeroed_max_range/2, z_zeroed_center + zeroed_max_range/2
+
+        # Apply proportional ranges to both figures
+        for fig in [fig_category, fig_objects]:
+            # Update first scene (zeroed tracks) - note: first scene is just 'scene' not 'scene1'
+            fig.update_layout(
+                scene=dict(
+                    aspectmode='cube',
+                    xaxis=dict(range=[x_zeroed_min, x_zeroed_max], title="X"),
+                    yaxis=dict(range=[y_zeroed_min, y_zeroed_max], title="Y"),
+                    zaxis=dict(range=[z_zeroed_min, z_zeroed_max], title="Z")
+                ),
+                # Update second scene (raw tracks)
+                scene2=dict(
+                    aspectmode='cube',
+                    xaxis=dict(range=[x_min, x_max], title="X"),
+                    yaxis=dict(range=[y_min, y_max], title="Y"),
+                    zaxis=dict(range=[z_min, z_max], title="Z")
+                )
             )
 
+    # Set layout properties
     fig_category.update_layout(
         title=f'{save_file} Tracks (Filter by Category)',
         plot_bgcolor='white',
@@ -345,6 +388,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
         )
     )
 
+    # Generate HTML
     html_template = """
     <!DOCTYPE html>
     <html>
@@ -372,9 +416,9 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
         <script>
             var figure = {figure_json};
             var config = {{responsive: true}};
-    
+
             Plotly.newPlot('plot-container', figure.data, figure.layout, config);
-    
+
             if ({is_twodim}) {{
                 Plotly.relayout('plot-container', {{
                     'xaxis.scaleanchor': 'y',
@@ -383,7 +427,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     'xaxis2.scaleratio': 1
                 }});
             }}
-    
+
             window.addEventListener('resize', function() {{
                 if ({is_twodim}) {{
                     Plotly.relayout('plot-container', {{
