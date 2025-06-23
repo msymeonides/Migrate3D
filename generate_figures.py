@@ -117,7 +117,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
     else:
         specs = [[{"type": "scene"}, {"type": "scene"}]]
 
-    fig = make_subplots(
+    fig_category = make_subplots(
         rows=1, cols=2,
         subplot_titles=["Zeroed Tracks", "Raw Tracks"],
         specs=specs,
@@ -126,7 +126,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
 
     for cat in all_categories:
         if twodim_mode:
-            fig.add_trace(
+            fig_category.add_trace(
                 go.Scatter(
                     x=[None], y=[None],
                     name=f"Category {cat}",
@@ -138,7 +138,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                 row=1, col=1
             )
         else:
-            fig.add_trace(
+            fig_category.add_trace(
                 go.Scatter3d(
                     x=[None], y=[None], z=[None],
                     name=f"Category {cat}",
@@ -166,10 +166,8 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
         x_zeroed = [x - x_start for x in x_data]
         y_zeroed = [y - y_start for y in y_data]
 
-        legendgroup = f"cat_{cat}"
-
         if twodim_mode:
-            fig.add_trace(
+            fig_category.add_trace(
                 go.Scatter(
                     x=x_zeroed, y=y_zeroed,
                     hovertext=time_data,
@@ -177,13 +175,13 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     mode='lines',
                     line=dict(width=2),
                     marker_color=color_map.get(cat, 'black'),
-                    legendgroup=legendgroup,
-                    showlegend=True
+                    legendgroup=f"cat_{cat}",
+                    showlegend=False
                 ),
                 row=1, col=1
             )
 
-            fig.add_trace(
+            fig_category.add_trace(
                 go.Scatter(
                     x=x_data, y=y_data,
                     hovertext=time_data,
@@ -191,7 +189,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     mode='lines',
                     line=dict(width=2),
                     marker_color=color_map.get(cat, 'black'),
-                    legendgroup=legendgroup,
+                    legendgroup=f"cat_{cat}",
                     showlegend=False
                 ),
                 row=1, col=2
@@ -201,7 +199,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
             z_start = z_data[0] if z_data else 0
             z_zeroed = [z - z_start for z in z_data]
 
-            fig.add_trace(
+            fig_category.add_trace(
                 go.Scatter3d(
                     x=x_zeroed, y=y_zeroed, z=z_zeroed,
                     hovertext=time_data,
@@ -210,13 +208,13 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     line=dict(width=4),
                     marker=dict(size=12),
                     marker_color=color_map.get(cat, 'black'),
-                    legendgroup=legendgroup,
-                    showlegend=True
+                    legendgroup=f"cat_{cat}",
+                    showlegend=False
                 ),
                 row=1, col=1
             )
 
-            fig.add_trace(
+            fig_category.add_trace(
                 go.Scatter3d(
                     x=x_data, y=y_data, z=z_data,
                     hovertext=time_data,
@@ -225,41 +223,135 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     line=dict(width=4),
                     marker=dict(size=12),
                     marker_color=color_map.get(cat, 'black'),
-                    legendgroup=legendgroup,
+                    legendgroup=f"cat_{cat}",
                     showlegend=False
                 ),
                 row=1, col=2
             )
 
-    if twodim_mode:
-        fig.update_xaxes(title="X", row=1, col=1)
-        fig.update_yaxes(title="Y", row=1, col=1)
-        fig.update_xaxes(title="X", row=1, col=2)
-        fig.update_yaxes(title="Y", row=1, col=2)
-    else:
-        fig.update_scenes(
-            aspectmode='cube',
-            xaxis_title="X",
-            yaxis_title="Y",
-            zaxis_title="Z"
-        )
+    fig_objects = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=["Zeroed Tracks", "Raw Tracks"],
+        specs=specs,
+        horizontal_spacing=0.05
+    )
 
-    fig.update_layout(
-        title=f'{save_file} Tracks',
+    for object_ in unique_ids:
+        cat_row = df_sum.loc[df_sum['Object ID'] == object_, 'Category']
+        if cat_row.empty:
+            continue
+        cat = cat_row.iloc[0]
+
+        df_object = df.loc[df['Object ID'] == object_]
+        time_data = list(df_object.loc[:, 'Time'])
+        time_data = [f'Time point {x} Category {cat}' for x in time_data]
+        x_data = list(df_object.iloc[:, 2])
+        y_data = list(df_object.iloc[:, 3])
+        x_start = x_data[0] if x_data else 0
+        y_start = y_data[0] if y_data else 0
+        x_zeroed = [x - x_start for x in x_data]
+        y_zeroed = [y - y_start for y in y_data]
+
+        if twodim_mode:
+            fig_objects.add_trace(
+                go.Scatter(
+                    x=x_zeroed, y=y_zeroed,
+                    hovertext=time_data,
+                    name=f"{object_} (Cat {cat})",
+                    mode='lines',
+                    line=dict(width=2),
+                    marker_color=color_map.get(cat, 'black'),
+                    showlegend=True,
+                    legendgroup=f"obj_{object_}"
+                ),
+                row=1, col=1
+            )
+
+            fig_objects.add_trace(
+                go.Scatter(
+                    x=x_data, y=y_data,
+                    hovertext=time_data,
+                    name=f"{object_} (Cat {cat})",
+                    mode='lines',
+                    line=dict(width=2),
+                    marker_color=color_map.get(cat, 'black'),
+                    showlegend=False,
+                    legendgroup=f"obj_{object_}"
+                ),
+                row=1, col=2
+            )
+        else:
+            z_data = list(df_object.iloc[:, 4])
+            z_start = z_data[0] if z_data else 0
+            z_zeroed = [z - z_start for z in z_data]
+
+            fig_objects.add_trace(
+                go.Scatter3d(
+                    x=x_zeroed, y=y_zeroed, z=z_zeroed,
+                    hovertext=time_data,
+                    name=f"{object_} (Cat {cat})",
+                    mode='lines',
+                    line=dict(width=4),
+                    marker=dict(size=12),
+                    marker_color=color_map.get(cat, 'black'),
+                    showlegend=True,
+                    legendgroup=f"obj_{object_}"
+                ),
+                row=1, col=1
+            )
+
+            fig_objects.add_trace(
+                go.Scatter3d(
+                    x=x_data, y=y_data, z=z_data,
+                    hovertext=time_data,
+                    name=f"{object_} (Cat {cat})",
+                    mode='lines',
+                    line=dict(width=4),
+                    marker=dict(size=12),
+                    marker_color=color_map.get(cat, 'black'),
+                    showlegend=False,
+                    legendgroup=f"obj_{object_}"
+                ),
+                row=1, col=2
+            )
+
+    for fig in [fig_category, fig_objects]:
+        if twodim_mode:
+            fig.update_xaxes(title="X", row=1, col=1)
+            fig.update_yaxes(title="Y", row=1, col=1)
+            fig.update_xaxes(title="X", row=1, col=2)
+            fig.update_yaxes(title="Y", row=1, col=2)
+        else:
+            fig.update_scenes(
+                aspectmode='cube',
+                xaxis_title="X",
+                yaxis_title="Y",
+                zaxis_title="Z"
+            )
+
+    fig_category.update_layout(
+        title=f'{save_file} Tracks (Filter by Category)',
         plot_bgcolor='white',
         legend=dict(
-            groupclick="togglegroup",
-            tracegroupgap=5
+            title="Categories"
         )
     )
 
-    html_with_container = f"""
+    fig_objects.update_layout(
+        title=f'{save_file} Tracks (Filter by Object ID)',
+        plot_bgcolor='white',
+        legend=dict(
+            title="Object IDs"
+        )
+    )
+
+    html_template = """
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{save_file} Tracks</title>
+        <title>{title}</title>
         <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
         <style>
             body {{
@@ -271,29 +363,55 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
             #plot-container {{
                 width: 95vw;
                 height: 70vh;
-                margin: 0 auto;
+                margin: 10vh auto 0;
             }}
         </style>
     </head>
     <body>
         <div id="plot-container"></div>
         <script>
-            var figure = {fig.to_json()};
+            var figure = {figure_json};
             var config = {{responsive: true}};
-
+    
             Plotly.newPlot('plot-container', figure.data, figure.layout, config);
-            window.addEventListener('resize', function() {{
+    
+            if ({is_twodim}) {{
                 Plotly.relayout('plot-container', {{
-                    width: document.getElementById('plot-container').offsetWidth,
-                    height: document.getElementById('plot-container').offsetHeight
+                    'xaxis.scaleanchor': 'y',
+                    'xaxis.scaleratio': 1,
+                    'xaxis2.scaleanchor': 'y2',
+                    'xaxis2.scaleratio': 1
                 }});
+            }}
+    
+            window.addEventListener('resize', function() {{
+                if ({is_twodim}) {{
+                    Plotly.relayout('plot-container', {{
+                        'xaxis.scaleanchor': 'y',
+                        'xaxis.scaleratio': 1,
+                        'xaxis2.scaleanchor': 'y2',
+                        'xaxis2.scaleratio': 1
+                    }});
+                }}
             }});
         </script>
     </body>
     </html>
     """
 
-    return fig, html_with_container
+    html_category = html_template.format(
+        title=f"{save_file} Tracks (Category Filtering)",
+        figure_json=fig_category.to_json(),
+        is_twodim=str(twodim_mode).lower()
+    )
+
+    html_objects = html_template.format(
+        title=f"{save_file} Tracks (Object ID Filtering)",
+        figure_json=fig_objects.to_json(),
+        is_twodim=str(twodim_mode).lower()
+    )
+
+    return fig_category, html_category, html_objects
 
 def pca_figures(df_pca, color_map=None):
     pcs = ['PC1', 'PC2', 'PC3', 'PC4']
@@ -609,10 +727,12 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
                      savefile, cat_provided, twodim_mode):
     color_map = get_category_color_map(df_sum['Category'].unique())
 
-    tracks_fig, tracks_html = tracks_figure(df_segments, df_sum, cat_provided, savefile, twodim_mode,
-                                            color_map=color_map)
-    with open(f'{savefile}_Figures_Tracks.html', 'w', encoding='utf-8') as f:
-        f.write(tracks_html)
+    tracks_fig, tracks_html_category, tracks_html_objects = tracks_figure(
+        df_segments, df_sum, cat_provided, savefile, twodim_mode, color_map=color_map)
+    with open(f'{savefile}_Figures_Tracks_byCategory.html', 'w', encoding='utf-8') as f:
+        f.write(tracks_html_category)
+    with open(f'{savefile}_Figures_Tracks_byObjectID.html', 'w', encoding='utf-8') as f:
+        f.write(tracks_html_objects)
 
     if df_pca is not None and not df_pca.empty:
         pca_figs = pca_figures(df_pca, color_map=color_map)
