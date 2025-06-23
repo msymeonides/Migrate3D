@@ -662,59 +662,85 @@ def toggle_attractor_settings(n_clicks):
     return style, label
 
 @app.callback(
-    Output('Run_migrate', 'children'),
-    Output('Run_migrate', 'style'),
-    Output('Run_migrate', 'disabled'),
-    Input('Run_migrate', 'n_clicks'),
-    Input('progress-bar', 'value'),
+    [
+        Output('Run_migrate', 'children'),
+        Output('Run_migrate', 'style'),
+        Output('Run_migrate', 'disabled'),
+        Output('segments_upload', 'disabled'),
+        Output('category_upload', 'disabled'),
+        Output('parent_id', 'disabled'),
+        Output('time_formatting', 'disabled'),
+        Output('x_axis', 'disabled'),
+        Output('y_axis', 'disabled'),
+        Output('z_axis', 'disabled'),
+        Output('parent_id2', 'disabled'),
+        Output('category_col', 'disabled'),
+        Output('arrest_limit', 'disabled'),
+        Output('moving', 'disabled'),
+        Output('contact_length', 'disabled'),
+        Output('arrested', 'disabled'),
+        Output('Timelapse', 'disabled'),
+        Output('tau', 'disabled'),
+        Output('PCA_filter', 'disabled'),
+        Output('save_file', 'disabled'),
+        Output('dist_thr', 'disabled'),
+        Output('approach_ratio', 'disabled'),
+        Output('min_proximity', 'disabled'),
+        Output('time_persistence', 'disabled'),
+        Output('max_gaps', 'disabled'),
+        Output('allowed_attractors', 'disabled'),
+        Output('allowed_attracted', 'disabled'),
+        Output('formatting_options', 'style'),
+    ],
+    [Input('Run_migrate', 'n_clicks'), Input('progress-bar', 'value')],
     prevent_initial_call=False
 )
-def update_run_button(n_clicks, progress):
+def update_run_and_freeze(n_clicks, progress):
     if progress == 100 and n_clicks and n_clicks > 0:
-        return (
-            "Done!",
-            {
-                'fontSize': '2rem',
-                'padding': '20px 40px',
-                'width': '40%',
-                'alignSelf': 'center',
-                'marginTop': '50px',
-                'backgroundColor': '#FFD700',
-                'color': 'black',
-                'border': 'none'
-            },
-            True
-        )
+        btn_text = "Done!"
+        btn_style = {
+            'fontSize': '2rem',
+            'padding': '20px 40px',
+            'width': '40%',
+            'alignSelf': 'center',
+            'marginTop': '50px',
+            'backgroundColor': '#FFD700',
+            'color': 'black',
+            'border': 'none'
+        }
+        btn_disabled = True
     elif n_clicks and n_clicks > 0:
-        return (
-            "Running!",
-            {
-                'fontSize': '2rem',
-                'padding': '20px 40px',
-                'width': '40%',
-                'alignSelf': 'center',
-                'marginTop': '50px',
-                'backgroundColor': '#7bb77b',
-                'color': 'white',
-                'border': 'none'
-            },
-            True
-        )
+        btn_text = "Running!"
+        btn_style = {
+            'fontSize': '2rem',
+            'padding': '20px 40px',
+            'width': '40%',
+            'alignSelf': 'center',
+            'marginTop': '50px',
+            'backgroundColor': '#7bb77b',
+            'color': 'white',
+            'border': 'none'
+        }
+        btn_disabled = True
     else:
-        return (
-            "Run Migrate3D",
-            {
-                'fontSize': '2rem',
-                'padding': '20px 40px',
-                'width': '40%',
-                'alignSelf': 'center',
-                'marginTop': '50px',
-                'backgroundColor': '#e0e0e0',
-                'color': 'black',
-                'border': 'none'
-            },
-            False
-        )
+        btn_text = "Run Migrate3D"
+        btn_style = {
+            'fontSize': '2rem',
+            'padding': '20px 40px',
+            'width': '40%',
+            'alignSelf': 'center',
+            'marginTop': '50px',
+            'backgroundColor': '#e0e0e0',
+            'color': 'black',
+            'border': 'none'
+        }
+        btn_disabled = False
+
+    freeze = bool(n_clicks and n_clicks > 0)
+    freeze_outputs = [freeze] * 24
+    formatting_style = {'pointerEvents': 'none', 'opacity': 0.5} if freeze else {}
+
+    return [btn_text, btn_style, btn_disabled] + freeze_outputs + [formatting_style]
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)

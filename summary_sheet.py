@@ -127,13 +127,9 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
     summary_tuple = tuple(summary_dict[col] for col in summary_columns)
     return obj, summary_tuple, single_euclid, single_angle
 
-def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, arr_tracks, savefile):
+def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_tracks, savefile):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
-
-    z_is_2d = False
-    if arr_segments.shape[1] < 5 or np.all(arr_segments[:, 4] == 0):
-        z_is_2d = True
 
     summary_columns = [
         'Object ID', 'Duration', 'Final Euclidean', 'Max Euclidean', 'Path Length',
@@ -148,7 +144,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
     ]
     if parameters['arrest_limit'] != 0:
         summary_columns.insert(23, 'Arrest Coefficient')
-    if not z_is_2d:
+    if not twodim_mode:
         summary_columns.insert(-1, 'Convex Hull Volume')
 
     n_summary_cols = len(summary_columns)
@@ -156,6 +152,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, tau, parameters, a
     with thread_lock:
         messages.append("Calculating mean square displacements...")
     tic = tempo.time()
+    tau = parameters["tau"]
     df_msd = msd_parallel_main(arr_segments, unique_objects, tau)
 
     toc = tempo.time()

@@ -182,8 +182,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     ]
     df_settings = pd.DataFrame(settings, columns=['Parameter', 'Value'])
 
+    twodim_mode = False
+    if arr_segments.shape[1] < 5 or np.all(arr_segments[:, 4] == 0):
+        twodim_mode = True
+
     (df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat,
-     df_msd_loglogfits, df_pca) = summary_sheet(arr_segments, df_all_calcs, unique_objects, parameters['tau'],
+     df_msd_loglogfits, df_pca) = summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode,
                                                parameters, arr_tracks, savefile)
 
     savepath = savefile + '_Results.xlsx'
@@ -329,7 +333,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 messages.append('Generating figures...')
             tic = tempo.time()
             save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_contacts_summary,
-                             df_contacts_per_category, savefile, parameters['infile_tracks'])
+                             df_contacts_per_category, savefile, parameters['infile_tracks'], twodim_mode)
             toc = tempo.time()
             with thread_lock:
                 msg = ' Done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
