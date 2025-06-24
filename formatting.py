@@ -37,23 +37,26 @@ def interpolate_lazy(arr_segments, timelapse_interval):
         timepoint_data = sorted(object_data_dict[object_id], key=lambda r: r[0])
         times = [tp[0] for tp in timepoint_data]
         min_time, max_time = min(times), max(times)
-        expected_times = np.arange(min_time, max_time + timelapse_interval, timelapse_interval)
+        expected_times = np.arange(min_time, max_time + timelapse_interval/2, timelapse_interval)
         time_to_row = {tp[0]: tp for tp in timepoint_data}
-
         for t in expected_times:
-            if t in time_to_row:
-                interpolated_data.append([object_id, t, *time_to_row[t][1:]])
+            if any(abs(t - existing_t) < 1e-9 for existing_t in times):
+                closest_t = min(times, key=lambda x: abs(x - t))
+                interpolated_data.append([object_id, t, *time_to_row[closest_t][1:]])
             else:
-                prev_idx = max(i for i, tp in enumerate(times) if tp < t)
-                next_idx = min(i for i, tp in enumerate(times) if tp > t)
-                t0, x0, y0, z0 = timepoint_data[prev_idx]
-                t1, x1, y1, z1 = timepoint_data[next_idx]
+                prev_times = [tp for tp in times if tp < t]
+                next_times = [tp for tp in times if tp > t]
+                if not prev_times or not next_times:
+                    continue
+                t0 = max(prev_times)
+                t1 = min(next_times)
+                x0, y0, z0 = time_to_row[t0][1:]
+                x1, y1, z1 = time_to_row[t1][1:]
                 alpha = (t - t0) / (t1 - t0)
                 x = x0 + alpha * (x1 - x0)
                 y = y0 + alpha * (y1 - y0)
                 z = z0 + alpha * (z1 - z0)
                 interpolated_data.append([object_id, t, x, y, z])
-
     arr_segments_interpolated = np.array(interpolated_data)
     return arr_segments_interpolated
 

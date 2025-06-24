@@ -10,7 +10,7 @@ import threading
 import traceback
 
 from governor import migrate3D
-from shared_state import messages, thread_lock, get_progress, init_progress_tracker
+from shared_state import messages, thread_lock, get_progress, init_progress_tracker, is_aborted
 
 # Welcome to Migrate3D version 2.0, released June 2025.
 # Please see README.md before running this package
@@ -591,7 +591,7 @@ def get_category_file(contents, filename):
 def update_pbar(n):
     progress = get_progress()
     if progress == 100:
-        return progress, 'warning'
+        return progress, 'danger' if is_aborted() else 'warning'
     else:
         return progress, 'success'
 
@@ -697,17 +697,30 @@ def toggle_attractor_settings(n_clicks):
 )
 def update_run_and_freeze(n_clicks, progress):
     if progress == 100 and n_clicks and n_clicks > 0:
-        btn_text = "Done!"
-        btn_style = {
-            'fontSize': '2rem',
-            'padding': '20px 40px',
-            'width': '40%',
-            'alignSelf': 'center',
-            'marginTop': '50px',
-            'backgroundColor': '#FFD700',
-            'color': 'black',
-            'border': 'none'
-        }
+        if is_aborted():
+            btn_text = "Aborted"
+            btn_style = {
+                'fontSize': '2rem',
+                'padding': '20px 40px',
+                'width': '40%',
+                'alignSelf': 'center',
+                'marginTop': '50px',
+                'backgroundColor': '#dc3545',
+                'color': 'white',
+                'border': 'none'
+            }
+        else:
+            btn_text = "Done!"
+            btn_style = {
+                'fontSize': '2rem',
+                'padding': '20px 40px',
+                'width': '40%',
+                'alignSelf': 'center',
+                'marginTop': '50px',
+                'backgroundColor': '#FFD700',
+                'color': 'black',
+                'border': 'none'
+            }
         btn_disabled = True
     elif n_clicks and n_clicks > 0:
         btn_text = "Running!"

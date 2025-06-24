@@ -340,11 +340,20 @@ def ml_analysis(df_sum, parameters, savefile):
         labels=['Duration', 'Path Length'], axis=1)
     df_processed, categories, feature_mapping = preprocess_features(df_selected)
     df_processed = df_processed.dropna()
-    df_pcscores = pca(df_selected, df_processed, categories, savefile)
-    xgboost(df_sum, parameters, savefile, df_processed, categories, feature_mapping)
-    toc = time.time()
-    with thread_lock:
-        messages.append("Machine learning analysis done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
-        messages.append('')
 
-    return df_pcscores
+    remaining_categories = np.unique(categories)
+    if len(remaining_categories) <= 1:
+        with thread_lock:
+            messages.append("No categories remaining after data cleaning, skipping PCA and XGBoost...")
+            messages.append('')
+        complete_progress_step("PCA")
+        complete_progress_step("XGBoost")
+        return None
+    else:
+        df_pcscores = pca(df_selected, df_processed, categories, savefile)
+        xgboost(df_sum, parameters, savefile, df_processed, categories, feature_mapping)
+        toc = time.time()
+        with thread_lock:
+            messages.append("Machine learning analysis done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
+            messages.append('')
+        return df_pcscores

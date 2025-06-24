@@ -5,6 +5,7 @@ thread_lock = threading.RLock()
 progress_value = 0
 _progress_steps = {}
 _completed_steps = set()
+_abort_flag = False
 
 def set_progress(value):
     global progress_value
@@ -38,8 +39,19 @@ def complete_progress_step(step_name):
             return
         _completed_steps.add(step_name)
         _update_progress()
-        print(f"Completed {step_name}")
+        if not _abort_flag:
+            print(f"Completed {step_name}")
 
 def _update_progress():
     total = sum(_progress_steps.get(step, 0) for step in _completed_steps)
     set_progress(total)
+
+def set_abort_state():
+    global _abort_flag
+    with thread_lock:
+        _abort_flag = True
+        set_progress(100)
+
+def is_aborted():
+    with thread_lock:
+        return _abort_flag

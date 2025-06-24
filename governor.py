@@ -12,7 +12,7 @@ from summary_sheet import summary_sheet
 from generate_figures import save_all_figures
 from attractors import attract
 import contacts_parallel
-from shared_state import messages, thread_lock, complete_progress_step
+from shared_state import messages, thread_lock, set_abort_state, complete_progress_step
 pd.set_option('future.no_silent_downcasting', True)
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
@@ -119,6 +119,13 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         messages.append('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
         messages.append('')
     complete_progress_step("Formatting")
+
+    if len(unique_objects) == 0:
+        with thread_lock:
+            messages.append("No data left after data formatting, aborting run.")
+            messages.append("")
+        set_abort_state()
+        return None, None, None
 
     tic = tempo.time()
 
