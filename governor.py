@@ -261,15 +261,25 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 df_contacts_summary = df_contacts_summary[cols]
 
             all_objects = df_sum_for_contacts[['Object ID', 'Category']].copy()
-            df_contacting = all_objects.merge(
-                df_contacts_summary[
-                    ['Object ID', 'Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']],
-                on='Object ID', how='left'
-            ).fillna({
-                'Number of Contacts': 0,
-                'Total Time Spent in Contact': 0,
-                'Median Contact Duration': 0
-            })
+            if df_contacts_summary.empty:
+                df_contacting = all_objects.copy()
+                df_contacting['Number of Contacts'] = 0
+                df_contacting['Total Time Spent in Contact'] = 0
+                df_contacting['Median Contact Duration'] = 0
+            else:
+                for col in ['Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']:
+                    if col not in df_contacts_summary.columns:
+                        df_contacts_summary[col] = 0
+
+                df_contacting = all_objects.merge(
+                    df_contacts_summary[
+                        ['Object ID', 'Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']],
+                    on='Object ID', how='left'
+                ).fillna({
+                    'Number of Contacts': 0,
+                    'Total Time Spent in Contact': 0,
+                    'Median Contact Duration': 0
+                })
 
             per_cat = []
             for cat, group in df_contacting.groupby('Category'):

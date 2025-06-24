@@ -56,13 +56,24 @@ def main(timepoints, arr_segments, contact_length, df_sum, arrested):
     contacts_list = [r[0] for r in results if r[0] is not None]
     no_div_list = [r[1] for r in results if r[1] is not None]
     no_dead_list = [r[2] for r in results if r[2] is not None]
-    df_contacts = pd.concat(contacts_list, ignore_index=True) if contacts_list else pd.DataFrame()
-    df_no_div = pd.concat(no_div_list, ignore_index=True) if no_div_list else pd.DataFrame()
-    df_no_dead = pd.concat(no_dead_list, ignore_index=True) if no_dead_list else pd.DataFrame()
-    df_contacts.drop_duplicates(subset=["Object ID", "Object Compare", "Time of Contact"], inplace=True)
+
+    if contacts_list:
+        df_contacts = pd.concat(contacts_list, ignore_index=True)
+        df_contacts.drop_duplicates(subset=["Object ID", "Object Compare", "Time of Contact"], inplace=True)
+    else:
+        df_contacts = pd.DataFrame(columns=["Object ID", "Object Compare", "Time of Contact"])
+
+    if no_div_list:
+        df_no_div = pd.concat(no_div_list, ignore_index=True)
+    else:
+        df_no_div = pd.DataFrame(columns=["Object ID", "Object Compare", "Time of Contact"])
+
+    if no_dead_list:
+        df_no_dead = pd.concat(no_dead_list, ignore_index=True)
+    else:
+        df_no_dead = pd.DataFrame(columns=["Object ID", "Object Compare", "Time of Contact"])
 
     return df_contacts, df_no_div, df_no_dead
-
 
 if __name__ == '__main__':
     mp.set_start_method("spawn")
