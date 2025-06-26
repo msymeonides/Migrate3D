@@ -16,8 +16,8 @@ from shared_state import messages, thread_lock, set_abort_state, complete_progre
 pd.set_option('future.no_silent_downcasting', True)
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
-              arrested, tau, formatting_options, savefile, segments_file_name, tracks_file, parent_id2,
-              category_col_name, parameters, pca_filter, attract_params):
+              arrested, tau, formatting_options, savefile, segments_file_name, categories_file, parameters,
+              pca_filter, attract_params):
     bigtic = tempo.time()
 
     with thread_lock:
@@ -52,17 +52,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters['verbose'] = True
         if 'Contacts' in formatting_options:
             parameters['contact'] = True
+        if 'ContactDivFilter' in formatting_options:
+            parameters['contact_div_filter'] = True
         if 'Attractors' in formatting_options:
             parameters['attractors'] = True
         if 'Generate Figures' in formatting_options:
             parameters['generate_figures'] = True
-
-    if tracks_file is not None and 'Enter your category .csv file here' not in str(tracks_file):
-        parameters['infile_tracks'] = True
-        parameters['object_id_2_col'] = parent_id2
-        parameters['category_col'] = category_col_name
-    else:
-        parameters['infile_tracks'] = False
 
     seg_path = Path(segments_file_name).expanduser().resolve()
     parameters['infile_segments'] = str(seg_path)
@@ -149,31 +144,38 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         messages.append('')
     complete_progress_step("Calculations")
 
-    track_df = pd.DataFrame()
-    track_input_list = []
+    cat_df = pd.DataFrame()
+    category_input_list = []
     object_id_2 = parameters['object_id_2_col']
     category_col_name = parameters['category_col']
     categories_file_name = None
 
-    if parameters['infile_tracks']:
-        if isinstance(tracks_file, str) and tracks_file.startswith('data:'):
-            categories_file_name = parameters.get('category_file_name', 'Uploaded via base64')
-            content_type, content_string = tracks_file.split(',')
-            decoded = base64.b64decode(content_string)
-            track_df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-        elif isinstance(tracks_file, str) and Path(tracks_file).is_file():
-            categories_file_name = str(tracks_file)
-            track_df = pd.read_csv(tracks_file)
-        track_df = track_df[[parameters['object_id_2_col'], parameters['category_col']]]
-        for row in track_df.index:
-            object_id2 = track_df[object_id_2][row]
-            category = track_df[category_col_name][row]
-            track_input_list.append([object_id2, category])
-        track_df.columns = ['Object ID', 'Category']
-        arr_tracks = np.array(track_input_list)
-    else:
-        arr_tracks = np.zeros((0, 2))
+    if categories_file is None:
+        unique_ids = np.unique(arr_segments[:, 0])
+        cat_df = pd.DataFrame({
+            parameters['object_id_2_col']: unique_ids,
+            parameters['category_col']: 0
+        })
         categories_file_name = 'None'
+        cat_df.columns = ['Object ID', 'Category']
+        arr_cats = np.array([[obj_id, 0] for obj_id in unique_ids])
+    else:
+        if isinstance(categories_file, str) and categories_file.startswith('data:'):
+            categories_file_name = parameters.get('category_file_name', 'Uploaded via base64')
+            content_type, content_string = categories_file.split(',')
+            decoded = base64.b64decode(content_string)
+            cat_df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+        elif isinstance(categories_file, str) and Path(categories_file).is_file():
+            categories_file_name = str(categories_file)
+            cat_df = pd.read_csv(categories_file)
+
+        cat_df = cat_df[[parameters['object_id_2_col'], parameters['category_col']]]
+        for row in cat_df.index:
+            object_id2 = cat_df[object_id_2][row]
+            category = cat_df[category_col_name][row]
+            category_input_list.append([object_id2, category])
+        cat_df.columns = ['Object ID', 'Category']
+        arr_cats = np.array(category_input_list)
 
     settings = [
         ('Segments file', seg_path.name),
@@ -195,7 +197,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     (df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat,
      df_msd_loglogfits, df_pca) = summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode,
-                                               parameters, arr_tracks, savefile)
+                                               parameters, arr_cats, savefile)
 
     savepath = savefile + '_Results.xlsx'
     savecontacts = savefile + '_Contacts.xlsx'
@@ -203,18 +205,13 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_contacts_summary = None
     df_contacts_per_category = None
 
-    df_sum_for_contacts = df_sum.copy()
-    if parameters['arrest_limit'] == 0 and 'Arrest Coefficient' not in df_sum_for_contacts.columns:
-        df_sum_for_contacts['Arrest Coefficient'] = 0.0
-
-    if parameters['contact'] is False:
-        pass
-    else:
-        tic = tempo.time()
-
+    if parameters['contact']:
         with thread_lock:
             messages.append('Detecting contacts...')
-
+        tic = tempo.time()
+        df_sum_for_contacts = df_sum.copy()
+        if parameters['arrest_limit'] == 0 and 'Arrest Coefficient' not in df_sum_for_contacts.columns:
+            df_sum_for_contacts['Arrest Coefficient'] = 0.0
         unique_timepoints = np.unique(arr_segments[:, 1])
         df_contacts_all, df_contacts_nodividing, df_contacts_nodead = contacts_parallel.main(
             unique_timepoints,
@@ -222,6 +219,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters['contact_length'],
             df_sum_for_contacts,
             parameters['arrested'],
+            parameters['contact_div_filter'],
         )
 
         if not df_contacts_nodead.empty:
@@ -249,64 +247,62 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         else:
             df_contacts_summary = pd.DataFrame()
 
-        if parameters['infile_tracks']:
-            if not df_contacts_summary.empty and 'Category' not in df_contacts_summary.columns:
-                df_contacts_summary = df_contacts_summary.merge(
-                    df_sum_for_contacts[['Object ID', 'Category']],
-                    on='Object ID',
-                    how='left'
-                )
-                cols = ['Object ID', 'Category'] + [col for col in df_contacts_summary.columns if
-                                                    col not in ['Object ID', 'Category']]
-                df_contacts_summary = df_contacts_summary[cols]
+        if not df_contacts_summary.empty and 'Category' not in df_contacts_summary.columns:
+            df_contacts_summary = df_contacts_summary.merge(
+                df_sum_for_contacts[['Object ID', 'Category']],
+                on='Object ID',
+                how='left'
+            )
+            cols = ['Object ID', 'Category'] + [col for col in df_contacts_summary.columns if
+                                                col not in ['Object ID', 'Category']]
+            df_contacts_summary = df_contacts_summary[cols]
 
-            all_objects = df_sum_for_contacts[['Object ID', 'Category']].copy()
-            if df_contacts_summary.empty:
-                df_contacting = all_objects.copy()
-                df_contacting['Number of Contacts'] = 0
-                df_contacting['Total Time Spent in Contact'] = 0
-                df_contacting['Median Contact Duration'] = 0
-            else:
-                for col in ['Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']:
-                    if col not in df_contacts_summary.columns:
-                        df_contacts_summary[col] = 0
-
-                df_contacting = all_objects.merge(
-                    df_contacts_summary[
-                        ['Object ID', 'Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']],
-                    on='Object ID', how='left'
-                ).fillna({
-                    'Number of Contacts': 0,
-                    'Total Time Spent in Contact': 0,
-                    'Median Contact Duration': 0
-                })
-
-            per_cat = []
-            for cat, group in df_contacting.groupby('Category'):
-                total = group.shape[0]
-                with_contact = group[group['Number of Contacts'] > 0]
-                with_3plus = group[group['Number of Contacts'] >= 3]
-                n_with_contact = with_contact.shape[0]
-                n_with_3plus = with_3plus.shape[0]
-                median_contacts = with_contact['Number of Contacts'].median() if n_with_contact > 0 else np.nan
-                median_contact_time = with_contact['Total Time Spent in Contact'].median() if n_with_contact > 0 else np.nan
-                median_duration = with_contact['Median Contact Duration'].median() if n_with_contact > 0 else np.nan
-                per_cat.append({
-                    'Category': cat,
-                    'Total Objects': total,
-                    'Pct With Contact': 100 * n_with_contact / total if total else np.nan,
-                    'Pct With >=3 Contacts': 100 * n_with_3plus / total if total else np.nan,
-                    'Median Contacts Per Object': median_contacts,
-                    'Median Time Spent in Contact': median_contact_time,
-                    'Median Contact Duration': median_duration,
-                })
-            df_contacts_per_category = pd.DataFrame(per_cat)
+        all_objects = df_sum_for_contacts[['Object ID', 'Category']].copy()
+        if df_contacts_summary.empty:
+            df_contacting = all_objects.copy()
+            df_contacting['Number of Contacts'] = 0
+            df_contacting['Total Time Spent in Contact'] = 0
+            df_contacting['Median Contact Duration'] = 0
         else:
-            df_contacts_per_category = pd.DataFrame()
+            for col in ['Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']:
+                if col not in df_contacts_summary.columns:
+                    df_contacts_summary[col] = 0
+
+            df_contacting = all_objects.merge(
+                df_contacts_summary[
+                    ['Object ID', 'Number of Contacts', 'Total Time Spent in Contact', 'Median Contact Duration']],
+                on='Object ID', how='left'
+            ).fillna({
+                'Number of Contacts': 0,
+                'Total Time Spent in Contact': 0,
+                'Median Contact Duration': 0
+            })
+
+        per_cat = []
+        for cat, group in df_contacting.groupby('Category'):
+            total = group.shape[0]
+            with_contact = group[group['Number of Contacts'] > 0]
+            with_3plus = group[group['Number of Contacts'] >= 3]
+            n_with_contact = with_contact.shape[0]
+            n_with_3plus = with_3plus.shape[0]
+            median_contacts = with_contact['Number of Contacts'].median() if n_with_contact > 0 else np.nan
+            median_contact_time = with_contact['Total Time Spent in Contact'].median() if n_with_contact > 0 else np.nan
+            median_duration = with_contact['Median Contact Duration'].median() if n_with_contact > 0 else np.nan
+            per_cat.append({
+                'Category': cat,
+                'Total Objects': total,
+                'Pct With Contact': 100 * n_with_contact / total if total else np.nan,
+                'Pct With >=3 Contacts': 100 * n_with_3plus / total if total else np.nan,
+                'Median Contacts Per Object': median_contacts,
+                'Median Time Spent in Contact': median_contact_time,
+                'Median Contact Duration': median_duration,
+            })
+        df_contacts_per_category = pd.DataFrame(per_cat)
 
         with pd.ExcelWriter(savecontacts, engine='xlsxwriter') as workbook:
             df_contacts_all.to_excel(workbook, sheet_name='Contacts (all)', index=False)
-            df_contacts_nodividing.to_excel(workbook, sheet_name='Contacts (minus dividing)', index=False)
+            if parameters['contact_div_filter']:
+                df_contacts_nodividing.to_excel(workbook, sheet_name='Contacts (minus dividing)', index=False)
             df_contacts_nodead.to_excel(workbook, sheet_name='Contacts (minus dead)', index=False)
             df_contacts_summary.to_excel(workbook, sheet_name='Contacts Summary', index=False)
             if not df_contacts_per_category.empty:
@@ -319,49 +315,40 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             messages[-1] += msg
             messages.append('')
         complete_progress_step('Contacts')
-
-    if parameters['attractors'] is False:
-        pass
     else:
-        if parameters['infile_tracks']:
-            tic = tempo.time()
-            with thread_lock:
-                messages.append('Detecting attractors...')
-
-            cell_types = dict(zip(track_df['Object ID'], track_df['Category']))
-            attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, parameters['attract_params'])
-            toc = tempo.time()
-            with thread_lock:
-                msg = ' Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
-                messages[-1] += msg
-                messages.append('')
-            complete_progress_step('Attractors')
-        else:
-            with thread_lock:
-                messages.append('Attractors bypassed; no category file provided.')
-                messages.append('')
-            complete_progress_step('Attractors')
-
-    if parameters['generate_figures'] is False:
         pass
+
+    if parameters['attractors']:
+        tic = tempo.time()
+        with thread_lock:
+            messages.append('Detecting attractors...')
+        cell_types = dict(zip(cat_df['Object ID'], cat_df['Category']))
+        attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, parameters['attract_params'])
+        toc = tempo.time()
+        with thread_lock:
+            msg = ' Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
+            messages[-1] += msg
+            messages.append('')
+        complete_progress_step('Attractors')
     else:
-        if parameters['infile_tracks']:
-            with thread_lock:
-                messages.append('Generating figures...')
-            tic = tempo.time()
-            save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_contacts_summary,
-                             df_contacts_per_category, savefile, parameters['infile_tracks'], twodim_mode)
-            toc = tempo.time()
-            with thread_lock:
-                msg = ' Done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
-                messages[-1] += msg
-                messages.append('')
-            complete_progress_step('Generate Figures')
-        else:
-            with thread_lock:
-                messages.append('Figure generation bypassed; no categories file provided.')
-                messages.append('')
-            complete_progress_step('Generate Figures')
+        pass
+
+    if parameters['generate_figures']:
+        with thread_lock:
+            messages.append('Generating figures...')
+        tic = tempo.time()
+        df_sum_for_figs = df_sum.copy()
+        save_all_figures(df_sum_for_figs, df_segments, df_pca, df_msd, df_msd_loglogfits,
+                         df_contacts_summary, df_contacts_per_category, savefile,
+                         parameters['infile_categories'], twodim_mode)
+        toc = tempo.time()
+        with thread_lock:
+            msg = ' Done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
+            messages[-1] += msg
+            messages.append('')
+        complete_progress_step('Generate Figures')
+    else:
+        pass
 
     with thread_lock:
         messages.append('Saving main output to ' + savepath + '...')
@@ -369,7 +356,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     df_all_calcs = df_all_calcs.replace(mapping)
     df_sum = df_sum.replace(mapping)
-    if track_df.shape[0] > 0:
+    if cat_df.shape[0] > 0:
         df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
     if parameters['arrest_limit'] != 0:
         df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
@@ -386,10 +373,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         df_single_angle.to_excel(workbook, sheet_name='Turning Angles', index=False)
         df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
         df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summary', index=True)
-        if parameters['infile_tracks']:
-            df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
-            df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
-            df_msd_loglogfits.to_excel(workbook, sheet_name='MSD Log-Log Fits', index=True)
+        df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
+        df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
+        df_msd_loglogfits.to_excel(workbook, sheet_name='MSD Log-Log Fits', index=True)
 
     complete_progress_step("Final results save")
     bigtoc = tempo.time()

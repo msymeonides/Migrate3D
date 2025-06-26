@@ -26,12 +26,17 @@ parameters = {'arrest_limit': 3,    # Arrest limit
               'timelapse': 1,       # Timelapse interval
               'tau': 10,            # Maximum MSD Tau value
               'savefile': '{:%Y_%m_%d}'.format(date.today()) + '_Migrate3D',
-              'multi_track': False, 'interpolate': False, 'verbose': False,
-              'contact': False, 'attractors': False, 'generate_figures': False, 'pca_filter': None,
-              'infile_tracks': False,
-              'object_id_col_name': 'Parent ID', 'time_col_name': "Time", 'x_col_name': 'X Coordinate',
-              'y_col_name': 'Y Coordinate', 'z_col_name': 'Z Coordinate', 'object_id_2_col': 'ID',
-              'category_col': 'Category',
+              'multi_track': False,
+              'interpolate': False,
+              'verbose': False,
+              'contact': False,
+              'contact_div_filter': True,
+              'attractors': False,
+              'generate_figures': False,
+              'pca_filter': None,
+              'infile_categories': False, 'object_id_col_name': 'Parent ID', 'time_col_name': "Time",
+              'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate', 'z_col_name': 'Z Coordinate',
+              'object_id_2_col': 'ID', 'category_col': 'Category',
               }
 
 # Defaults for Attractors tunable parameters can be set here
@@ -56,6 +61,7 @@ formatting_option_map = {
     'interpolate': 'Interpolate',
     'verbose': 'Verbose',
     'contact': 'Contacts',
+    'contact_div_filter': 'ContactDivFilter',
     'attractors': 'Attractors',
     'generate_figures': 'Generate Figures'
 }
@@ -261,6 +267,8 @@ app.layout = dbc.Container(
                                             'value': 'Verbose'},
                                         {'label': ' Contacts (identifies contacts between objects)',
                                             'value': 'Contacts'},
+                                        {'label': ' Filter out contacts between objects resulting from cell division?',
+                                            'value': 'ContactDivFilter'},
                                         {'label': ' Attractors (identifies instances where an object is attracting other objects towards it)',
                                             'value': 'Attractors'},
                                         {'label': ' Generate Figures (creates figures for summary statistics, PCA, and MSD)',
@@ -395,16 +403,23 @@ app.layout = dbc.Container(
 def run_migrate_thread(args):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving,
      contact_length, arrested, tau, formatting_options, savefile,
-     segments_file_name, tracks_file, parent_id2, category_col_name,
+     segments_file_name, categories_file, parent_id2, category_col_name,
      parameters, pca_filter, attract_params) = args
 
-    if tracks_file is not None:
-         parameters['infile_tracks'] = True
+    if categories_file is not None:
+        parameters['object_id_2_col'] = parent_id2
+        parameters['category_col'] = category_col_name
+        parameters['infile_categories'] = True
     else:
-         parameters['infile_tracks'] = False
+        parameters['object_id_2_col'] = parent_id
+        parameters['category_col'] = 'Category'
+        parameters['infile_categories'] = False
 
+    parameters['contact_div_filter'] = (
+            formatting_options is not None and "ContactDivFilter" in formatting_options
+    )
     optional_flags = {
-        "pca_xgb": True if parameters.get("infile_tracks", False) else False,
+        "pca_xgb": parameters.get("infile_categories", False),
         "contacts": True if formatting_options and "Contacts" in formatting_options else False,
         "attractors": True if formatting_options and "Attractors" in formatting_options else False,
         "generate_figures": True if formatting_options and "Generate Figures" in formatting_options else False
@@ -416,8 +431,7 @@ def run_migrate_thread(args):
             parent_id, time_for, x_for, y_for, z_for, float(timelapse),
             float(arrest_limit), int(moving), int(contact_length), float(arrested),
             int(tau), formatting_options, savefile,
-            segments_file_name, tracks_file, parent_id2, category_col_name,
-            parameters, pca_filter, attract_params)
+            segments_file_name, categories_file, parameters, pca_filter, attract_params)
 
         with thread_lock:
             messages.append("You may close the GUI browser tab and terminate the Python process.")

@@ -220,7 +220,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     df_msd["Object ID"] = df_msd["Object ID"].astype(int)
 
     msd_vals = df_msd.set_index("Object ID")[existing_cols]
-    if parameters.get("infile_tracks", False):
+    if parameters.get("infile_categories", False):
         category_tracks = arr_tracks[:, 1]
         if len(category_tracks) == len(msd_vals):
             msd_vals["Category"] = category_tracks
@@ -271,10 +271,9 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     cat_idx = cols.index("Category")
     cols.insert(cat_idx, cols.pop(final_msd_idx))
     df_sum = df_sum[cols]
-    if parameters.get("infile_tracks", False):
-        df_msd_loglogfits = msd_loglogfits(df_msd)
-    else:
-        df_msd_loglogfits = None
+    if 'Category' not in df_msd.columns:
+        df_msd['Category'] = 0
+    df_msd_loglogfits = msd_loglogfits(df_msd)
 
     toc = tempo.time()
     with thread_lock:
@@ -284,7 +283,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     complete_progress_step("Summary")
 
     df_pca = None
-    if parameters.get("infile_tracks", False):
+    if parameters.get("infile_categories", False):
         try:
             df_pca = ml_analysis(df_sum.copy(), parameters, savefile)
         except XGBAbortException:

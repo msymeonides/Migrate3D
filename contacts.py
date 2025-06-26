@@ -76,8 +76,6 @@ def contacts_notdividing(object_id, df):
                                         'Object Compare': updated_object_comp,
                                         'Time of Contact': time_})
         if not df_no_dividing.empty:
-            df_no_dividing = df_no_dividing.replace(0, None)
-            df_no_dividing = df_no_dividing.dropna()
             list_of_df.append(df_no_dividing)
 
     return list_of_df

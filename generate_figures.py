@@ -8,10 +8,10 @@ from itertools import combinations
 
 colors = plotly.colors.qualitative.Plotly
 
-def get_category_color_map(categories):
-    categories = [int(cat) for cat in categories if pd.notnull(cat)]
-    categories = sorted(set(categories))
-    return {cat: colors[i % len(colors)] for i, cat in enumerate(categories)}
+def get_category_color_map(cats_or_objs):
+    cats_or_objs = [int(cat) for cat in cats_or_objs if pd.notnull(cat)]
+    cats_or_objs = sorted(set(cats_or_objs))
+    return {cat: colors[i % len(colors)] for i, cat in enumerate(cats_or_objs)}
 
 def summary_figures(df, fit_stats, color_map=None):
     columns = [col for col in df.columns if col not in ('Object ID', 'Category')]
@@ -98,7 +98,7 @@ def summary_figures(df, fit_stats, color_map=None):
     )
     return [fig]
 
-def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=None):
+def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=None, color_by_object=False):
     def prepare_data():
         data_dict = {}
         data_dict['unique_ids'] = list(dict.fromkeys(all_ids))
@@ -146,10 +146,11 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
 
     def add_category_legend(fig, categories):
         for cat in categories:
+            color_key = cat if not color_by_object else None
             trace_args = {
                 'name': f"Category {cat}",
                 'mode': 'lines',
-                'line': dict(color=color_map.get(cat, 'black'), width=4),
+                'line': dict(color=color_map.get(color_key, 'black'), width=4),
                 'legendgroup': f"cat_{cat}",
                 'showlegend': True
             }
@@ -165,12 +166,13 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     row=1, col=1
                 )
 
-    def add_track_trace(fig, x_data, y_data, z_data=None, obj_name=None, category=None, zeroed=False, obj_figure=False):
+    def add_track_trace(fig, x_data, y_data, z_data=None, obj_name=None, category=None, zeroed=False, obj_figure=False, color_by_object=False):
+        color_key = obj_name if color_by_object else category
         col = 1 if zeroed else 2
         common_args = {
             'name': obj_name,
             'mode': 'lines',
-            'marker_color': color_map.get(category, 'black'),
+            'marker_color': color_map.get(color_key, 'black'),
         }
 
         if obj_figure:
@@ -270,13 +272,6 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                         zaxis=dict(range=[z_zeroed_min, z_zeroed_max], title="Z")
                     )
                 )
-
-    def generate_html(fig, title):
-        return html_template.format(
-            title=title,
-            figure_json=fig.to_json(),
-            is_twodim=str(twodim_mode).lower()
-        )
 
     axis_padding = 0.1
     all_ids = list(df.loc[:, 'Object ID'])
@@ -388,13 +383,12 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
             add_track_trace(
                 fig, x_zeroed, y_zeroed,
                 z_zeroed if not twodim_mode else None,
-                str(object_), cat, zeroed=True, obj_figure=is_obj_figure
+                object_, cat, zeroed=True, obj_figure=is_obj_figure, color_by_object=color_by_object
             )
-
             add_track_trace(
                 fig, x_data, y_data,
                 z_data if not twodim_mode else None,
-                str(object_), cat, zeroed=False, obj_figure=is_obj_figure
+                object_, cat, zeroed=False, obj_figure=is_obj_figure, color_by_object=color_by_object
             )
 
     setup_axes(fig_category)
@@ -784,16 +778,32 @@ def contacts_figures(df_contacts, df_contpercat, color_map=None):
 
 def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_contacts, df_contpercat,
                      savefile, cat_provided, twodim_mode):
-    color_map = get_category_color_map(df_sum['Category'].unique())
+    categories = df_sum['Category'].unique()
+    if len(categories) == 1:
+        unique_objects = list(df_segments['Object ID'].unique())
+        color_map = {obj: colors[i % len(colors)] for i, obj in enumerate(unique_objects)}
+        color_by_object = True
+    else:
+        color_map = get_category_color_map(categories)
+        color_by_object = False
 
-    tracks_fig, tracks_html_category, tracks_html_objects = tracks_figure(
-        df_segments, df_sum, cat_provided, savefile, twodim_mode, color_map=color_map)
-    with open(f'{savefile}_Figures_Tracks_byCategory.html', 'w', encoding='utf-8') as f:
-        f.write(tracks_html_category)
+    if cat_provided:
+        tracks_fig, tracks_html_category, tracks_html_objects = tracks_figure(
+            df_segments, df_sum, True, savefile, twodim_mode,
+            color_map=color_map, color_by_object=color_by_object
+        )
+        with open(f'{savefile}_Figures_Tracks_byCategory.html', 'w', encoding='utf-8') as f:
+            f.write(tracks_html_category)
+    else:
+        tracks_fig, tracks_html_category, tracks_html_objects = tracks_figure(
+            df_segments, df_sum, True, savefile, twodim_mode,
+            color_map=color_map, color_by_object=color_by_object
+        )
+
     with open(f'{savefile}_Figures_Tracks_byObjectID.html', 'w', encoding='utf-8') as f:
         f.write(tracks_html_objects)
 
-    if df_pca is not None and not df_pca.empty:
+    if cat_provided and df_pca is not None and not df_pca.empty:
         pca_figs = pca_figures(df_pca, color_map=color_map)
         fig_1d, fig_2d, fig_3d = pca_figs
         with open(f'{savefile}_Figures_PCA.html', 'w', encoding='utf-8') as f:
@@ -805,10 +815,20 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
         pass
 
     msd_fig_all, msd_category_figs, fit_stats = msd_graphs(df_msd, df_msd_loglogfits, color_map)
-    with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
-        f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
-        for fig in msd_category_figs.values():
-            f.write(fig.to_html(full_html=True, include_plotlyjs=False, config={'responsive': True}))
+    if cat_provided:
+        with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
+            f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn'))
+            for cat, fig in msd_category_figs.items():
+                f.write(fig.to_html(full_html=False, include_plotlyjs=False))
+    else:
+        single_fig = next(iter(msd_category_figs.values()), msd_fig_all)
+        with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
+            f.write(single_fig.to_html(full_html=True, include_plotlyjs='cdn'))
+
+    # if df_contacts is not None and not df_contacts.empty:
+    #     df_contacts['Category'] = 0
+    # if df_contpercat is not None and not df_contpercat.empty:
+    #     df_contpercat['Category'] = 0
 
     if df_contacts is not None and df_contpercat is not None and not df_contacts.empty and not df_contpercat.empty:
         contacts_figs = contacts_figures(df_contacts, df_contpercat, color_map=color_map)

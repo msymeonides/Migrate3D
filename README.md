@@ -1,6 +1,6 @@
 # README
 
-Last Edited: June 18, 2025 (Migrate3D version 2.0)
+Last Edited: June 26, 2025 (Migrate3D version 2.0)
 
 # Migrate3D
 
@@ -10,7 +10,7 @@ These results can be used in downstream analyses to compare different conditions
 
 Migrate3D requires a .csv file input that contains data from object movements through two- or three-dimensional space. After execution, the program will return a set of .xlsx files, each with several worksheets, containing track-by-track summary metrics, mean squared displacement analysis, etc.
 
-If the user imports a Categories .csv file (simply listing the category for each object ID), two additional analyses will be performed: dimensionality reduction using principal component analysis (PCA), and decision tree analysis using XGBoost. There is no guarantee that these will be performed in a statistically-sound way, that is left up to the user to ensure, but the libraries used to perform these analyses are widely used. Supplying a Categories file will also enable additional mean squared displacement analysis, and enable the ability to generate plotly figures comparing the different categories across all calculated parameters.
+If the user imports a Categories .csv file (simply listing the category for each object ID), two additional analyses will be performed: dimensionality reduction using principal component analysis (PCA), and decision tree analysis using XGBoost. There is no guarantee that these will be performed in a statistically-sound way, that is left up to the user to ensure, but the libraries used to perform these analyses are widely used.
 
 A limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
 
@@ -260,21 +260,25 @@ Includes the results of all intermediate step-wise calculations in the output .x
 
 Identifies contacts between objects at each timepoint, and returns a separate results .xlsx file containing each detected contact as well as a summary of contact history for each object (excluding objects that had no detected contacts), as well as per-category summary statistics.
 
+### Filter out contacts between objects resulting from cell division?
+
+See the Contacts (minus dividing) section below for more details. This option is enabled by default. Disable this if you know there are no cell divisions in the dataset.
+
 ### Attractors:
 
 Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event. An additional set of tunable parameters for this function is available in the GUI. The default values for these parameters can be changed at the top of the main.py script. Note that this function will only run if a Categories file is provided.
 
 ### Generate Figures:
 
-If a Categories file is provided, the following plotly figures are generated:
+The following plotly figures are generated:
 
 - **Summary Stats**: Per-category interactive violin plots for each of the summary statistics, plus the MSD log-log linear fit slope (error bars = 95% confidence interval).
 - **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
-- **Tracks**: An interactive 3D (X/Y/Z) plot of all tracks.
+- **Tracks**: An interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks.
 - **PCA**: A set of plots of the four PCs will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
 - **MSD**: A log-log plot of the mean per-category MSD vs. τ, each with its linear fit line (dashed), and, for each category, a plot of all per-track MSD values vs. τ (gray traces), with the mean of all tracks overlaid (dark trace) plus the linear fit (dashed red line). The slope and 95% confidence interval of the linear fit for that category mean is also shown on each figure.
 
-The color used for each category will be consistent across all of these figures. For all violin plots, an inner box plot is overlayed showing the median and upper and lower quartiles. All outputs are in .html format which can be viewed in a browser (note that for large datasets, the tracks file can take a while to fully load once opened, and may be poorly responsive).
+The color used for each category will be consistent across all of these figures. For all violin plots, an inner box plot is overlayed showing the median and upper and lower quartiles. All outputs are in .html format which can be viewed in a browser (note that for large 3D datasets, the tracks figure HTML file can take a while to load once opened, and may be poorly responsive).
 
 ### Subset Categories:
 
@@ -420,9 +424,10 @@ $$
 MSD(τ)=\ \lt(x(t + τ) - x(t))^2 \gt 
 $$
 
-In the output file, two MSD result sheets are provided: one ("Mean Squared Displacements") with the MSD at each τ value (columns) for each object (rows), and one (MSD Summary) with the average and standard deviation of the MSD (columns) at each τ value (rows) across the whole dataset.
- 
-If a Categories file is provided, three additional result sheets are given:
+In the output file, the following result sheets are provided:
+
+- **Mean Squared Displacements**: The MSD at each τ value (columns) for each object (rows).
+- **MSD Summary**: The average and standard deviation of the MSD (columns) at each τ value (rows) across the whole dataset.
 - **MSD Mean Per Category**: The mean MSD at each τ value (rows) for each object category (columns).
 - **MSD StDev Per Category**: the standard deviation of MSD at each τ value (rows) for each object category (columns).
 - **MSD Log-Log Fits**: The linear fit parameters for the log-log plot of mean per-category MSD vs. τ. The slope of the line is indicative of the type of motion exhibited by the object, with a slope of 1 indicating diffusion, and a slope of 2 indicating ballistic motion. The "Fit Max. Tau" is the upper limit of the τ values used to calculate the slope (always beginning at τ=1), above which the log-log relationship was judged to deviate from linearity.
@@ -457,11 +462,11 @@ Contacts will iterate over all the objects in the dataset comparing their X, Y, 
 
 ### Contacts (minus dividing):
 
-Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Object IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Object IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Object IDs happen to differ by 1 but were not daughter cells resulting from the same mitosis. Manual spot-checking of contacts is recommended.
+Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Object IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Object IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Object IDs happen to differ by 1 but were not daughter cells resulting from the same mitosis. Manual spot-checking of contacts is recommended. This filter can be disabled in the GUI, in which case this results sheet will be ommitted.
 
 ### Contacts (minus dead):
 
-Utilizes the "Maximum arrest coefficient" tunable variable to filter out contacts that involve "dead" or non-motile cells based on their Arrest Coefficient.
+Utilizes the "Maximum arrest coefficient" tunable variable to filter out contacts that involve "dead" or non-motile cells based on their Arrest Coefficient. This filter is applied after the Contacts (minus dividing) filter.
 
 ### Contacts Summary:
 
