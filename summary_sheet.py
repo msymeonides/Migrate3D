@@ -220,17 +220,13 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     df_msd["Object ID"] = df_msd["Object ID"].astype(int)
 
     msd_vals = df_msd.set_index("Object ID")[existing_cols]
-    if parameters.get("infile_categories", False):
-        category_tracks = arr_tracks[:, 1]
-        if len(category_tracks) == len(msd_vals):
-            msd_vals["Category"] = category_tracks
-            grouped = msd_vals.groupby("Category")
-            df_msd_avg_per_cat = grouped.mean().T
-            df_msd_std_per_cat = grouped.std().T
-            df_msd_avg_per_cat.index.name = "MSD"
-        else:
-            df_msd_avg_per_cat = pd.DataFrame()
-            df_msd_std_per_cat = pd.DataFrame()
+    category_tracks = arr_tracks[:, 1]
+    if len(category_tracks) == len(msd_vals):
+        msd_vals["Category"] = category_tracks
+        grouped = msd_vals.groupby("Category")
+        df_msd_avg_per_cat = grouped.mean().T
+        df_msd_std_per_cat = grouped.std().T
+        df_msd_avg_per_cat.index.name = "MSD"
     else:
         df_msd_avg_per_cat = pd.DataFrame()
         df_msd_std_per_cat = pd.DataFrame()
@@ -271,8 +267,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     cat_idx = cols.index("Category")
     cols.insert(cat_idx, cols.pop(final_msd_idx))
     df_sum = df_sum[cols]
-    if 'Category' not in df_msd.columns:
-        df_msd['Category'] = 0
     df_msd_loglogfits = msd_loglogfits(df_msd)
 
     toc = tempo.time()
