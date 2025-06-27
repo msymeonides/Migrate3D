@@ -159,8 +159,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters['object_id_2_col']: unique_ids,
             parameters['category_col']: '0'
         })
-        cat_df[parameters['category_col']] = cat_df[parameters['category_col']].astype(str)
         cat_df.columns = ['Object ID', 'Category']
+        cat_df['Category'] = cat_df['Category'].astype(str)
         arr_cats = np.array([[int(obj_id), '0'] for obj_id in unique_ids], dtype=object)
         categories_file_name = 'None'
     else:
@@ -179,6 +179,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             category = cat_df[category_col_name][row]
             category_input_list.append([object_id2, category])
         cat_df.columns = ['Object ID', 'Category']
+        cat_df['Category'] = cat_df['Category'].astype(str)
         arr_cats = np.array(category_input_list)
         arr_cats[:, 0] = arr_cats[:, 0].astype(int)
 
@@ -204,6 +205,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
      df_msd_loglogfits, df_pca) = summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode,
                                                parameters, arr_cats, savefile)
 
+    df_sum['Category'] = df_sum['Category'].astype(str)
     savepath = savefile + '_Results.xlsx'
     savecontacts = savefile + '_Contacts.xlsx'
 
@@ -361,7 +363,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         messages.append('')
 
     df_all_calcs = df_all_calcs.replace(mapping)
-    df_sum = df_sum.replace(mapping)
+    cols_to_replace = [col for col in df_sum.columns if col != 'Category']
+    df_sum[cols_to_replace] = df_sum[cols_to_replace].replace(mapping)
     if parameters['arrest_limit'] != 0:
         df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 

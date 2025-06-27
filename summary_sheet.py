@@ -19,8 +19,9 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
 
     category = ''
     if arr_tracks.shape[0] > 0:
-        obj_id_val = float(object_data[0, 0])
-        matching_index = np.where(arr_tracks[:, 0] == obj_id_val)[0]
+        obj_id_val = int(object_data[0, 0])
+        arr_tracks_obj_ids = arr_tracks[:, 0].astype(int)
+        matching_index = np.where(arr_tracks_obj_ids == obj_id_val)[0]
         if matching_index.size > 0:
             category = arr_tracks[matching_index[0], 1]
 
@@ -242,8 +243,10 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     category_df = pd.DataFrame(arr_cats, columns=["Object ID", "Category"])
     if not category_df.empty:
         category_df["Object ID"] = category_df["Object ID"].astype(int)
+        category_df["Category"] = category_df["Category"].astype(str)
         def insert_category(df):
             merged = pd.merge(df, category_df, on="Object ID", how="left")
+            merged["Category"] = merged["Category"].astype(str)
             cols = merged.columns.tolist()
             cols.insert(1, cols.pop(cols.index("Category")))
             return merged[cols]
