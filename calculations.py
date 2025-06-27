@@ -14,9 +14,9 @@ def calculations(object_data, tau, object_id, parameters):
     timelapse = parameters['timelapse']
     arrest_limit = parameters['arrest_limit']
 
-    x = object_data[:, 2]
-    y = object_data[:, 3]
-    z = object_data[:, 4]
+    x = object_data[:, 2].astype(float)
+    y = object_data[:, 3].astype(float)
+    z = object_data[:, 4].astype(float)
 
     dx = np.diff(x)
     dy = np.diff(y)
