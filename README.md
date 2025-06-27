@@ -1,6 +1,6 @@
 # README
 
-Last Edited: June 26, 2025 (Migrate3D version 2.0)
+Last Edited: June 27, 2025 (Migrate3D version 2.0)
 
 # Migrate3D
 
@@ -214,11 +214,11 @@ Note that you can change the default values of these variables at the top of the
 
 ### Arrest Limit:
 
-A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed, however if they pass this threshold, they will survive the filter and be reported again in their own column (in verbose mode). Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature, and it will be excluded from all output results.
+A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed, however if they pass this threshold, they will survive the filter and be reported again in their own column (in verbose mode). Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature, and all Velocity/Acceleration metrics will be reported unfiltered (also, the Arrest Coefficient metric will be omitted entirely).
 
 ### Minimum Timepoints:
 
-An integer parameter that denotes the amount of moving timepoints an object must exceed to be considered for certain summary statistics, namely those relating to Velocity and Acceleration that are denoted as "Filtered". Tracks which fail to meet this threshold will show no value for those summary statistics, but will still have their own row on the Summary Sheet with values everywhere but those Filtered Velocity/Acceleration columns. To turn this filter off, set this value to 0.
+When a non-zero Arrest Limit has been set, this filter is an integer parameter that denotes the amount of moving timepoints an object must exceed to be considered for certain summary statistics, namely those relating to Velocity and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary statistics, but will still have their own row on the Summary Sheet with values everywhere but those Velocity/Acceleration columns. To turn this filter off, set this value to 0.
 
 ### Contact Length:
 

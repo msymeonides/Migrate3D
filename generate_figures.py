@@ -18,11 +18,12 @@ def summary_figures(df, fit_stats, color_map=None):
     categories = sorted(df['Category'].dropna().unique())
     if color_map is None:
         color_map = get_category_color_map(categories)
-    n_plots = len(columns)
+    n_plots = len(columns) + (1 if fit_stats is not None else 0)
+    subplot_titles = columns + (['MSD log-log fit slope'] if fit_stats is not None else [])
     n_cols = 4
     n_rows = math.ceil(n_plots / n_cols)
     fig = make_subplots(
-        rows=n_rows, cols=n_cols, subplot_titles=columns + ['MSD log-log fit slope'],
+        rows=n_rows, cols=n_cols, subplot_titles=subplot_titles,
         vertical_spacing=0.05, horizontal_spacing=0.05
     )
     for i, col in enumerate(columns):

@@ -31,7 +31,7 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         try:
             convex_hull_volume = ConvexHull(convex_coords).volume
         except Exception:
-            pass
+            convex_hull_volume = 0
 
     path_lengths = df_obj_calcs['Path Length'].values
     max_path = path_lengths.max() if path_lengths.size > 0 else 0
@@ -51,17 +51,21 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
     valid_velocity = velocity[(~np.isnan(velocity)) & (velocity != 0)] if velocity.size > 0 else np.array([])
     velocity_mean = valid_velocity.mean() if valid_velocity.size > 0 else 0
     velocity_median = np.median(valid_velocity) if valid_velocity.size > 0 else 0
+    velocity_stdev = valid_velocity.std(ddof=1) if valid_velocity.size > 1 else 0
 
     acceleration = df_obj_calcs['Instantaneous Acceleration'].values if 'Instantaneous Acceleration' in df_obj_calcs else np.array([])
     if acceleration.size >= parameters['moving']:
         valid_acc = acceleration[(~np.isnan(acceleration)) & (acceleration != 0)]
         acceleration_mean = valid_acc.mean() if valid_acc.size > 0 else 0
         acceleration_median = np.median(valid_acc) if valid_acc.size > 0 else 0
+        acceleration_stdev = valid_acc.std(ddof=1) if valid_acc.size > 1 else 0
         accel_abs = np.abs(valid_acc)
         accel_abs_mean = accel_abs.mean() if accel_abs.size > 0 else 0
         accel_abs_median = np.median(accel_abs) if accel_abs.size > 0 else 0
+        accel_abs_stdev = accel_abs.std(ddof=1) if accel_abs.size > 1 else 0
     else:
-        acceleration_mean = acceleration_median = accel_abs_mean = accel_abs_median = 0
+        acceleration_mean = acceleration_median = acceleration_stdev = 0
+        accel_abs_mean = accel_abs_median = accel_abs_stdev = 0
 
     acceleration_filtered = df_obj_calcs['Instantaneous Acceleration Filtered'].values if 'Instantaneous Acceleration Filtered' in df_obj_calcs else np.array([])
     valid_acc_f = acceleration_filtered[(~np.isnan(acceleration_filtered)) & (acceleration_filtered != 0)] if acceleration_filtered.size > 0 else np.array([])
@@ -70,6 +74,7 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         valid_velocity_f = velocity_filtered[(~np.isnan(velocity_filtered)) & (velocity_filtered != 0)] if velocity_filtered.size > 0 else np.array([])
         velocity_filtered_mean = valid_velocity_f.mean() if valid_velocity_f.size > 0 else 0
         velocity_filtered_median = np.median(valid_velocity_f) if valid_velocity_f.size > 0 else 0
+        velocity_filtered_stdev = valid_velocity_f.std(ddof=1) if valid_velocity_f.size > 1 else 0
         acceleration_filtered_mean = valid_acc_f.mean()
         acceleration_filtered_median = np.median(valid_acc_f)
         acceleration_filtered_stdev = valid_acc_f.std(ddof=1) if valid_acc_f.size > 1 else 0
@@ -77,22 +82,41 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         accel_filtered_abs_mean = accel_filtered_abs.mean() if accel_filtered_abs.size > 0 else 0
         accel_filtered_abs_median = np.median(accel_filtered_abs) if accel_filtered_abs.size > 0 else 0
         accel_filtered_abs_stdev = accel_filtered_abs.std(ddof=1) if accel_filtered_abs.size > 1 else 0
-        velocity_filtered_stdev = valid_velocity_f.std(ddof=1) if valid_velocity_f.size > 1 else 0
     else:
-        velocity_filtered_mean = velocity_filtered_median = 0
+        velocity_filtered_mean = velocity_filtered_median = velocity_filtered_stdev = 0
         acceleration_filtered_mean = acceleration_filtered_median = acceleration_filtered_stdev = 0
         accel_filtered_abs_mean = accel_filtered_abs_median = accel_filtered_abs_stdev = 0
-        velocity_filtered_stdev = 0
 
-    cols_angles = [col for col in df_obj_calcs.columns if 'Filtered Angle' in col]
-    cols_euclidean = [col for col in df_obj_calcs.columns if 'Euclid' in col]
-    overall_euclidean_median, overall_angle_median, single_euclid, single_angle = overall_medians(
-        obj, df_obj_calcs, cols_angles, cols_euclidean)
+    if parameters['arrest_limit'] == 0:
+        velocity_mean_out = velocity_mean
+        velocity_median_out = velocity_median
+        velocity_stdev_out = velocity_stdev
+        acceleration_mean_out = acceleration_mean
+        acceleration_median_out = acceleration_median
+        acceleration_stdev_out = acceleration_stdev
+        abs_acc_mean_out = accel_abs_mean
+        abs_acc_median_out = accel_abs_median
+        abs_acc_stdev_out = accel_abs_stdev
+    else:
+        velocity_mean_out = velocity_filtered_mean
+        velocity_median_out = velocity_filtered_median
+        velocity_stdev_out = velocity_filtered_stdev
+        acceleration_mean_out = acceleration_filtered_mean
+        acceleration_median_out = acceleration_filtered_median
+        acceleration_stdev_out = acceleration_filtered_stdev
+        abs_acc_mean_out = accel_filtered_abs_mean
+        abs_acc_median_out = accel_filtered_abs_median
+        abs_acc_stdev_out = accel_filtered_abs_stdev
 
     inst_disp = df_obj_calcs['Instantaneous Displacement'].values if 'Instantaneous Displacement' in df_obj_calcs else np.array([])
     valid_disp = inst_disp[(~np.isnan(inst_disp)) & (inst_disp != 0)] if inst_disp.size > 0 else np.array([])
     time_under = valid_disp[valid_disp < parameters['arrest_limit']] if valid_disp.size > 0 else np.array([])
     arrest_coefficient = (time_under.size * time_interval) / duration_val if duration_val != 0 else 0
+
+    cols_angles = [col for col in df_obj_calcs.columns if 'Filtered Angle' in col]
+    cols_euclidean = [col for col in df_obj_calcs.columns if 'Euclid' in col]
+    overall_euclidean_median, overall_angle_median, single_euclid, single_angle = overall_medians(
+        obj, df_obj_calcs, cols_angles, cols_euclidean)
 
     summary_dict = {
         'Object ID': obj,
@@ -103,21 +127,15 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         'Straightness': straightness,
         'Displacement Ratio': displacement_ratio,
         'Outreach Ratio': outreach_ratio,
-        'Velocity Mean': velocity_mean,
-        'Velocity Median': velocity_median,
-        'Velocity filtered Mean': velocity_filtered_mean,
-        'Velocity Filtered Median': velocity_filtered_median,
-        'Velocity Filtered Standard Deviation': velocity_filtered_stdev,
-        'Acceleration Mean': acceleration_mean,
-        'Acceleration Median': acceleration_median,
-        'Absolute Acceleration Mean': accel_abs_mean,
-        'Absolute Acceleration Median': accel_abs_median,
-        'Acceleration Filtered Mean': acceleration_filtered_mean,
-        'Acceleration Filtered Median': acceleration_filtered_median,
-        'Acceleration Filtered Standard Deviation': acceleration_filtered_stdev,
-        'Absolute Acceleration Filtered Mean': accel_filtered_abs_mean,
-        'Absolute Acceleration Filtered Median': accel_filtered_abs_median,
-        'Absolute Acceleration Filtered Standard Deviation': accel_filtered_abs_stdev,
+        'Velocity Mean': velocity_mean_out,
+        'Velocity Median': velocity_median_out,
+        'Velocity Standard Deviation': velocity_stdev_out,
+        'Acceleration Mean': acceleration_mean_out,
+        'Acceleration Median': acceleration_median_out,
+        'Acceleration Standard Deviation': acceleration_stdev_out,
+        'Absolute Acceleration Mean': abs_acc_mean_out,
+        'Absolute Acceleration Median': abs_acc_median_out,
+        'Absolute Acceleration Standard Deviation': abs_acc_stdev_out,
         'Arrest Coefficient': arrest_coefficient,
         'Overall Angle Median': overall_angle_median,
         'Overall Euclidean Median': overall_euclidean_median,
@@ -125,7 +143,8 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         'Category': category
     }
 
-    summary_tuple = tuple(summary_dict[col] for col in summary_columns)
+    summary_tuple = tuple(summary_dict.get(col, None) for col in summary_columns)
+
     return obj, summary_tuple, single_euclid, single_angle
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile):
@@ -135,16 +154,13 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     summary_columns = [
         'Object ID', 'Duration', 'Final Euclidean', 'Max Euclidean', 'Path Length',
         'Straightness', 'Displacement Ratio', 'Outreach Ratio',
-        'Velocity Mean', 'Velocity Median', 'Velocity filtered Mean', 'Velocity Filtered Median',
-        'Velocity Filtered Standard Deviation', 'Acceleration Mean', 'Acceleration Median',
-        'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
-        'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
-        'Absolute Acceleration Filtered Mean', 'Absolute Acceleration Filtered Median',
-        'Absolute Acceleration Filtered Standard Deviation', 'Overall Angle Median', 'Overall Euclidean Median',
-        'Category'
+        'Velocity Mean', 'Velocity Median', 'Velocity Standard Deviation',
+        'Acceleration Mean', 'Acceleration Median', 'Acceleration Standard Deviation',
+        'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Absolute Acceleration Standard Deviation',
+        'Overall Angle Median', 'Overall Euclidean Median', 'Category'
     ]
     if parameters['arrest_limit'] != 0:
-        summary_columns.insert(23, 'Arrest Coefficient')
+        summary_columns.insert(17, 'Arrest Coefficient')
     if not twodim_mode:
         summary_columns.insert(-1, 'Convex Hull Volume')
 
