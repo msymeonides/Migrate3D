@@ -19,8 +19,8 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
 
     category = ''
     if arr_tracks.shape[0] > 0:
-        obj_id_str = str(int(float(object_data[0, 0])))
-        matching_index = np.where(arr_tracks[:, 0].astype(str) == obj_id_str)[0]
+        obj_id_val = float(object_data[0, 0])
+        matching_index = np.where(arr_tracks[:, 0] == obj_id_val)[0]
         if matching_index.size > 0:
             category = arr_tracks[matching_index[0], 1]
 
@@ -127,7 +127,7 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
     summary_tuple = tuple(summary_dict[col] for col in summary_columns)
     return obj, summary_tuple, single_euclid, single_angle
 
-def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_tracks, savefile):
+def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
 
@@ -176,7 +176,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         futures = {
             executor.submit(
                 compute_object_summary, obj, arr_segments,
-                df_all_calcs_by_obj.get(obj, pd.DataFrame()), arr_tracks, parameters, summary_columns): obj
+                df_all_calcs_by_obj.get(obj, pd.DataFrame()), arr_cats, parameters, summary_columns): obj
             for obj in unique_objects}
         for future in concurrent.futures.as_completed(futures):
             obj = futures[future]
@@ -207,6 +207,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         for col in df_single_euclids_df.columns[1:]]
     df_single_euclids_df.columns = ["Object ID"] + cols_euclidean_numbers
     df_single_euclids_df = df_single_euclids_df.sort_values(by="Object ID").reset_index(drop=True)
+    df_single_euclids_df["Object ID"] = df_single_euclids_df["Object ID"].astype(int)
 
     df_single_angles_df = pd.DataFrame.from_dict(single_angle_dict, orient='index')
     df_single_angles_df.reset_index(inplace=True)
@@ -214,13 +215,14 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     angle_intervals = [3 + 2 * i for i in range(n_angle_cols)]
     df_single_angles_df.columns = ["Object ID"] + angle_intervals
     df_single_angles_df = df_single_angles_df.sort_values(by="Object ID").reset_index(drop=True)
+    df_single_angles_df["Object ID"] = df_single_angles_df["Object ID"].astype(int)
 
     existing_cols = [col for col in range(1, tau + 1) if col in df_msd.columns]
     df_msd = df_msd[["Object ID"] + existing_cols]
     df_msd["Object ID"] = df_msd["Object ID"].astype(int)
 
     msd_vals = df_msd.set_index("Object ID")[existing_cols]
-    category_tracks = arr_tracks[:, 1]
+    category_tracks = arr_cats[:, 1]
     if len(category_tracks) == len(msd_vals):
         msd_vals["Category"] = category_tracks
         grouped = msd_vals.groupby("Category")
@@ -237,7 +239,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         "StDev": msd_vals_summary.std()})
     df_msd_sum_all.index.name = "MSD"
 
-    category_df = pd.DataFrame(arr_tracks, columns=["Object ID", "Category"])
+    category_df = pd.DataFrame(arr_cats, columns=["Object ID", "Category"])
     if not category_df.empty:
         category_df["Object ID"] = category_df["Object ID"].astype(int)
         def insert_category(df):
@@ -248,6 +250,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         df_single_euclids_df = insert_category(df_single_euclids_df)
         df_single_angles_df = insert_category(df_single_angles_df)
         df_msd = insert_category(df_msd)
+        df_msd["Category"] = df_msd["Category"].astype(str)
 
     max_msd_dict = {}
     msd_cols = [col for col in df_msd.columns if isinstance(col, int)]
@@ -268,6 +271,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     cols.insert(cat_idx, cols.pop(final_msd_idx))
     df_sum = df_sum[cols]
     df_msd_loglogfits = msd_loglogfits(df_msd)
+    df_msd_loglogfits.columns = df_msd_loglogfits.columns.astype(str)
 
     toc = tempo.time()
     with thread_lock:

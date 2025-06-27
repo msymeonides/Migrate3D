@@ -67,7 +67,8 @@ def main(df_msd):
     df_long['log_tau'] = np.log10(df_long['tau'])
     df_long['log_msd'] = np.log10(df_long['msd'])
 
-    categories = sorted([int(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
+    df_long['Category'] = df_long['Category'].astype(str)
+    categories = sorted([str(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
     n_workers = len(categories)
 
     fit_stats = {}

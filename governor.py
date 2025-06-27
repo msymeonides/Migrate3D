@@ -62,7 +62,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     seg_path = Path(segments_file_name).expanduser().resolve()
     parameters['infile_segments'] = str(seg_path)
 
-    infile_segments = pd.read_csv(parameters['infile_segments'], sep=',')
+    infile_segments = pd.read_csv(parameters['infile_segments'], sep=',', dtype={parent_id: int})
     df_infile = pd.DataFrame(infile_segments)
 
     if z_for is None:
@@ -70,18 +70,19 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     input_data_list = []
     for row in df_infile.index:
-        object_id = df_infile[parent_id][row]
+        object_id = int(df_infile[parent_id][row])
         time_col = df_infile[time_for][row]
         x_col = df_infile[x_for][row]
         y_col = df_infile[y_for][row]
         z_col = df_infile[z_for][row]
         input_data_list.append([object_id, time_col, x_col, y_col, z_col])
 
-    arr_segments = np.array(input_data_list)
+    arr_segments = np.array(input_data_list, dtype=object)
     arr_segments = arr_segments[arr_segments[:, 1].argsort()]
     arr_segments = arr_segments[arr_segments[:, 0].argsort(kind='mergesort')]
+    arr_segments[:, 0] = arr_segments[:, 0].astype(int)
 
-    unique_objects = np.unique(arr_segments[:, 0])
+    unique_objects = np.unique(arr_segments[:, 0]).astype(int)
     tic = tempo.time()
 
     with thread_lock:
@@ -98,16 +99,18 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         original_objects = set(unique_objects)
         arr_segments_filtered = remove_tracks_with_gaps(arr_segments, unique_objects, timelapse_interval)
         filtered_objects = set(np.unique(arr_segments_filtered[:, 0]))
-        dropped_objects = sorted(float(obj) for obj in (original_objects - filtered_objects))
+        dropped_objects = sorted(int(obj) for obj in (original_objects - filtered_objects))
         arr_segments = arr_segments_filtered
         unique_objects = np.unique(arr_segments[:, 0])
         if dropped_objects:
             df_removed = pd.DataFrame({'Object ID': dropped_objects})
+            df_removed['Object ID'] = df_removed['Object ID'].astype(int)
             with thread_lock:
                 messages.append(f"Removed {len(dropped_objects)} object(s) with timepoint gaps "
                                 f"(object IDs have been recorded in 'Removed Objects' sheet in the main output file).")
 
     df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', z_for])
+    df_segments['Object ID'] = df_segments['Object ID'].astype(int)
     toc = tempo.time()
 
     with thread_lock:
@@ -154,11 +157,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         unique_ids = np.unique(arr_segments[:, 0])
         cat_df = pd.DataFrame({
             parameters['object_id_2_col']: unique_ids,
-            parameters['category_col']: 0
+            parameters['category_col']: '0'
         })
-        categories_file_name = 'None'
+        cat_df[parameters['category_col']] = cat_df[parameters['category_col']].astype(str)
         cat_df.columns = ['Object ID', 'Category']
-        arr_cats = np.array([[obj_id, 0] for obj_id in unique_ids])
+        arr_cats = np.array([[int(obj_id), '0'] for obj_id in unique_ids], dtype=object)
+        categories_file_name = 'None'
     else:
         if isinstance(categories_file, str) and categories_file.startswith('data:'):
             categories_file_name = parameters.get('category_file_name', 'Uploaded via base64')
@@ -171,11 +175,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
         cat_df = cat_df[[parameters['object_id_2_col'], parameters['category_col']]]
         for row in cat_df.index:
-            object_id2 = cat_df[object_id_2][row]
+            object_id2 = int(cat_df[object_id_2][row])
             category = cat_df[category_col_name][row]
             category_input_list.append([object_id2, category])
         cat_df.columns = ['Object ID', 'Category']
         arr_cats = np.array(category_input_list)
+        arr_cats[:, 0] = arr_cats[:, 0].astype(int)
 
     settings = [
         ('Segments file', seg_path.name),
@@ -256,6 +261,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             cols = ['Object ID', 'Category'] + [col for col in df_contacts_summary.columns if
                                                 col not in ['Object ID', 'Category']]
             df_contacts_summary = df_contacts_summary[cols]
+            df_contacts_summary['Category'] = df_contacts_summary['Category'].astype(str)
 
         all_objects = df_sum_for_contacts[['Object ID', 'Category']].copy()
         if df_contacts_summary.empty:
@@ -356,8 +362,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     df_all_calcs = df_all_calcs.replace(mapping)
     df_sum = df_sum.replace(mapping)
-    if cat_df.shape[0] > 0:
-        df_sum['Category'] = df_sum['Category'].replace(np.nan, 0)
     if parameters['arrest_limit'] != 0:
         df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 

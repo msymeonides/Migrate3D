@@ -9,7 +9,7 @@ from itertools import combinations
 colors = plotly.colors.qualitative.Plotly
 
 def get_category_color_map(cats_or_objs):
-    cats_or_objs = [int(cat) for cat in cats_or_objs if pd.notnull(cat)]
+    cats_or_objs = [str(cat) for cat in cats_or_objs if pd.notnull(cat)]
     cats_or_objs = sorted(set(cats_or_objs))
     return {cat: colors[i % len(colors)] for i, cat in enumerate(cats_or_objs)}
 
@@ -562,19 +562,16 @@ def pca_figures(df_pca, color_map=None):
 
     return pcafig_1d, pcafig_2d, pcafig_3d
 
-def msd_graphs(df_msd, df_msd_loglogfits, color_map):
+def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
     fit_stats = {}
-    for col in df_msd_loglogfits.columns:
-        try:
-            cat = int(col)
-        except (ValueError, TypeError):
-            cat = col
+    for cat in df_msd_loglogfits_long['Category'].unique():
+        cat_rows = df_msd_loglogfits_long[df_msd_loglogfits_long['Category'] == cat]
         fit_stats[cat] = {
-            'slope': df_msd_loglogfits.at['Slope', col],
-            'ci_low': df_msd_loglogfits.at['Lower 95% CI', col],
-            'ci_high': df_msd_loglogfits.at['Upper 95% CI', col],
-            'r2': df_msd_loglogfits.at['Fit R2', col],
-            'max_tau': df_msd_loglogfits.at['Fit Max. Tau', col]
+            'slope': cat_rows.loc[cat_rows['Statistic'] == 'Slope', 'Value'].values[0],
+            'ci_low': cat_rows.loc[cat_rows['Statistic'] == 'Lower 95% CI', 'Value'].values[0],
+            'ci_high': cat_rows.loc[cat_rows['Statistic'] == 'Upper 95% CI', 'Value'].values[0],
+            'r2': cat_rows.loc[cat_rows['Statistic'] == 'Fit R2', 'Value'].values[0],
+            'max_tau': cat_rows.loc[cat_rows['Statistic'] == 'Fit Max. Tau', 'Value'].values[0]
         }
     id_cols = ['Object ID', 'Category']
     tau_cols = [col for col in df_msd.columns if col not in id_cols]
@@ -586,7 +583,7 @@ def msd_graphs(df_msd, df_msd_loglogfits, color_map):
 
     x_min, x_max = df_long['log_tau'].min(), df_long['log_tau'].max()
     y_min, y_max = df_long['log_msd'].min(), df_long['log_msd'].max()
-    categories = sorted([int(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
+    categories = sorted([str(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
     msd_figure_categories = {}
 
     for category in categories:
@@ -778,6 +775,20 @@ def contacts_figures(df_contacts, df_contpercat, color_map=None):
 
 def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_contacts, df_contpercat,
                      savefile, cat_provided, twodim_mode):
+    for df in [df_sum, df_segments, df_pca, df_msd, df_contacts, df_contpercat]:
+        if df is not None and not df.empty:
+            if 'Object ID' in df.columns:
+                df['Object ID'] = df['Object ID'].astype(int)
+            if 'Category' in df.columns:
+                df['Category'] = df['Category'].astype(str)
+
+    if df_msd_loglogfits is not None:
+        if df_msd_loglogfits.index.name is None:
+            df_msd_loglogfits.index.name = 'Statistic'
+        df_msd_loglogfits_long = df_msd_loglogfits.reset_index().melt(
+            id_vars='Statistic', var_name='Category', value_name='Value'
+        )
+
     categories = df_sum['Category'].unique()
     if len(categories) == 1:
         unique_objects = list(df_segments['Object ID'].unique())
@@ -814,7 +825,7 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
     else:
         pass
 
-    msd_fig_all, msd_category_figs, fit_stats = msd_graphs(df_msd, df_msd_loglogfits, color_map)
+    msd_fig_all, msd_category_figs, fit_stats = msd_graphs(df_msd, df_msd_loglogfits_long, color_map)
     if cat_provided:
         with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
             f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn'))
@@ -824,11 +835,6 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
         single_fig = next(iter(msd_category_figs.values()), msd_fig_all)
         with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
             f.write(single_fig.to_html(full_html=True, include_plotlyjs='cdn'))
-
-    # if df_contacts is not None and not df_contacts.empty:
-    #     df_contacts['Category'] = 0
-    # if df_contpercat is not None and not df_contpercat.empty:
-    #     df_contpercat['Category'] = 0
 
     if df_contacts is not None and df_contpercat is not None and not df_contacts.empty and not df_contpercat.empty:
         contacts_figs = contacts_figures(df_contacts, df_contpercat, color_map=color_map)
