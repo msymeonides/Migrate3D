@@ -47,17 +47,47 @@ def apply_category_filter(df, cat_filter):
 
     return filtered_df
 
-def group_similar_features(df_features):
-    corr_matrix = df_features.corr().abs()
-    feature_groups = []
-    used_features = set()
-    for feature in corr_matrix.columns:
-        if feature not in used_features:
-            correlated_features = set(corr_matrix.index[corr_matrix[feature] > correlation_threshold])
-            feature_groups.append(correlated_features)
-            used_features.update(correlated_features)
+def group_highly_correlated_features(df, threshold=0.9):
+    corr_matrix = df.corr().abs()
+    np.fill_diagonal(corr_matrix.values, 0)
+    pairs = [
+        (i, j, corr_matrix.loc[i, j])
+        for i in corr_matrix.columns
+        for j in corr_matrix.columns
+        if i < j and corr_matrix.loc[i, j] >= threshold
+    ]
+    # Sort pairs by correlation strength, descending
+    pairs.sort(key=lambda x: -x[2])
 
-    return feature_groups
+    assigned = set()
+    groups = []
+    for i, j, corr in pairs:
+        if i not in assigned and j not in assigned:
+            groups.append({i, j})
+            assigned.update([i, j])
+        elif i not in assigned:
+            # Try to add i to an existing group containing j
+            for group in groups:
+                if j in group:
+                    group.add(i)
+                    assigned.add(i)
+                    break
+        elif j not in assigned:
+            for group in groups:
+                if i in group:
+                    group.add(j)
+                    assigned.add(j)
+                    break
+        # If both are already assigned, skip (prevents overlap)
+
+    # Add unassigned features as their own group
+    for col in df.columns:
+        if col not in assigned:
+            groups.append({col})
+
+    # Convert sets to sorted lists for consistency
+    groups = [sorted(list(g)) for g in groups]
+    return groups
 
 def aggregate_correlated_features(df, feature_groups):
     aggregated_data = []
@@ -81,7 +111,7 @@ def preprocess_features(df):
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(log_data)
         scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns)
-        feature_groups = group_similar_features(scaled_df)
+        feature_groups = group_highly_correlated_features(scaled_df, threshold=0.9)
         aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
         return aggregated_features, categories, feature_mapping
     except XGBAbortException:

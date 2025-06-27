@@ -131,12 +131,18 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         messages.append('Calculating migration parameters...')
 
     all_calcs = []
+    all_angle_steps = None
+    all_angle_medians = {}
 
     for obj in unique_objects:
         object_data = arr_segments[arr_segments[:, 0] == obj, :]
         object_id = object_data[0, 0]
-        df_calcs = calculations(object_data, tau, object_id, parameters)
+        df_calcs, angle_steps, angle_medians_dict = calculations(object_data, tau, object_id, parameters)
         all_calcs.append(df_calcs)
+        all_angle_medians[object_id] = angle_medians_dict
+        if all_angle_steps is None:
+            all_angle_steps = angle_steps
+
     df_all_calcs = pd.concat(all_calcs)
     mapping = {0: None}
     toc = tempo.time()
@@ -202,8 +208,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         twodim_mode = True
 
     (df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat,
-     df_msd_loglogfits, df_pca) = summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode,
-                                               parameters, arr_cats, savefile)
+     df_msd_loglogfits, df_pca) = summary_sheet(
+        arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile, all_angle_steps,
+        all_angle_medians
+    )
 
     df_sum['Category'] = df_sum['Category'].astype(str)
     savepath = savefile + '_Results.xlsx'

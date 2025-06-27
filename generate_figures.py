@@ -627,7 +627,7 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
             y=y_fit_line,
             mode='lines',
             line=dict(color='red', width=2, dash='dash'),
-            name=f'Linear fit (tau {10**x_fit_start:.2g}–{stats.get("max_tau", x[-1]):.2g})'
+            name=f'Linear fit (tau {int(round(10**x_fit_start))}–{int(round(stats.get("max_tau", x[-1])))} )',
         ))
         fig.add_annotation(
             xref='paper', yref='paper',
@@ -672,7 +672,7 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
         msd_figure_all.add_trace(go.Scatter(
             x=x_fit, y=y_fit_line,
             mode='lines',
-            name=f'Linear fit (Cat {category}, tau {10**x_fit_start:.2g}–{stats.get("max_tau", x[-1]):.2g})',
+            name=f'Linear fit (Cat {category}, tau {int(round(10**x_fit_start))}–{int(round(stats.get("max_tau", x[-1])))} )',
             line=dict(color=color, width=2, dash='dash'),
             showlegend=True
         ))

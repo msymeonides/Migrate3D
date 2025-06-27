@@ -44,42 +44,27 @@ def calculations(object_data, tau, object_id, parameters):
     dists = np.linalg.norm(diffs, axis=2) * valid
     euclid_array = dists
 
-    angle_steps = np.arange(1, tau + 1, 2)
-    num_tps = len(angle_steps)
-    idx = np.arange(num_rows)
-    step_idx = angle_steps[:, None]
-    valid_idx = idx[None, :] >= step_idx * 2
+    angle_steps = np.arange(1, tau + 1).tolist()
+    angle_medians = []
 
-    curr = coords[None, :, :]
-    back_idx = (idx[None, :] - step_idx).clip(min=0)
-    backs_idx = (idx[None, :] - step_idx * 2).clip(min=0)
-    back = coords[back_idx, :]
-    backs = coords[backs_idx, :]
+    for step in angle_steps:
+        angles = []
+        for t in range(0, num_rows - 2 * int(step)):
+            v1 = coords[t + int(step)] - coords[t]
+            v2 = coords[t + 2 * int(step)] - coords[t + int(step)]
+            norm1 = np.linalg.norm(v1)
+            norm2 = np.linalg.norm(v2)
+            if norm1 > 0 and norm2 > 0:
+                dot = np.clip(np.dot(v1, v2) / (norm1 * norm2), float(-1.0), float(1.0))
+                angle = np.degrees(np.arccos(dot))
+                angles.append(angle)
+        if angles:
+            angle_medians.append(np.max(angles))
+        else:
+            angle_medians.append(np.nan)
 
-    vec0 = curr - back
-    vec1 = curr - backs
-    norm0 = np.linalg.norm(vec0, axis=2)
-    norm1 = np.linalg.norm(vec1, axis=2)
-    valid_norm = (norm0 > 0) & (norm1 > 0) & valid_idx
-
-    vec0_norm = np.zeros_like(vec0)
-    vec1_norm = np.zeros_like(vec1)
-    vec0_norm[valid_norm] = vec0[valid_norm] / norm0[valid_norm, None]
-    vec1_norm[valid_norm] = vec1[valid_norm] / norm1[valid_norm, None]
-
-    dot_val = np.clip(np.sum(vec0_norm * vec1_norm, axis=2), -1.0, 1.0)
-    angle_rad = np.arccos(dot_val)
-    angle_deg = np.degrees(angle_rad)
-    angle_array = np.zeros((num_tps, num_rows))
-    angle_array[valid_norm] = angle_deg[valid_norm]
-
-    arrest_multipliers = np.arange(1, num_tps + 1)[:, None]
-    mask = (norm0 > arrest_limit * arrest_multipliers) & (norm1 > arrest_limit * arrest_multipliers) & valid_norm
-    filtered_angle_array = np.zeros((num_tps, num_rows))
-    filtered_angle_array[mask] = np.abs(angle_deg[mask])
-
-    object_calcs = {
-        'Object ID': object_id,
+    data = {
+        'Object ID': [object_id] * num_rows,
         'Time': object_data[:, 1],
         'Instantaneous Displacement': instantaneous_displacement,
         'Total Displacement': total_displacement,
@@ -89,15 +74,14 @@ def calculations(object_data, tau, object_id, parameters):
         'Instantaneous Velocity Filtered': instantaneous_velocity_filtered,
         'Instantaneous Acceleration Filtered': instantaneous_acceleration_filtered,
     }
-    new_cols = {}
-    for i, arr in enumerate(euclid_array, 1):
-        new_cols[f'Euclid {i} TP'] = arr
-    for i, arr in enumerate(angle_array, 3):
-        new_cols[f'Angle {3 + 2 * i} TP'] = arr
-    for i, arr in enumerate(filtered_angle_array, 3):
-        new_cols[f'Filtered Angle {3 + 2 * i} TP'] = arr
 
-    df_object_calcs = pd.DataFrame({**object_calcs, **new_cols})
+    for i, step in enumerate(angle_steps):
+        col = np.full(num_rows, np.nan)
+        if num_rows > step:
+            col[step:] = euclid_array[step - 1, step:]
+        data[f'Euclid {step}'] = col
+    df_object_calcs = pd.DataFrame(data)
 
-    return df_object_calcs
+    angle_medians_dict = {int(step): angle_medians[i] for i, step in enumerate(angle_steps)}
 
+    return df_object_calcs, angle_steps, angle_medians_dict

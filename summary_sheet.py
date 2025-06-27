@@ -147,7 +147,8 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
 
     return obj, summary_tuple, single_euclid, single_angle
 
-def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile):
+def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile,
+                  angle_steps, all_angle_medians):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
 
@@ -157,12 +158,16 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         'Velocity Mean', 'Velocity Median', 'Velocity Standard Deviation',
         'Acceleration Mean', 'Acceleration Median', 'Acceleration Standard Deviation',
         'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Absolute Acceleration Standard Deviation',
-        'Overall Angle Median', 'Overall Euclidean Median', 'Category'
+        'Median Max. Angle', 'Overall Euclidean Median', 'Category'
     ]
     if parameters['arrest_limit'] != 0:
-        summary_columns.insert(17, 'Arrest Coefficient')
+        idx = summary_columns.index('Median Max. Angle')
+        summary_columns.insert(idx, 'Arrest Coefficient')
+    idx = summary_columns.index('Category')
+    summary_columns.insert(idx, 'Maximum MSD')
     if not twodim_mode:
-        summary_columns.insert(-1, 'Convex Hull Volume')
+        idx = summary_columns.index('Overall Euclidean Median') + 1
+        summary_columns.insert(idx, 'Convex Hull Volume')
 
     n_summary_cols = len(summary_columns)
 
@@ -171,7 +176,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     tic = tempo.time()
     tau = parameters["tau"]
     df_msd = msd_parallel_main(arr_segments, unique_objects, tau)
-
     toc = tempo.time()
     with thread_lock:
         msg = " MSD calculations done in {:.0f} seconds.".format(int(round((toc - tic), 1)))
@@ -226,13 +230,18 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     df_single_euclids_df = df_single_euclids_df.sort_values(by="Object ID").reset_index(drop=True)
     df_single_euclids_df["Object ID"] = df_single_euclids_df["Object ID"].astype(int)
 
-    df_single_angles_df = pd.DataFrame.from_dict(single_angle_dict, orient='index')
+    df_single_angles_df = pd.DataFrame.from_dict(all_angle_medians, orient='index')
     df_single_angles_df.reset_index(inplace=True)
-    n_angle_cols = df_single_angles_df.shape[1] - 1
-    angle_intervals = [3 + 2 * i for i in range(n_angle_cols)]
-    df_single_angles_df.columns = ["Object ID"] + angle_intervals
+    df_single_angles_df.columns = ["Object ID"] + list(angle_steps)
     df_single_angles_df = df_single_angles_df.sort_values(by="Object ID").reset_index(drop=True)
     df_single_angles_df["Object ID"] = df_single_angles_df["Object ID"].astype(int)
+
+    df_single_euclids_df['Overall Euclidean Median'] = df_single_euclids_df.drop('Object ID', axis=1).median(axis=1)
+    df_single_angles_df['Median Max. Angle'] = df_single_angles_df.drop('Object ID', axis=1).max(axis=1)
+
+    df_sum = df_sum.drop(['Overall Euclidean Median', 'Median Max. Angle'], axis=1, errors='ignore')
+    df_sum = df_sum.merge(df_single_euclids_df[['Object ID', 'Overall Euclidean Median']], on='Object ID', how='left')
+    df_sum = df_sum.merge(df_single_angles_df[['Object ID', 'Median Max. Angle']], on='Object ID', how='left')
 
     existing_cols = [col for col in range(1, tau + 1) if col in df_msd.columns]
     df_msd = df_msd[["Object ID"] + existing_cols]
@@ -284,11 +293,11 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
 
     df_sum["Maximum MSD"] = df_sum["Object ID"].map(max_msd_dict)
 
-    cols = list(df_sum.columns)
-    final_msd_idx = cols.index("Maximum MSD")
-    cat_idx = cols.index("Category")
-    cols.insert(cat_idx, cols.pop(final_msd_idx))
-    df_sum = df_sum[cols]
+    for col in summary_columns:
+        if col not in df_sum.columns:
+            df_sum[col] = np.nan
+    df_sum = df_sum[summary_columns]
+
     df_msd_loglogfits = msd_loglogfits(df_msd)
     df_msd_loglogfits.columns = df_msd_loglogfits.columns.astype(str)
 
