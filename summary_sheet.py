@@ -1,219 +1,332 @@
+import concurrent.futures
 import numpy as np
 import pandas as pd
+import re
 import statistics
 import time as tempo
 import warnings
+from pandas.errors import PerformanceWarning
 from scipy.spatial import ConvexHull
-from overall_medians import overall_medians
-from PCA import pca
 
+from msd_parallel import main as msd_parallel_main
+from msd_loglogfits import main as msd_loglogfits
+from machine_learning import ml_analysis, XGBAbortException
+from shared_state import messages, thread_lock, complete_progress_step
 
-def summary_sheet(arr_segments, df_all_calcs, unique_cells, tau_msd, parameters, track_df, savefile):
+def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, parameters, summary_columns):
+    object_data = arr_segments[arr_segments[:, 0] == obj, :]
+    x_val, y_val, z_val = object_data[:, 2], object_data[:, 3], object_data[:, 4]
 
-    tic = tempo.time()
-    print('Running Summary Sheet...')
+    category = ''
+    if arr_tracks.shape[0] > 0:
+        obj_id_val = int(object_data[0, 0])
+        arr_tracks_obj_ids = arr_tracks[:, 0].astype(int)
+        matching_index = np.where(arr_tracks_obj_ids == obj_id_val)[0]
+        if matching_index.size > 0:
+            category = arr_tracks[matching_index[0], 1]
+
+    convex_coords = np.column_stack((x_val, y_val, z_val))
+    convex_hull_volume = 0
+    if convex_coords.shape[0] >= 4:
+        try:
+            convex_hull_volume = ConvexHull(convex_coords).volume
+        except Exception:
+            convex_hull_volume = 0
+
+    path_lengths = df_obj_calcs['Path Length'].values
+    max_path = path_lengths.max() if path_lengths.size > 0 else 0
+    times = df_obj_calcs['Time'].values
+    time_interval = abs(times[1] - times[0]) if times.size > 1 else 0
+    duration_val = times.size * time_interval
+
+    total_disp = df_obj_calcs['Total Displacement'].values
+    final_euclid = total_disp[-1] if total_disp.size > 0 else 0
+    max_euclid = total_disp.max() if total_disp.size > 0 else 0
+    straightness = (final_euclid / max_path if max_path != 0 else 0) * np.sqrt(duration_val)
+    displacement_ratio = final_euclid / max_euclid if max_euclid != 0 else 0
+    convex = convex_hull_volume / np.sqrt(duration_val) if duration_val != 0 else 0
+    outreach_ratio = max_euclid / max_path if max_path != 0 else 0
+
+    velocity = df_obj_calcs['Instantaneous Velocity'].values[1:] if 'Instantaneous Velocity' in df_obj_calcs else np.array([])
+    valid_velocity = velocity[(~np.isnan(velocity)) & (velocity != 0)] if velocity.size > 0 else np.array([])
+    velocity_mean = valid_velocity.mean() if valid_velocity.size > 0 else 0
+    velocity_median = np.median(valid_velocity) if valid_velocity.size > 0 else 0
+    velocity_stdev = valid_velocity.std(ddof=1) if valid_velocity.size > 1 else 0
+
+    acceleration = df_obj_calcs['Instantaneous Acceleration'].values if 'Instantaneous Acceleration' in df_obj_calcs else np.array([])
+    if acceleration.size >= parameters['moving']:
+        valid_acc = acceleration[(~np.isnan(acceleration)) & (acceleration != 0)]
+        acceleration_mean = valid_acc.mean() if valid_acc.size > 0 else 0
+        acceleration_median = np.median(valid_acc) if valid_acc.size > 0 else 0
+        acceleration_stdev = valid_acc.std(ddof=1) if valid_acc.size > 1 else 0
+        accel_abs = np.abs(valid_acc)
+        accel_abs_mean = accel_abs.mean() if accel_abs.size > 0 else 0
+        accel_abs_median = np.median(accel_abs) if accel_abs.size > 0 else 0
+        accel_abs_stdev = accel_abs.std(ddof=1) if accel_abs.size > 1 else 0
+    else:
+        acceleration_mean = acceleration_median = acceleration_stdev = 0
+        accel_abs_mean = accel_abs_median = accel_abs_stdev = 0
+
+    acceleration_filtered = df_obj_calcs['Instantaneous Acceleration Filtered'].values if 'Instantaneous Acceleration Filtered' in df_obj_calcs else np.array([])
+    valid_acc_f = acceleration_filtered[(~np.isnan(acceleration_filtered)) & (acceleration_filtered != 0)] if acceleration_filtered.size > 0 else np.array([])
+    if valid_acc_f.size >= parameters['moving']:
+        velocity_filtered = df_obj_calcs['Instantaneous Velocity Filtered'].values if 'Instantaneous Velocity Filtered' in df_obj_calcs else np.array([])
+        valid_velocity_f = velocity_filtered[(~np.isnan(velocity_filtered)) & (velocity_filtered != 0)] if velocity_filtered.size > 0 else np.array([])
+        velocity_filtered_mean = valid_velocity_f.mean() if valid_velocity_f.size > 0 else 0
+        velocity_filtered_median = np.median(valid_velocity_f) if valid_velocity_f.size > 0 else 0
+        velocity_filtered_stdev = valid_velocity_f.std(ddof=1) if valid_velocity_f.size > 1 else 0
+        acceleration_filtered_mean = valid_acc_f.mean()
+        acceleration_filtered_median = np.median(valid_acc_f)
+        acceleration_filtered_stdev = valid_acc_f.std(ddof=1) if valid_acc_f.size > 1 else 0
+        accel_filtered_abs = np.abs(valid_acc_f)
+        accel_filtered_abs_mean = accel_filtered_abs.mean() if accel_filtered_abs.size > 0 else 0
+        accel_filtered_abs_median = np.median(accel_filtered_abs) if accel_filtered_abs.size > 0 else 0
+        accel_filtered_abs_stdev = accel_filtered_abs.std(ddof=1) if accel_filtered_abs.size > 1 else 0
+    else:
+        velocity_filtered_mean = velocity_filtered_median = velocity_filtered_stdev = 0
+        acceleration_filtered_mean = acceleration_filtered_median = acceleration_filtered_stdev = 0
+        accel_filtered_abs_mean = accel_filtered_abs_median = accel_filtered_abs_stdev = 0
+
+    if parameters['arrest_limit'] == 0:
+        velocity_mean_out = velocity_mean
+        velocity_median_out = velocity_median
+        velocity_stdev_out = velocity_stdev
+        acceleration_mean_out = acceleration_mean
+        acceleration_median_out = acceleration_median
+        acceleration_stdev_out = acceleration_stdev
+        abs_acc_mean_out = accel_abs_mean
+        abs_acc_median_out = accel_abs_median
+        abs_acc_stdev_out = accel_abs_stdev
+    else:
+        velocity_mean_out = velocity_filtered_mean
+        velocity_median_out = velocity_filtered_median
+        velocity_stdev_out = velocity_filtered_stdev
+        acceleration_mean_out = acceleration_filtered_mean
+        acceleration_median_out = acceleration_filtered_median
+        acceleration_stdev_out = acceleration_filtered_stdev
+        abs_acc_mean_out = accel_filtered_abs_mean
+        abs_acc_median_out = accel_filtered_abs_median
+        abs_acc_stdev_out = accel_filtered_abs_stdev
+
+    inst_disp = df_obj_calcs['Instantaneous Displacement'].values if 'Instantaneous Displacement' in df_obj_calcs else np.array([])
+    valid_disp = inst_disp[(~np.isnan(inst_disp)) & (inst_disp != 0)] if inst_disp.size > 0 else np.array([])
+    time_under = valid_disp[valid_disp < parameters['arrest_limit']] if valid_disp.size > 0 else np.array([])
+    arrest_coefficient = (time_under.size * time_interval) / duration_val if duration_val != 0 else 0
+
+    cols_euclidean = [col for col in df_obj_calcs.columns if 'Euclid' in col]
+
+    list_of_euclidean_medians = []
+    single_euclidean = {}
+    for col in cols_euclidean:
+        tau_num = int(re.search(r"\d+", str(col)).group())
+        euclidean_median = df_obj_calcs.loc[df_obj_calcs['Object ID'] == obj, col]
+        euclidean_median = [x for x in euclidean_median if pd.notnull(x) and x != 0]
+        if len(euclidean_median) > 2:
+            single_euclidean[tau_num] = statistics.median(euclidean_median)
+        else:
+            single_euclidean[tau_num] = np.nan
+
+    if len(list_of_euclidean_medians) >= 1:
+        overall_euclidean_median = statistics.median(list_of_euclidean_medians)
+    else:
+        overall_euclidean_median = None
+
+    summary_dict = {
+        'Object ID': obj,
+        'Duration': duration_val,
+        'Final Euclidean': final_euclid,
+        'Max Euclidean': max_euclid,
+        'Path Length': max_path,
+        'Straightness': straightness,
+        'Displacement Ratio': displacement_ratio,
+        'Outreach Ratio': outreach_ratio,
+        'Velocity Mean': velocity_mean_out,
+        'Velocity Median': velocity_median_out,
+        'Velocity Standard Deviation': velocity_stdev_out,
+        'Acceleration Mean': acceleration_mean_out,
+        'Acceleration Median': acceleration_median_out,
+        'Acceleration Standard Deviation': acceleration_stdev_out,
+        'Absolute Acceleration Mean': abs_acc_mean_out,
+        'Absolute Acceleration Median': abs_acc_median_out,
+        'Absolute Acceleration Standard Deviation': abs_acc_stdev_out,
+        'Arrest Coefficient': arrest_coefficient,
+        'Overall Euclidean Median': overall_euclidean_median,
+        'Convex Hull Volume': convex,
+        'Category': category
+    }
+
+    summary_tuple = tuple(summary_dict.get(col, None) for col in summary_columns)
+
+    return obj, summary_tuple, single_euclidean
+
+def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile,
+                  angle_steps, all_angle_medians):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
+    warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
+
+    summary_columns = [
+        'Object ID', 'Duration', 'Final Euclidean', 'Max Euclidean', 'Path Length',
+        'Straightness', 'Displacement Ratio', 'Outreach Ratio',
+        'Velocity Mean', 'Velocity Median', 'Velocity Standard Deviation',
+        'Acceleration Mean', 'Acceleration Median', 'Acceleration Standard Deviation',
+        'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Absolute Acceleration Standard Deviation',
+        'Median Max. Angle', 'Overall Euclidean Median', 'Category'
+    ]
+    if parameters['arrest_limit'] != 0:
+        idx = summary_columns.index('Median Max. Angle')
+        summary_columns.insert(idx, 'Arrest Coefficient')
+    idx = summary_columns.index('Category')
+    summary_columns.insert(idx, 'Maximum MSD')
+    if not twodim_mode:
+        idx = summary_columns.index('Overall Euclidean Median') + 1
+        summary_columns.insert(idx, 'Convex Hull Volume')
+
+    n_summary_cols = len(summary_columns)
+
+    with thread_lock:
+        messages.append("Calculating mean square displacements...")
+    tic = tempo.time()
+    tau = parameters["tau"]
+    df_msd = msd_parallel_main(arr_segments, unique_objects, tau)
+    toc = tempo.time()
+    with thread_lock:
+        msg = " MSD calculations done in {:.0f} seconds.".format(int(round((toc - tic), 1)))
+        messages[-1] += msg
+        messages.append("")
+    complete_progress_step("MSD")
+
+    df_all_calcs_by_obj = dict(tuple(df_all_calcs.groupby("Object ID")))
+
+    with thread_lock:
+        messages.append("Calculating summary statistics...")
+    tic = tempo.time()
+
     sum_ = {}
     single_euclid_dict = {}
-    single_angle_dict = {}
-    msd_dict = {}
-    time_interval = False
-    category = 0
 
-    # Calculate summary statistics for each cell
-    for cell in unique_cells:
-        cell_data = arr_segments[arr_segments[:, 0] == cell, :]
-        x_val = cell_data[:, 2]
-        y_val = cell_data[:, 3]
-        z_val = cell_data[:, 4]
-        vals_msd = []
-        # For every coordinate (if index is less than time differential, pass) calculate msd
-        for t_diff in range(1, tau_msd + 1):
-            displacement_list = []
-            for index, coord in enumerate(x_val):
-                if index < t_diff:
-                    pass
-                else:
-                    x_diff = (x_val[index] - x_val[index - t_diff])**2
-                    y_diff = (y_val[index] - y_val[index - t_diff])**2
-                    z_diff = (z_val[index] - z_val[index - t_diff])**2
-                    displacement = np.sqrt(x_diff + y_diff + z_diff)
-                    squared_displacement = displacement**2
-                    if squared_displacement <= 0:
-                        pass
-                    else:
-                        displacement_list.append(squared_displacement)
-            msd = np.mean(displacement_list)
-            vals_msd.append(msd)
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {
+            executor.submit(
+                compute_object_summary, obj, arr_segments,
+                df_all_calcs_by_obj.get(obj, pd.DataFrame()), arr_cats, parameters, summary_columns): obj
+            for obj in unique_objects}
+        for future in concurrent.futures.as_completed(futures):
+            obj = futures[future]
+            try:
+                obj, summary_tuple, single_euclid = future.result()
+                sum_[obj] = summary_tuple
+                single_euclid_dict[obj] = single_euclid
+            except Exception:
+                sum_[obj] = (obj,) + (np.nan,) * (n_summary_cols - 1)
+                single_euclid_dict[obj] = {}
 
-            if t_diff == tau_msd:  # last tau value adds headers
-                msd_dict[cell] = vals_msd
+    for obj in unique_objects:
+        if obj not in sum_:
+            sum_[obj] = (obj,) + (np.nan,) * (n_summary_cols - 1)
+            single_euclid_dict[obj] = {}
 
-        # If categories DataFrame was given, add category to cell statistics
-        if track_df.shape[0] > 0:
-            category = int(track_df.loc[track_df[parameters['parent_id2']] == cell, parameters['category_col']].iloc[0])
+    summary_rows = [sum_[obj] for obj in unique_objects]
+    df_sum = pd.DataFrame(summary_rows, columns=summary_columns)
+    df_sum["Object ID"] = df_sum["Object ID"].astype(int)
 
-        # Calculate convex hull volume
-        convex_coords = np.array([x_val, y_val, z_val]).transpose()
-        if convex_coords.shape[0] < 4 or parameters['two_dim']:
-            convex_hull_volume = 0
-        else:
-            convex_hull = ConvexHull(convex_coords)
-            convex_hull_volume = convex_hull.volume
-
-        # Calculate summary statistics
-        max_path = df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Path Length'].max()
-        final_euclid = list(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Total Displacement'])
-        max_euclid = df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Total Displacement'].max()
-        duration = list(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Time'])
-        time_interval = np.abs(duration[1] - duration[0])
-        duration = len(duration) * time_interval
-        final_euclid = final_euclid[-1]
-        straightness = final_euclid / max_path
-        tc_straightness = straightness * np.sqrt(duration)
-        displacement_ratio = final_euclid / max_euclid
-        tc_convex = convex_hull_volume / np.sqrt(duration)
-        outreach_ratio = max_euclid / max_path
-        velocity = list(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Instantaneous Velocity'])
-        velocity_filtered = list(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Instantaneous Velocity Filtered'])
-        velocity_filtered = [x for x in velocity_filtered if np.isnan(x) == False and x != 0]
-        velocity.pop(0)
-        velocity_mean = statistics.mean(velocity)
-        velocity_median = statistics.median(velocity)
-        acceleration = np.array(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Instantaneous Acceleration'])
-        if len(acceleration) >= parameters['moving']:
-            acceleration = [x for x in acceleration if np.isnan(x) == False and x != 0]
-            acceleration_mean = statistics.mean(acceleration)
-            acceleration_median = statistics.median(acceleration)
-            accel_abs = np.absolute(acceleration)  # convert acceleration values to absolute
-            accel_abs_mean = statistics.mean(accel_abs)
-            accel_abs_median = statistics.median(accel_abs)
-        elif len(acceleration) < parameters['moving']:
-            acceleration_mean = 0
-            acceleration_median = 0
-            accel_abs_mean = 0
-            accel_abs_median = 0
-
-        acceleration_filtered = np.array(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Instantaneous Acceleration Filtered'])
-        acceleration_filtered = [x for x in acceleration_filtered if np.isnan(x) == False and x != 0]
-        if len(acceleration_filtered) >= parameters['moving']:
-            velocity_filtered_mean = statistics.mean(velocity_filtered)
-            velocity_filtered_median = statistics.median(velocity_filtered)
-            acceleration_filtered_mean = statistics.mean(acceleration_filtered)
-            acceleration_filtered_median = statistics.median(acceleration_filtered)
-            acceleration_filtered_stdev = statistics.stdev(acceleration_filtered)
-            accel_filtered_abs = np.absolute(acceleration_filtered)  # convert acceleration filtered values to absolute
-            accel_filtered_abs_mean = statistics.mean(accel_filtered_abs)
-            accel_filtered_abs_median = statistics.median(accel_filtered_abs)
-            accel_filtered_abs_stdev = statistics.stdev(accel_filtered_abs)
-            velocity_filtered_stdev = statistics.stdev(velocity_filtered)
-        else:
-            velocity_filtered_mean = 0
-            velocity_filtered_median = 0
-            acceleration_filtered_mean = 0
-            acceleration_filtered_median = 0
-            acceleration_filtered_stdev = 0
-            accel_filtered_abs_mean = 0
-            accel_filtered_abs_median = 0
-            accel_filtered_abs_stdev = 0
-            velocity_filtered_stdev = 0
-
-        cols_angles = list(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell,
-                           df_all_calcs.columns[df_all_calcs.columns.str.contains('Filtered Angle')]])
-        cols_euclidean = list(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell,
-                              df_all_calcs.columns[df_all_calcs.columns.str.contains('Euclid')]])
-
-        # Calculate overall medians
-        overall_euclidean_median, overall_angle_median, single_euclid, single_angle = overall_medians(cell, df_all_calcs,
-                                                                                                      cols_angles,
-                                                                                                      cols_euclidean)
-
-        single_euclid_dict[cell] = single_euclid
-        single_angle_dict[cell] = single_angle
-
-        instantaneous_displacement = list(df_all_calcs.loc[df_all_calcs['Cell ID'] == cell, 'Instantaneous Displacement'])
-        instantaneous_displacement = [x for x in instantaneous_displacement if not (np.isnan(x) or x == 0)]
-        time_under = [x for x in instantaneous_displacement if
-                      x < parameters['arrest_limit']]
-        arrest_coefficient = (len(time_under) * time_interval) / duration
-        # Combine summary statistics for each cell and add to dictionary
-        sum_[cell] = cell, duration, final_euclid, max_euclid, max_path, straightness, tc_straightness, \
-                     displacement_ratio, outreach_ratio, velocity_mean, velocity_median, velocity_filtered_mean, \
-                     velocity_filtered_median, velocity_filtered_stdev, acceleration_mean, acceleration_median, \
-                     accel_abs_mean, accel_abs_median, acceleration_filtered_mean, acceleration_filtered_median, \
-                     acceleration_filtered_stdev, accel_filtered_abs_mean, accel_filtered_abs_median, \
-                     accel_filtered_abs_stdev, arrest_coefficient, overall_angle_median, overall_euclidean_median, \
-                     convex_hull_volume, tc_convex, category
-
-    # Create DataFrames of results
-    df_sum = pd.DataFrame.from_dict(sum_, orient='index')
-    df_msd = pd.DataFrame.from_dict(msd_dict, orient='index')
-    df_msd.columns = ['MSD ' + str(x) for x in range(1, tau_msd + 1)]
-    cells = list(single_euclid_dict.keys())
     df_single_euclids = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
-    df_single_euclids.columns = cols_euclidean
-    df_single_angles = pd.DataFrame.from_dict(single_angle_dict, orient='index')
-    df_single_angles.columns = [f"Filtered Angle {(x * 2) - 1}" for x in range(2, df_single_angles.shape[1] + 2)]
-    df_single = pd.concat([df_single_euclids, df_single_angles], axis=1)
-    df_single.insert(0, 'Cell ID', cells)
-    msd_means_stdev_all = {}
-    msd_means_stdev_per_cat = {}
+    df_single_euclids.reset_index(inplace=True)
+    cols_euclidean_numbers = [
+        int(re.search(r"\d+", str(col)).group()) if re.search(r"\d+", str(col)) else col
+        for col in df_single_euclids.columns[1:]]
+    df_single_euclids.columns = ["Object ID"] + cols_euclidean_numbers
+    df_single_euclids = df_single_euclids.sort_values(by="Object ID").reset_index(drop=True)
+    df_single_euclids["Object ID"] = df_single_euclids["Object ID"].astype(int)
+    df_single_euclids = df_single_euclids.dropna(axis=1, how='all')
 
-    df_msd_sum_cat = pd.DataFrame()
-    for msd_col in df_msd.columns:
-        column_vals = list(df_msd.loc[:, str(msd_col)])
-        if len(column_vals) < 2:
-            pass
-        else:
-            msd_means_stdev_all[msd_col] = [np.nanmean(column_vals), np.nanstd(column_vals)]
+    df_single_angles = pd.DataFrame.from_dict(all_angle_medians, orient='index')
+    df_single_angles.reset_index(inplace=True)
+    df_single_angles.columns = ["Object ID"] + list(angle_steps)
+    df_single_angles = df_single_angles.sort_values(by="Object ID").reset_index(drop=True)
+    df_single_angles["Object ID"] = df_single_angles["Object ID"].astype(int)
+    df_single_angles = df_single_angles.dropna(axis=1, how='all')
 
-    if parameters['infile_tracks']:
-        category_tracks = list(track_df.loc[:, parameters['category_col']])
-        df_msd["Cell Type"] = category_tracks
-        all_cat = list(df_msd.loc[:, 'Cell Type'])
+    overall_euclidean_median = df_single_euclids.drop("Object ID", axis=1).median(axis=1, skipna=True)
+    df_sum["Overall Euclidean Median"] = df_sum["Object ID"].map(
+        pd.Series(overall_euclidean_median.values, index=df_single_euclids['Object ID']))
 
-        # Get unique categories
-        unique_cat = []
-        for x in all_cat:
-            if x not in unique_cat:
-                unique_cat.append(x)
-            else:
-                pass
+    angle_step_cols = [col for col in df_single_angles.columns if isinstance(col, int)]
+    median_max_angle = df_single_angles[angle_step_cols].max(axis=1)
 
-        # Calculate MSD per category
-        for cat in unique_cat:
-            for msd in df_msd.columns[:-1]:
-                per_cat = list(df_msd.loc[df_msd['Cell Type'] == cat, str(msd)])
-                msd_means_stdev_per_cat[f"Cell Category {cat}, {str(msd)}"] = [np.nanmean(per_cat), np.nanstd(per_cat)]
+    df_sum['Median Max. Angle'] = df_sum['Object ID'].map(
+        pd.Series(median_max_angle.values, index=df_single_angles['Object ID']))
+    df_msd = df_msd.dropna(axis=1, how='all')
+    existing_cols = [col for col in range(1, tau + 1) if col in df_msd.columns]
+    df_msd = df_msd[["Object ID"] + existing_cols]
+    df_msd["Object ID"] = df_msd["Object ID"].astype(int)
 
-    df_msd.insert(0, 'Cell ID', cells)
-    df_msd_sum_all = pd.DataFrame.from_dict(msd_means_stdev_all)
-    df_msd_sum_all.index = ["Average", 'Standard Deviation']
-    df_msd_sum_all = df_msd_sum_all.transpose()
-    if track_df.shape[0] > 0:
-        df_msd_sum_cat = pd.DataFrame.from_dict(msd_means_stdev_per_cat)
-        df_msd_sum_cat.index = ['Average', 'Standard Deviation']
-        df_msd_sum_cat = df_msd_sum_cat.transpose()
-
-    df_sum.columns = ['Cell ID', 'Duration', 'Final Euclidean', 'Max Euclidean',
-                      'Path Length', 'Straightness', 'Time Corrected Straightness',
-                      'Displacement Ratio', 'Outreach Ratio', 'Velocity Mean',
-                      'Velocity Median', 'Velocity filtered Mean', 'Velocity Filtered Median',
-                      'Velocity Filtered Standard Deviation', 'Acceleration Mean', 'Acceleration Median',
-                      'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Acceleration Filtered Mean',
-                      'Acceleration Filtered Median', 'Acceleration Filtered Standard Deviation',
-                      'Absolute Acceleration Filtered Mean', 'Absolute Acceleration Filtered Median',
-                      'Absolute Acceleration Filtered Standard Deviation',
-                      'Arrest Coefficient', 'Overall Angle Median', 'Overall Euclidean Median',
-                      'Convex Hull Volume', 'Time Corrected Convex Hull Volume', 'Cell Type']
-    toc = tempo.time()
-    print('...Summary sheet done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
-
-    # If categories file is supplied, run PCA
-    if track_df.shape[0] > 0:
-        print('Cell category input required for PCA found! Running PCA...')
-        pca(df_sum, parameters, savefile)
+    msd_vals = df_msd.set_index("Object ID")[existing_cols]
+    category_tracks = arr_cats[:, 1]
+    if len(category_tracks) == len(msd_vals):
+        msd_vals["Category"] = category_tracks
+        grouped = msd_vals.groupby("Category")
+        df_msd_avg_per_cat = grouped.mean().T
+        df_msd_std_per_cat = grouped.std().T
+        df_msd_avg_per_cat.index.name = "MSD"
     else:
-        print('Cell category input required for PCA not found. Skipping PCA.')
+        df_msd_avg_per_cat = pd.DataFrame()
+        df_msd_std_per_cat = pd.DataFrame()
 
-    return df_sum, time_interval, df_single, df_msd, df_msd_sum_all, df_msd_sum_cat
+    msd_vals_summary = msd_vals.drop(columns="Category", errors="ignore")
+    df_msd_sum_all = pd.DataFrame({
+        "Avg": msd_vals_summary.mean(),
+        "StDev": msd_vals_summary.std()})
+    df_msd_sum_all.index.name = "MSD"
+
+    category_df = pd.DataFrame(arr_cats, columns=["Object ID", "Category"])
+    if not category_df.empty:
+        category_df["Object ID"] = category_df["Object ID"].astype(int)
+        category_df["Category"] = category_df["Category"].astype(str)
+        def insert_category(df):
+            merged = pd.merge(df, category_df, on="Object ID", how="left")
+            merged["Category"] = merged["Category"].astype(str)
+            cols = merged.columns.tolist()
+            cols.insert(1, cols.pop(cols.index("Category")))
+            return merged[cols]
+        df_single_euclids = insert_category(df_single_euclids)
+        df_single_angles = insert_category(df_single_angles)
+        df_msd = insert_category(df_msd)
+        df_msd["Category"] = df_msd["Category"].astype(str)
+
+    max_msd_dict = {}
+    msd_cols = [col for col in df_msd.columns if isinstance(col, int)]
+    for obj in unique_objects:
+        obj_val = float(obj)
+        msd_row = df_msd[df_msd["Object ID"] == obj_val]
+        if not msd_row.empty and msd_cols:
+            max_msd = msd_row[msd_cols].max(axis=1, skipna=True).values[0]
+        else:
+            max_msd = np.nan
+        max_msd_dict[obj_val] = max_msd
+
+    df_sum["Maximum MSD"] = df_sum["Object ID"].map(max_msd_dict)
+
+    for col in summary_columns:
+        if col not in df_sum.columns:
+            df_sum[col] = np.nan
+    df_sum = df_sum[summary_columns]
+
+    df_msd_loglogfits = msd_loglogfits(df_msd)
+    df_msd_loglogfits.columns = df_msd_loglogfits.columns.astype(str)
+
+    toc = tempo.time()
+    with thread_lock:
+        msg = " Summary statistics done in {:.0f} seconds.".format(int(round((toc - tic), 1)))
+        messages[-1] += msg
+        messages.append("")
+    complete_progress_step("Summary")
+
+    df_pca = None
+    if parameters.get("infile_categories", False):
+        try:
+            df_pca = ml_analysis(df_sum.copy(), parameters, savefile)
+        except XGBAbortException:
+            pass
+
+    return (df_sum, df_single_euclids, df_single_angles, df_msd, df_msd_sum_all,
+            df_msd_avg_per_cat, df_msd_std_per_cat, df_msd_loglogfits, df_pca)
