@@ -79,7 +79,7 @@ def calculations(object_data, tau, object_id, parameters):
                     angles[t] = np.degrees(np.arccos(dot))
         data[f'Turning Angle {step}'] = angles
         if np.any(~np.isnan(angles)):
-            angle_medians.append(np.nanmax(angles))
+            angle_medians.append(np.nanmedian(angles))
         else:
             angle_medians.append(np.nan)
 

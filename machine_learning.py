@@ -32,12 +32,19 @@ def apply_category_filter(df, cat_filter):
     if cat_filter is None:
         return df
     df = df.copy()
-    df['Category'] = df['Category'].astype(str)
-    filter_vals = [str(x) for x in cat_filter]
+    if pd.api.types.is_numeric_dtype(df['Category']):
+        try:
+            filter_vals = [int(x) for x in cat_filter]
+        except ValueError:
+            filter_vals = cat_filter
+        df.loc[:, 'Category'] = df['Category'].astype(int)
+    else:
+        filter_vals = [str(x) for x in cat_filter]
     filtered_df = df[df['Category'].isin(filter_vals)]
     if filtered_df.empty:
         with thread_lock:
             messages.append('No data available for the selected categories.')
+
     return filtered_df
 
 def group_highly_correlated_features(df, threshold=0.9):
@@ -49,6 +56,7 @@ def group_highly_correlated_features(df, threshold=0.9):
         for j in corr_matrix.columns
         if i < j and corr_matrix.loc[i, j] >= threshold
     ]
+    # Sort pairs by correlation strength, descending
     pairs.sort(key=lambda x: -x[2])
 
     assigned = set()
@@ -58,6 +66,7 @@ def group_highly_correlated_features(df, threshold=0.9):
             groups.append({i, j})
             assigned.update([i, j])
         elif i not in assigned:
+            # Try to add i to an existing group containing j
             for group in groups:
                 if j in group:
                     group.add(i)
@@ -69,11 +78,14 @@ def group_highly_correlated_features(df, threshold=0.9):
                     group.add(j)
                     assigned.add(j)
                     break
+        # If both are already assigned, skip (prevents overlap)
 
+    # Add unassigned features as their own group
     for col in df.columns:
         if col not in assigned:
             groups.append({col})
 
+    # Convert sets to sorted lists for consistency
     groups = [sorted(list(g)) for g in groups]
     return groups
 
@@ -170,19 +182,22 @@ def train_and_evaluate(x_train, y_train, x_test, y_test, params):
     except Exception:
         error()
 
-def perform_xgboost_comparisons(data, category_col, aggregated_features, writer, parameters, label_mapping):
+def perform_xgboost_comparisons(data, category_col, aggregated_features, writer, parameters):
+    if category_col not in data.columns:
+        raise KeyError(f"'{category_col}' column is missing from the DataFrame.")
     data = apply_category_filter(data, parameters.get('pca_filter'))
     aggregated_features = aggregated_features.reindex(data.index).dropna()
     labels = data[category_col]
-    unique_categories = labels.unique()
+    unique_categories = data[category_col].unique()
     category_pairs = list(itertools.combinations(unique_categories, 2))
     for cat1, cat2 in category_pairs:
         pair_indices = labels.isin([cat1, cat2])
         pair_data = aggregated_features.reindex(labels.index)[pair_indices]
         pair_labels = labels[pair_indices]
-        le = LabelEncoder()
-        pair_labels_encoded = le.fit_transform(pair_labels)
-        pair_label_mapping = dict(enumerate(le.classes_))
+        if pair_data.empty or pair_labels.empty:
+            continue
+        label_encoder = LabelEncoder()
+        pair_labels_encoded = label_encoder.fit_transform(pair_labels)
         x_train, x_test, y_train, y_test = train_test_split(
             pair_data, pair_labels_encoded, test_size=0.3, random_state=42
         )
@@ -195,14 +210,7 @@ def perform_xgboost_comparisons(data, category_col, aggregated_features, writer,
         }).sort_values(by='Importance', ascending=False)
         feature_importance.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Features', index=False)
         report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
-        decoded_report = {}
-        for key, val in report.items():
-            try:
-                decoded_key = pair_label_mapping[int(key)]
-            except Exception:
-                decoded_key = key
-            decoded_report[decoded_key] = val
-        report_df = pd.DataFrame(decoded_report).transpose()
+        report_df = pd.DataFrame(report).transpose()
         report_df.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Report')
 
 def xgboost(df_sum, parameters, output_file, features, categories, feature_mapping):
@@ -211,39 +219,28 @@ def xgboost(df_sum, parameters, output_file, features, categories, feature_mappi
     try:
         save_xgb = output_file + '_XGB.xlsx'
         category_col = 'Category'
-        label_encoder = LabelEncoder()
-        y_encoded = label_encoder.fit_transform(categories)
-        label_mapping = dict(enumerate(label_encoder.classes_))
-        x_train, x_test, y_train, y_test = train_test_split(features, y_encoded, test_size=0.4, random_state=42)
-        best_params = optimize_hyperparameters(x_train, y_train)
-        _, model = train_and_evaluate(x_train, y_train, x_test, y_test, best_params)
-        y_pred = model.predict(x_test)
-        feature_importance = pd.DataFrame({
-            'Features': [", ".join(map(str, feature_mapping[col])) for col in features.columns],
-            'Importance': model.feature_importances_
-        }).sort_values(by='Importance', ascending=False)
         with pd.ExcelWriter(save_xgb, engine='xlsxwriter') as writer:
+            label_encoder = LabelEncoder()
+            y_encoded = label_encoder.fit_transform(categories)
+            x_train, x_test, y_train, y_test = train_test_split(features, y_encoded, test_size=0.4, random_state=42)
+            best_params = optimize_hyperparameters(x_train, y_train)
+            _, model = train_and_evaluate(x_train, y_train, x_test, y_test, best_params)
+            y_pred = model.predict(x_test)
+            feature_importance = pd.DataFrame({
+                'Features': [",".join(map(str, feature_mapping[col])) for col in features.columns],
+                'Importance': model.feature_importances_
+            }).sort_values(by='Importance', ascending=False)
             feature_importance.to_excel(writer, sheet_name='Dataset Features', index=False)
             if y_test is not None and y_pred is not None:
                 report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
-                decoded_report = {}
-                for key, val in report.items():
-                    try:
-                        decoded_key = label_mapping[int(key)]
-                    except Exception:
-                        decoded_key = key
-                    decoded_report[decoded_key] = val
-                report_df = pd.DataFrame(decoded_report).transpose()
+                report_df = pd.DataFrame(report).transpose()
                 report_df.to_excel(writer, sheet_name='Dataset Report')
-            df_sum_numeric = df_sum.copy()
-            df_sum_numeric['Category'] = label_encoder.transform(df_sum_numeric['Category'].astype(str))
             perform_xgboost_comparisons(
-                data=df_sum_numeric,
+                data=df_sum,
                 category_col=category_col,
                 aggregated_features=features,
                 writer=writer,
-                parameters=parameters,
-                label_mapping=label_mapping
+                parameters=parameters
             )
         with thread_lock:
             msg = " XGBoost done."
@@ -280,10 +277,9 @@ def pca(df_selected, df_processed, categories, savefile):
     df_expl_var = pd.DataFrame(pca_model.explained_variance_ratio_)
     df_expl_var.columns = ["Explained variance ratio"]
     df_expl_var.index = ['PC1', 'PC2', 'PC3', 'PC4']
-    df_pcscores = pd.DataFrame(pcscores, columns=['PC1', 'PC2', 'PC3', 'PC4'])
-    df_pcscores['Object ID'] = df_selected['Object ID'].values
-    df_pcscores['Category'] = categories.values
-    df_pcscores = df_pcscores[['Object ID', 'Category', 'PC1', 'PC2', 'PC3', 'PC4']]
+    df_pcscores = pd.DataFrame(pcscores)
+    df_pcscores.columns = ['PC1', 'PC2', 'PC3', 'PC4']
+    df_pcscores["Category"] = categories.values
     df_features = pd.DataFrame(pca_model.components_)
     df_features.columns = df_processed.columns
     df_features.index = ['PC1', 'PC2', 'PC3', 'PC4']
@@ -356,7 +352,6 @@ def ml_analysis(df_sum, parameters, savefile):
     with thread_lock:
         messages.append("Starting machine learning analysis...")
     tic = time.time()
-    df_sum['Category'] = df_sum['Category'].astype(str)
     exclude_features = []
     if parameters['arrest_limit'] == 0 and 'Arrest Coefficient' in df_sum.columns:
         exclude_features.append('Arrest Coefficient')
@@ -365,7 +360,9 @@ def ml_analysis(df_sum, parameters, savefile):
             (df_sum['Convex Hull Volume'] == 0).all()):
         exclude_features.append('Convex Hull Volume')
     df_sum = df_sum.drop(columns=exclude_features, errors='ignore')
-    class_counts = df_sum['Category'].value_counts()
+    df_selected = apply_category_filter(df_sum, parameters.get('pca_filter'))
+
+    class_counts = df_selected['Category'].value_counts()
     to_drop = class_counts[class_counts < min_required].index.tolist()
     if to_drop:
         for group in to_drop:
@@ -373,12 +370,11 @@ def ml_analysis(df_sum, parameters, savefile):
                 messages.append(
                     f"Excluded category '{group}'. Only {class_counts[group]} objects (requires at least {min_required})."
                 )
-        df_sum = df_sum[~df_sum['Category'].isin(to_drop)]
-        if df_sum.empty:
+        df_selected = df_selected[~df_selected['Category'].isin(to_drop)]
+        if df_selected.empty:
             complete_progress_step("PCA")
             error()
 
-    df_selected = apply_category_filter(df_sum, parameters.get('pca_filter'))
     df_selected = df_selected.dropna()
     df_selected = df_selected.drop(
         labels=['Duration', 'Path Length'], axis=1)
