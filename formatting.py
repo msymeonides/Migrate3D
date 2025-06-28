@@ -1,105 +1,75 @@
 import numpy as np
 
-
 def multi_tracking(arr_segments):
     instances = {}
-
-    # Get unique combinations of cell ID and timepoint
     for row in arr_segments:
-        cell_id, timepoint, x, y, z = row
-        key = (cell_id, timepoint)
-
-        # Initialize with first set of coordinates for cell ID and timepoint and begin count
+        object_id, timepoint, x, y, z = row
+        key = (object_id, timepoint)
         if key not in instances:
             instances[key] = [x, y, z, 1]
-
-        # If cell ID and timepoint have already been spotted, add the coordinates and increment count
         else:
             instances[key][0] += x
             instances[key][1] += y
             instances[key][2] += z
             instances[key][3] += 1
 
-    # Calculate averages for multitracked timepoints and append add to result data
     result_data = []
     for key, value in instances.items():
-        cell_id, timepoint = key
+        object_id, timepoint = key
         x_avg = value[0] / value[3]
         y_avg = value[1] / value[3]
         z_avg = value[2] / value[3]
-        result_data.append([cell_id, timepoint, x_avg, y_avg, z_avg])
+        result_data.append([object_id, timepoint, x_avg, y_avg, z_avg])
 
-    # Save and return averaged data
     arr_segments_multi = np.array(result_data)
     return arr_segments_multi
 
-
-def adjust_2D(arr_segments):
-    # Set Z coordinate to zero for all timepoints
-    arr_segments[:, 4] = 0
-    return arr_segments
-
-
-def interpolate_lazy(arr_segments, timelapse_interval, unique_cells):
-    cell_data_dict = {}
-
-    # Create dictionary of cell IDs with list of timepoint, x, y, and z as values
+def interpolate_lazy(arr_segments, timelapse_interval):
+    object_data_dict = {}
     for row in arr_segments:
-        cell_id, timepoint, x, y, z = row
-        if cell_id not in cell_data_dict:
-            cell_data_dict[cell_id] = []
-        cell_data_dict[cell_id].append([timepoint, x, y, z])
+        object_id, timepoint, x, y, z = row
+        if object_id not in object_data_dict:
+            object_data_dict[object_id] = []
+        object_data_dict[object_id].append([float(timepoint), float(x), float(y), float(z)])
 
     interpolated_data = []
-
-    # For each unique cell, sort sets of timepoint and coordinates by timepoint
-    for cell_id in cell_data_dict.keys():
-        timepoint_data = cell_data_dict[cell_id]
-        timepoint_data.sort()
-
-        # Calculate index of final timepoint
-        final_tp_index = int(((timepoint_data[-1][0]) / timelapse_interval) - (timepoint_data[1][0] / timelapse_interval) + 2)
-
-        # If index of final timepoint is equal to number of timepoints for that cell, no points need to be interpolated
-        if final_tp_index == len(timepoint_data):
-            for i in range(len(timepoint_data)):
-                timepoint, x, y, z = timepoint_data[i]
-                interpolated_data.append([cell_id, timepoint, x, y, z])
-
-        else:
-            for i in range(len(timepoint_data)):
-                timepoint, x, y, z = timepoint_data[i]
-
-                # Add each existing timepoint to interpolated data
-                if [cell_id, timepoint, x, y, z] not in interpolated_data:
-                    interpolated_data.append([cell_id, timepoint, x, y, z])
-
-                # Skip first timepoint
-                elif i == 1:
-                    pass
-
-                else:
-                    # Calculate previous timepoint and different between timepoints
-                    timepoint_prev, x_prev, y_prev, z_prev = timepoint_data[i - 1]
-                    time_diff = timepoint - timepoint_prev
-
-                    # If difference in timepoints is greater than timelapse interval given, interpolate missing data
-                    if time_diff != timelapse_interval and time_diff != 0:
-                        x_interp = ((x - x_prev) / 2) + x_prev
-                        y_interp = ((y - y_prev) / 2) + y_prev
-                        z_interp = ((z - z_prev) / 2) + z_prev
-                        time_interp = timepoint_prev + timelapse_interval
-
-                        # Stop interpolating at final timepoint
-                        if time_interp > timepoint_data[-1][0]:
-                            pass
-
-                        # Add interpolated timepoint to data and sort
-                        else:
-                            interpolated_data.append([cell_id, time_interp, x_interp, y_interp, z_interp])
-                            timepoint_data.append((time_interp, x_interp, y_interp, z_interp))
-                            timepoint_data.sort()
-
-    # Create and return array of interpolated data
+    for object_id in object_data_dict:
+        timepoint_data = sorted(object_data_dict[object_id], key=lambda r: r[0])
+        times = [tp[0] for tp in timepoint_data]
+        min_time, max_time = min(times), max(times)
+        expected_times = np.arange(min_time, max_time + timelapse_interval/2, timelapse_interval)
+        time_to_row = {tp[0]: tp for tp in timepoint_data}
+        for t in expected_times:
+            if any(abs(t - existing_t) < 1e-9 for existing_t in times):
+                closest_t = min(times, key=lambda x: abs(x - t))
+                interpolated_data.append([object_id, t, *time_to_row[closest_t][1:]])
+            else:
+                prev_times = [tp for tp in times if tp < t]
+                next_times = [tp for tp in times if tp > t]
+                if not prev_times or not next_times:
+                    continue
+                t0 = max(prev_times)
+                t1 = min(next_times)
+                x0, y0, z0 = time_to_row[t0][1:]
+                x1, y1, z1 = time_to_row[t1][1:]
+                alpha = (t - t0) / (t1 - t0)
+                x = x0 + alpha * (x1 - x0)
+                y = y0 + alpha * (y1 - y0)
+                z = z0 + alpha * (z1 - z0)
+                interpolated_data.append([object_id, t, x, y, z])
     arr_segments_interpolated = np.array(interpolated_data)
     return arr_segments_interpolated
+
+def remove_tracks_with_gaps(arr_segments, unique_objects, timelapse_interval):
+    filtered_segments = []
+    for obj in unique_objects:
+        obj_rows = arr_segments[arr_segments[:, 0] == obj]
+        times = np.array(obj_rows[:, 1], dtype=float)
+        times_sorted = np.sort(times)
+        diffs = np.diff(times_sorted)
+        if np.allclose(diffs, timelapse_interval):
+            filtered_segments.append(obj_rows)
+    if filtered_segments:
+        return np.vstack(filtered_segments)
+    else:
+        return np.empty((0, arr_segments.shape[1]))

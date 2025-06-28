@@ -1,39 +1,38 @@
 # README
 
-Last Edited: January 15, 2024 (Migrate3D version 1.5)
+Last Edited: June 27, 2025 (Migrate3D version 2.0)
 
 # Migrate3D
 
-Migrate3D is a Python program that streamlines and automates cell migration analysis, returning meaningful metrics that provide insight into cell migration to help the user evaluate biological questions. This program does not handle imaging data, only previously generated tracking data, so it is not meant to replace functions already performed very well by programs such as Imaris, Vision4D, CellProfiler, TrackMate etc. Migrate3D’s purpose is to take the tracks produced from any of these programs and quickly and easily process the data to generate various metrics of interest in a transparent and tunable fashion.
+Migrate3D is a Python program that streamlines and automates biological object motion (e.g. cell migration) analysis, returning meaningful metrics that help the user evaluate biological questions. This program does not handle imaging data, only previously generated tracking data, so it is not meant to replace functions already performed very well by programs such as Imaris, Arivis Pro, CellProfiler, TrackMate etc. Migrate3D’s purpose is to take the tracks produced from any of these programs and quickly and easily process the data to generate various metrics of interest in a transparent and tunable fashion, all done through an intuitive graphical user interface (GUI). In addition to motion analysis, Migrate3D can also detect and quantify object-object interactions, such as contacts or attractions.
 
-These results can be used in downstream analyses to compare different conditions, different cell subpopulations, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity and arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement across selectable time lags, relative turn angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
+These results can be used in downstream analyses to compare different conditions, categories of objects, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity and arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement, turning angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
 
-Migrate3D requires a .csv file input that contains data from cell movements through two- or three-dimensional space. Each row should include a unique cell identifier (ID), time, and X/Y/Z coordinates. While complete/uninterrupted tracks are ideal, the program can interpolate missing data if needed, as long as the different segments of the track belong to the same unique cell ID. A key limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
+Migrate3D requires a .csv file input that contains data from object movements through two- or three-dimensional space. After execution, the program will return a set of .xlsx files, each with several worksheets, containing track-by-track summary metrics, mean squared displacement analysis, etc.
 
-Migrate3D has formatting functionality. If selected by the user, the program can account for multi-tracked timepoints, interpolate missing data points, and adjust for two-dimensional data. **Formatting functions do not alter original datafile** and the reformatted data will be part of the results output.
+If the user imports a Categories .csv file (simply listing the category for each object ID), two additional analyses will be performed: dimensionality reduction using principal component analysis (PCA), and decision tree analysis using XGBoost. There is no guarantee that these will be performed in a statistically-sound way, that is left up to the user to ensure, but the libraries used to perform these analyses are widely used.
 
-After execution, the program will return a .xlsx file with several worksheets, containing stepwise calculations done for each timepoint of each track, track-by-track summary metrics, and mean squared displacement analysis (both track-by-track and summary statistics). If the option is enabled, a separate .xlsx file will be returned with analysis of cell-cell contacts. Additionally, another .xlsx output will be generated if Principal Component Analysis (PCA) is performed. This will include detailed outputs, which can be further enhanced by providing categorization of the data as .csv file (simply listing the category for each cell ID). If a categorization file is given, the PCA results will be returned in their own .xlsx file. There is no guarantee that the PCA is performed in a statistically-sound way, that is left up to the user to ensure, but the library used to perform the PCA (sklearn) is widely used.
+A limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
 
-Migrate3D was created with ease of use in mind, to that end a graphical user interface (GUI) was implemented. This includes easy file open dialogs, user-adjustable parameters, and a progress bar. We welcome feedback and intend to support the program as resources allow.
-
-Migrate3D was developed by Matthew Kinahan, Emily Mynar, and Menelaos Symeonides at the University of Vermont, funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali).
+Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan, and Jonah Harris at the University of Vermont, funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali). We welcome feedback and intend to continue developing and supporting the program as resources allow.
 
 ## Input Files
 
-Place your .csv input dataset in the Migrate3D folder you create during installation to make it easier to find in the GUI.
+A Segments input file is required to run Migrate3D. Optionally, a Categories input file can be provided to perform additional analyses. In both cases, the program will "guess" which columns contain which data, but if this fails, you can select them through a drop-down box in the GUI. 
 
 ### Segments
-Segments input files should be a .csv with cell ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input.
+
+The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the number of timepoints elapsed. If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation formatting option is used. The IDs of dropped objects will be recorded in the results output. If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
 
 ### Categories
-Categories input files should be a .csv with cell ID and cell category (No categories file is necessary to run the program).
-Please ensure that column headers are in the first row of the .csv file input. 
+
+The Categories input file should be a .csv with object ID and object category. Please ensure that column headers are in the first row of the .csv file input. If no Categories file is imported, a default category ("0") will be assigned to every object, and the PCA and XGBoost analyses (and anything else done per-category) will not be performed. 
 
 ## Installing and Running Migrate3D
 
 These installation instructions involve the use of the command line. If you are not familiar with using the command line, just copy each line and paste into your prompt/terminal and press Enter. Once the process is complete, you will be able to paste in the next line and press Enter, and so on. If "sudo" is used, you will need to enter your account password to proceed.
 
-### On Windows (tested in Windows 11)
+### On Windows (tested in Windows 10 and 11)
 
 1. First, download and install the latest version of Miniconda3 for Windows using all the default options during installation: https://docs.conda.io/projects/miniconda/en/latest/index.html
 
@@ -77,6 +76,8 @@ Remember to open the Anaconda Prompt and activate the Migrate3D venv next time y
 conda activate Migrate3D
 python %USERPROFILE%\Migrate3D\Migrate3D-main\main.py
 ```
+In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
+
 Note that the output result spreadsheets will be saved under C:\Users\your_username\Migrate3D\Migrate3D-main\.
 
 ### On macOS (tested in Catalina 10.15.7):
@@ -123,116 +124,186 @@ Remember to first activate the Migrate3D venv next time you want to run Migrate3
 conda activate Migrate3D
 python3 ~/Migrate3D/Migrate3D-main/main.py
 ```
+In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
+
 Note that the output result spreadsheets will be saved under /Users/your_username/Migrate3D/Migrate3D-main/.
 
-### On Linux (tested in Ubuntu 23.10):
+### On Linux (tested in Linux Mint 22.1):
 
-1. Python 3 is already installed in Ubuntu. Begin by checking the installed version of python:
+It is easiest to do everything in the terminal, so begin by opening a Terminal window.
+
+1. Python 3 is already installed in Linux Mint. Begin by checking the installed version of python:
 ```powershell
 python3 --version
 ```
-On a fresh installation of Ubuntu 23.10, that should return "Python 3.11.6".
+On a fresh installation of Linux Mint 22.1, that should return "Python 3.12.3". Python versions 3.13.x and 3.11.x will also work, but earlier versions may not. If you have an earlier version of python, you may need to update it before proceeding.
 
-2. If you have not previously configured a python virtual environment (venv) or installed python packages using pip, you will first need to get set up to do that:
-Open a Terminal window and enter the following commands:
+2. If you have not previously configured a python virtual environment (venv) or installed python packages using pip, you will first need to get set up to do that (if you are already set up for that, skip to step 4).
+
+First, update your system:
 ```powershell
 sudo apt update
 sudo apt upgrade
-sudo apt-get install python3-pip python3-venv
 ```
 
-3. Make a new directory (e.g. named "Migrate3D") and create a venv in it:
+Then install some necessary packages (this is all one line, paste the whole thing in one go):
 ```powershell
-mkdir ~/Migrate3D
-python3 -m venv ~/Migrate3D
+sudo apt install build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+libsqlite3-dev curl git libncursesw5-dev xz-utils tk-dev libxml2-dev \
+libxmlsec1-dev libffi-dev liblzma-dev python3.12-venv
 ```
 
-4. Download Migrate3D from GitHub and extract the ZIP file into the /home/Migrate3D directory you just created:
+Now we need to configure PyEnv to be able to set up a venv:
+```powershell
+curl https://pyenv.run | bash
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.profile
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.profile
+echo 'eval "$(pyenv init -)"' >> ~/.profile
+```
+Now log out of your Linux account and log back in, then open a new Terminal window. You are now able to create python venvs.
+
+4. Create a dedicated venv:
+```powershell
+pyenv virtualenv migrate3d
+```
+
+5. Download Migrate3D from GitHub and extract the ZIP file into the /home/Migrate3D directory you just created:
 ```powershell
 wget https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
-unzip Migrate3D-main.zip -d ~/Migrate3D
+unzip Migrate3D-main.zip -d ~/.pyenv/versions/migrate3d
 ```
 
-5. You now need to activate the venv:
+6. You now need to activate the venv:
 ```powershell
-source ~/Migrate3D/bin/activate
+pyenv activate migrate3d
 ```
 Note: if you would like to exit the venv, i.e. return to your normal Linux terminal, simply enter:
 ```powershell
-deactivate
+pyenv deactivate migrate3d
 ```
 
-6. Install the required dependencies:
+7. Install the required dependencies:
 ```powershell
-pip install -r ~/Migrate3D/Migrate3D-main/requirements.txt
+cd ~/.pyenv/versions/migrate3d/Migrate3D-main
+pip install -r requirements.txt
 ```
 Note that these packages are only installed within the venv you just created and will not affect your python installation.
 
-7. Finally, to run Migrate3D:
+8. Finally, to run Migrate3D:
 ```powershell
-python3 ~/Migrate3D/Migrate3D-main/main.py
+cd ~/.pyenv/versions/migrate3d/Migrate3D-main
+python3 main.py
 ```
 Remember to first activate the Migrate3D venv next time you want to run Migrate3D before executing the main script:
 ```powershell
-source ~/Migrate3D/bin/activate
-python3 ~/Migrate3D/Migrate3D-main/main.py
+pyenv activate migrate3d
+cd ~/.pyenv/versions/migrate3d/Migrate3D-main
+python3 main.py
 ```
-Note that the output result spreadsheets will be saved under ~/Migrate3D/Migrate3D-main/.
+In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
+
+Note that the output result spreadsheets will be saved under ~/.pyenv/versions/migrate3d/Migrate3D-main/. In the file explorer app, you will need to enable "Show hidden files" to see this folder.
 
 
-## Tunable Variables
+## Tunable Parameters
 
-### Timelapse Interval: (Default value = 4) 
+Note that you can change the default values of these variables at the top of the main.py script, or you can set the values for the current run in the GUI.
 
-The time between each observation (assumes the same units as the values in the Time column of your dataset).
+### Arrest Limit:
 
-### Arrest Limit: (Default value = 3)
+A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed on that timepoint, however if they pass this threshold, they will survive the filter and be reported again in their own column (in the Calculations sheet in verbose mode).
 
-This parameter is a floating point variable that is used to determine whether a cell has "really" moved between two timepoints. This parameter is compared to each cell’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the cell as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed, however if they pass this threshold, they will survive the filter and be reported again in their own column. Set this value by examining tracks of dead cells (which should only "wobble" and never actively move) and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements.
+Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature, and all Velocity/Acceleration metrics will be reported unfiltered (also, the Arrest Coefficient metric will be omitted entirely).
 
-### Minimum Timepoints Moving: (Default value = 4)
+### Minimum Timepoints:
 
-Minimum Timepoints Moving is an integer parameter that denotes the amount of moving timepoints a cell must exceed to be considered for certain summary statistics, namely those relating to Velocity and Acceleration that are denoted as "Filtered". Tracks which fail to meet this threshold will show no value for those summary statistics, but will still have their own row on the Summary Sheet with values everywhere but those Filtered Velocity/Acceleration columns. To turn this filter off, set this value to 0.
+When a non-zero Arrest Limit has been set, this additional filter is an integer parameter that denotes the total number of 'moving' timepoints an object must exceed to be considered for certain summary statistics, namely those relating to Velocity and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary statistics, but will still have their own row on the Summary Sheet with values everywhere but those Velocity/Acceleration columns.
 
-### Maximum Contact Length: (Default value = 12)
+This filter is most useful when the dataset contains objects which are not really moving and are outliers in that sense that could still be useful to have in order to provide context for the rest of the dataset. That said, your dataset may already have been filtered down to only objects you are interested in and they are by definition all moving, in which case you can turn this filter off by setting its value to 0.
 
-Maximum contact length is a floating-point variable that represents the largest distance between two cells at a given timepoint that would be considered a contact. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
+### Contact Length:
 
-### Arrested/Dead: (Default value = 0.95)
+This parameter only applies to the Contacts module (see 'Formatting Options' below). This is a floating-point variable that represents the largest distance between two objects at a given timepoint that will be considered a contact. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
 
-A floating point variable between 0 and 1 that uses each cell's Arrest Coefficient to filter out "dead" cells during the contact detection process. If a cell's Arrest Coefficient is below this user specified input, it will be considered a live cell, and will be included in contacts between live cells. To turn this filter off, set this value to 1.
+To set this value, manually find "true" contacts in your dataset, i.e. pairs of objects that you would consider to be in contact with each other at a given timepoint, measure the magnitude of the vector (that would be a 3D vector for a 3D dataset) between those pairs of centroids, and set the parameter to slightly above the largest of these values.
 
-### Tau Value (MSD): (Default value = 50)
+### Maximum Arrest Coefficient:
 
-This Tau value is an integer variable that controls the number of Mean Squared Displacement intervals to calculate. It is recommended to set this value to a number equal to the total number of timepoints that the majority of the tracks in the dataset have.
+This parameter only applies to the Contacts module (see 'Formatting Options' below). This is a floating point variable between 0 and 1 that uses each object's measured Arrest Coefficient to filter out "dead" objects during the contact detection process. This filter is useful if you are only interested in contacts between objects that are both actively moving at some point during the dataset (e.g. live, motile cells).
 
-### Tau Value (Euclidean & Angle): (Default value = 25)
+To turn this filter off, set this value to 1. Note that if Arrest Limit has been set to 0, this parameter will have no effect as all objects will have an Arrest Coefficient of 0 and will survive the "minus dead" filter.
 
-This Tau value is an integer variable that controls the range of intervals that Euclidean Distance and Turning Angle calculations will be performed on. It is recommended to set this value to half the number of the MSD Tau Value.
 
-### Output Filename: (Default = Migrate3D_Results)
+## Autodetected Parameters
+
+### Timelapse Interval:
+
+The time between each observation (assumes the same units as the values in the Time column of your dataset). This is automatically detected from the input dataset, but can be manually overridden in the GUI if necessary.
+
+### Maximum Tau Value:
+
+An integer variable that controls the number of intervals to calculate for Mean Squared Displacement, Euclidean Distances, and Turning Angles. This is autodetected from the input dataset by calculating the maximum number of timepoints in all object IDs, but can be manually overridden in the GUI if necessary.
+
+
+## Formatting options
+
+All of these formatting options are optional, but depending on the nature of your dataset, may be necessary to ensure accurate results.
+
+### Multitracking:
+
+If an object ID is represented by multiple segments at a given timepoint, they will be spatially averaged into one segment.
+
+### Interpolation:
+
+If an object's track has any gaps (i.e. is internally missing one or more timepoints), the coordinates of that timepoint will be inferred by simple linear interpolation and inserted. This will happen with any number of missing timepoints, but this will never add interpolated timepoints before the first or after the last available timepoints for that object ID, i.e. it will not extend the track in either direction but will fill in internal gaps. If this option is not selected, any object with gaps will be dropped from the analysis entirely. The IDs of dropped objects will be recorded in the results output.
+
+### Verbose:
+
+Includes the results of all intermediate step-wise calculations in the output .xlsx file. This will result in a larger file size, but allows the user to see how each metric was calculated for each object at each timepoint.
+
+### Contacts:
+
+Identifies contacts between objects at each timepoint, and returns a separate results .xlsx file containing each detected contact as well as a summary of contact history for each object (excluding objects that had no detected contacts), as well as per-category summary statistics.
+
+### Filter out contacts between objects resulting from cell division?
+
+See the Contacts (minus dividing) section below for more details. Enable this if you have identified daughter cells resulting from cell divisions and have manually set those objects' IDs to be consecutive.
+
+### Attractors:
+
+Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event. An additional set of tunable parameters for this function is available in the GUI. The default values for these parameters can be changed at the top of the main.py script.
+
+### Generate Figures:
+
+The following plotly figures are generated:
+
+- **Summary Stats**: Per-category interactive violin plots for each of the summary statistics, plus the MSD log-log linear fit slope (error bars = 95% confidence interval) for each category.
+- **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
+- **Tracks**: An interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks (either raw or origin-zeroed), color-coded by category (if provided). Two versions of this are saved, one which allows filtering by category and one which allows filtering by object. Categories or objects can be toggled on/off by clicking them on the legend.
+- **PCA**: A set of plots of the four PCs will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
+- **MSD**: A log-log plot of the mean per-category MSD vs. τ, each with its linear fit line (dashed), and, for each category, a plot of all per-track MSD values vs. τ (gray traces), with the mean of all tracks overlaid (dark trace) plus the linear fit (dashed red line). The slope and 95% confidence interval of the linear fit for that category mean is also shown on each figure.
+
+The color used for each category will be consistent across all of these figures. For all violin plots, an inner box plot is overlayed showing the median and upper and lower quartiles. All outputs are in .html format which can be viewed in a browser (note that for large 3D datasets, the tracks figure HTML file can take a while to load once opened, and may be poorly responsive) and all figures can be downloaded in PNG format.
+
+### Subset Categories:
+
+In case your dataset includes several categories of objects, but you are only interested in including certain ones for PCA and XGBoost, enter those here separated by spaces. The entire rest of the analysis will still be done on every object ID in the dataset.
+
+### Output Filename:
 
 Enter a name for your output file. The .xlsx extension will be added on, do not include it in this field. Note that any output file with the same name present in the program folder will be overwritten. Additionally, if a file with the same name is currently open in Excel, this will cause Migrate3D to crash.
 
-### Column Header Names (Segments file):
-
-Enter the name of each column in your input dataset to help Migrate3D find your Cell ID, Time, and X/Y/Z coordinate data correctly. Any additional columns will simply be ignored. You can just open your .csv, copy each header name, and paste it in the appropriate field. If your output always looks the same, you can edit the script to change the default entries. NOTE: Please ensure that column headers are in the first row of the .csv file input.
-
-### Column Header Names (Categories file):
-
-The last two column header name fields are only relevant if you are including a Categories file which associates each Cell ID with a cell category (which can be any string or value), which factors into the MSD Summary Sheet and the PCA calculations. If no Categories file is provided, these fields are ignored.
-
-### PCA Category Limit:
-
-In case your dataset includes several categories of cells, but you are only interested in including certain ones for PCA, enter those here separated by commas. The entire rest of the analysis will still be done on every cell ID in the dataset, only PCA will be subsetted. You may want to do this to exclude known dead cell tracks which would contaminate the PCA with nonsense values. E.g. if you have your cells categorized as 1 through 5, and dead cells are category 1, you can exclude them by entering the following in this field: 2,3,4,5
 
 ## Calculations
 
-Step-wise calculations generated for each cell iteratively over each time point.
+Step-wise calculations generated for each object iteratively over each time point.
 
 ### Instantaneous Displacement:
 
-The square root of the sum of the squared difference between X, Y, and Z coordinates over one timepoint difference. Used to show how much a cell has moved over one time interval.
+The square root of the sum of the squared difference between X, Y, and Z coordinates over one timepoint difference. Used to show how much an object has moved over one time interval.
 
 $$
 Instantaneous \ Displacement =\sqrt{(x_{t} - x_{t-1})^{2} + (y_{t} - y_{t-1})^{2} +(z_{t} - z_{t-1})^{2}}
@@ -240,7 +311,7 @@ $$
 
 ### Total Displacement:
 
-The square root of the sum of the squared difference between X, Y, and Z coordinates of each timepoint compared to timepoint 0 for that cell. Measures how far a cell has moved from its origin at any given timepoint.
+The square root of the sum of the squared difference between X, Y, and Z coordinates of each timepoint compared to timepoint 0 for that object. Measures how far an object has moved from its origin at any given timepoint.
 
 $$
 Total \ Displacement =\sqrt{(x_{t} - x_{t[0]})^{2} + (y_{t} - y_{t[0]})^{2} + (z_{t} - z_{t[0]})^{2}}
@@ -248,7 +319,7 @@ $$
 
 ### Instantaneous Velocity:
 
-A cell’s velocity when considering just one time interval. 
+An object’s velocity when considering just one time interval. 
 
 $$
 Instantaneous \ Velocity =  \frac{Instantaneous \ Displacement \ _{t}}{Time \ lag} 
@@ -256,7 +327,7 @@ $$
 
 ### Instantaneous Acceleration:
 
-A cell’s acceleration when considering just two consecutive time intervals.
+An object’s acceleration when considering just two consecutive time intervals.
 
 $$
 Instantaneous \ Acceleration=\frac {Instantaneous \ Velocity \ _{t} \ - \ Instantaneous \ Velocity \ _{t-1}}{Time \ lag} 
@@ -264,47 +335,54 @@ $$
 
 ### Euclidean Distance:
 
-The Euclidean distance over n timepoints. Finds the length of a line segment between a cell’s coordinates over n time points.
+The Euclidean distance over a number of timepoints. Finds the length of a line segment between a pair of timepoints for an object, for all values of time up to τ (which is set in an autodetected/tunable parameter).
 
 $$
 Euclidean \ Distance =\sqrt{(x_{t} - x_{t-n})^{2} + (y_{t} - y_{t-n})^{2} + (z_{t} - z_{t-n})^{2}}
 $$
 
+The results of this analysis are saved in a worksheet named "Euclidean medians", with each row being an object ID and each column being a number of timepoints.
+
 ### Turning Angle:
 
-The angle, θ, between two consecutive vectors, a and b, with a given timepoint interval, is calculated by first finding the dot product of the two vectors:
+Calculation of the angle, θ, between two consecutive vectors, a and b, where each vector spans tau (τ) timepoints. For each value of τ, a moving window of vectors is evaluated from the beginning to the end of the track. This is repeated for all values of τ up to the tunable Maximum Tau Value parameter (see above) or up to half of the maximum number of available timepoints, whichever is smaller.
+
+First, we find the dot product of the two vectors:
 
 $$
 a \cdot b = a_xb_x + a_yb_y + a_zb_z
 $$
 
-Then using Pythagoras's theorem to calculate the magnitudes of each vector, e.g.:
+Then we use Pythagoras's theorem to calculate the magnitude of each vector, e.g.:
 
 $$
 |a| = \sqrt{{a_x}^2 + {a_y}^2 + {a_z}^2}
 $$
 
-And finally, to find the angle θ, taking the inverse cosine of the dot product divided by the two vector magnitudes:
+And finally, to find the angle θ, we take the inverse cosine of the dot product divided by the two vector magnitudes:
 
 $$
 \theta = \cos^{-1} (\frac{a \cdot b}{ |a||b| })
 $$
 
+The maximum angle calculated for each value of τ per object is stored in a worksheet named "Turning Angles", with each row being an object ID, each column being a value of τ, and the values within being the maximum angle detected for that value of τ.
+
+
 ## Summary Sheet
 
-Summary statistics using the data acquired over a cell’s entire tracking period.
+Summary statistics using the data acquired over an object’s entire tracking period.
 
 ### Final Euclidean Distance:
 
-The total displacement from a cell’s final recorded time point to the cell’s origin.
+The total displacement from a track’s final recorded time point to the track’s origin.
 
 ### Maximum Euclidean Distance:
 
-The furthest from its origin that a cell was recorded during its entire history.
+The furthest from its origin that an object was observed during its entire history.
 
 ### Path Length:
 
-The total path length of a cell. It is the sum of all instantaneous displacements. Shows how far a cell has traveled along its path. 
+The total path length of a track. It is the sum of all instantaneous displacements. Shows how far an object has traveled along its path. 
 
 $$
 Path \ Length = \sum_{}^{} Instantaneous \ Displacement
@@ -312,15 +390,13 @@ $$
 
 ### Straightness:
 
-The Final Euclidean Distance divided by the Path Length. A metric of how confined a cell is, or how straight its track was.
+The Final Euclidean Distance divided by the Path Length. A metric of how confined an object is, or how straight its track was.
 
 $$
 Straightness=\frac{Final\ Euclidean}{Path\ Length}
 $$
 
-### Time Corrected Straightness:
-
-Straightness multiplied by the square root of the duration of that cell’s track. Needed when the tracking duration of the cells in the dataset varies.
+This is then multiplied by the square root of the duration of that object’s track. This is helpful when the tracking duration of the objects in the dataset varies.
 
 $$
 Time\ Corrected\ Straightness=Straightness\times\sqrt{Duration}
@@ -328,7 +404,7 @@ $$
 
 ### Displacement Ratio:
 
-The Final Euclidean Distance divided by the Maximum Euclidean Distance, giving values between 0 and 1. A high Displacement Ratio value (approaching 1) denotes a cell which did not return back towards its origin at the end of its track. Conversely, a low value (approaching 0) denotes a cell which ventured away from its origin at some point, but by the end of the track returned closer to its origin.
+The Final Euclidean Distance divided by the Maximum Euclidean Distance, giving values between 0 and 1. A high Displacement Ratio value (approaching 1) denotes an object which did not return back towards its origin at the end of its track. Conversely, a low value (approaching 0) denotes an object which ventured away from its origin at some point, but by the end of the track returned closer to its origin.
 
 $$
 Displacement \ Ratio = \frac{Final \ Euclidean \ Distance}{Maximum\ Euclidean\ Distance}
@@ -336,46 +412,107 @@ $$
 
 ### Outreach Ratio:
 
-The Maximum Euclidean Distance divided by the Path Length, giving values between 0 and 1. A high Outreach Ratio value (approaching 1) denotes a cell which essentially moves in a near-perfect straight line away from its origin. Conversely, a low value (approaching 0) denotes a cell which takes a very tortuous or meandering path.
+The Maximum Euclidean Distance divided by the Path Length, giving values between 0 and 1. A high Outreach Ratio value (approaching 1) denotes an object which essentially moves in a near-perfect straight line away from its origin. Conversely, a low value (approaching 0) denotes an object which takes a very tortuous or meandering path.
 
 $$
 Outreach\ Ratio =\frac{Maximum\ Euclidean\ Distance}{Path\ Length}
 $$
 
+### Velocity and Acceleration metrics:
+
+The mean, median, and standard deviation of all measured values of Instantaneous Velocity and Instantaneous Acceleration for each object. Acceleration is also given as Absolute Acceleration, in which we convert all negative values of Acceleration to positive.
+
+If the Arrest Limit parameter is enabled (i.e. not 0), the values used to calculate these metrics are first filtered down to observations where the displacement exceeds the Arrest Limit. Additionally, if an object fails the Minimum Timepoints filter (see above), it will not have any values for these metrics in the Summary Sheet, but will still have its own row with all other summary statistics.
+
 ### Arrest Coefficient:
 
-A metric used to determine how motile a cell is, with values between 0 and 1, where a value of 0 denotes a cell that moved throughout its history, and a value of 1 denotes a cell that did not move at all throughout its history. The instantaneous displacement threshold used to determine whether a cell is moving at a given timepoint is a tunable variable.
+A metric used to determine how motile an object is, with values between 0 and 1, where a value of 0 denotes an object that moved constantly throughout its history, and a value of 1 denotes an object that did not move at all throughout its history. The instantaneous displacement threshold used to determine whether an object is moving at a given timepoint is a tunable variable (Arrest limit). If Arrest Limit is set to 0, this metric will not be calculated and the column will be removed from the output file.
 
 $$
 Arrest\ Coefficient = \frac{Time\ spent\ arrested}{Duration}
 $$
 
+### Median Max. Angle:
+
+The median of the maximum turning angles for each object across all values of τ. This can be taken as an alternative measure of straightness.
+
+### Overall Euclidean Median:
+
+The median of all Euclidean distances (see "Euclidean Distance" above) calculated for each object across all values of τ. This metric summarizes the typical displacement behavior of an object across multiple time lags. It can serve as a robust central measure that reduces the impact of atypical bursts of movement in an object's history, offering an alternative view to metrics like MSD or Convex Hull Volume that are subject to influence by such extreme movements. It is often highly correlated with those metrics, but during machine learning analysis that will be dealt with due to correlated feature aggregation. 
+
 ### Mean Squared Displacement (MSD):
 
-The mean squared displacement over a certain number of time lags, or tau (τ) values. Used to show that over t time points a cell can be expected to move a certain amount. The maximum number of τ values is a tunable variable.
+The mean squared displacement over a certain number of time intervals, or tau (τ) values. Used to show that over t time points an object can be expected to move a certain amount. The maximum number of τ values is a tunable variable.
 
 $$
 MSD(τ)=\ \lt(x(t + τ) - x(t))^2 \gt 
 $$
 
-MSD Summary Sheets are also provided with the average and standard deviation of the MSD at each τ value, either across the whole dataset or for each cell category (if provided). These can be used to plot MSD log-log plots and evaluate whether a category of cell is moving with a certain pattern. 
+In the output file, the following result sheets are provided:
+
+- **Mean Squared Displacements**: The MSD at each τ value (columns) for each object (rows).
+- **MSD Summary**: The average and standard deviation of the MSD (columns) at each τ value (rows) across the whole dataset.
+- **MSD Mean Per Category**: The mean MSD at each τ value (rows) for each object category (columns).
+- **MSD StDev Per Category**: the standard deviation of MSD at each τ value (rows) for each object category (columns).
+- **MSD Log-Log Fits**: The linear fit parameters for the log-log plot of mean per-category MSD vs. τ. The slope of the line is indicative of the type of motion exhibited by the object, with a slope of 1 indicating diffusion, and a slope of 2 indicating ballistic motion. The "Fit Max. Tau" is the upper limit of the τ values used to calculate the slope (always beginning at τ=1), above which the log-log relationship was judged to deviate from linearity.
 
 ### Convex Hull Volume
 
-The volume of a convex hull contained within the track is calculated. Essentially represents how much volume a cell covered during its tracking history. Similarly to Straightness, a Time-Corrected value is also provided by multiplying each Convex Hull Volume value by the square root of the duration of that cell’s track (needed when the tracking duration of the cells in the dataset varies).
+The volume of a convex hull contained within the track is calculated. Essentially represents how much volume an object covered during its tracking history. Similarly to Straightness, a time correction is applied by multiplying each Convex Hull Volume value by the square root of the duration of that object’s track (helpful when the tracking duration of the objects in the dataset varies). In the case of 2D data, this column will be removed from the output data.
+
+### Maximum MSD
+
+The highest value of MSD that each object reached during its tracking history at any value of τ.
+
+
+## Machine Learning Analyses
+
+Features that are highly correlated with each other (i.e. with a Pearson correlation coefficient greater than 0.9) are aggregated into a single feature by taking the mean of the values for those features within each object and casting that to the new aggregated feature. The correlation threshold can be adjusted at the top of machine_learning.py.
+
+Any categories containing fewer than 5 objects will be excluded from these analyses. This default threshold can be adjusted at the top of machine_learning.py.
+
+Note that the categories available for PCA and XGBoost analyses can be limited to a subset by entering them in the "Subset Categories" field in the GUI. If this field is left blank, all possible categories will be included in these analyses.
+
+### Principal Component Analysis (PCA):
+
+PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. A Kruskal-Wallis test is performed on the PCA results to determine whether each principal component is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons between each category for each PC are provided.
+
+### XGBoost (XGB):
+
+XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. The results are saved in a separate .xlsx file, and include the feature importance scores for each summary statistic (after eliminating redundant parameters) when looking at the entire dataset, as well as for all possible pairs of category-to-category comparisons.
+
 
 ## Contacts
 
-Contacts will iterate over all the cells in the dataset comparing their X, Y, and Z coordinates at each timepoint. If two cells are closer in these dimensions than the Maximum Contact Length variable, it will be recorded as a contact. This option reports all contacts, contacts that are not mitotic, contacts that are alive, and a summary of each cell’s contacts.
+Contacts will iterate over all the objects in the dataset comparing their X, Y, and Z coordinates at each timepoint. If two objects are closer in these dimensions than the "Contact Length" tunable variable, it will be recorded as a contact. This option is most relevant to analyses of cell migration, where contacts between migrating cells are of interest.
 
-### Contacts no Mitosis:
+### Contacts (minus dividing):
 
-Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Cell IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Cell IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Cell IDs happen to differ by 1 regardless of mitosis. Manual spot-checking of contacts is recommended.
+Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Object IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Object IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Object IDs happen to differ by 1 but were not daughter cells resulting from the same mitosis. Manual spot-checking of contacts is recommended.
 
-### Contacts no Dead:
+This filter can be disabled in the GUI, in which case this results sheet will be ommitted.
 
-Utilizes the Arrested/Dead variable to filter out contacts that involve "dead" or non-motile cells based on their Arrest Coefficient.
+### Contacts (minus dead):
 
-### Contact Summary:
+Utilizes the "Maximum Arrest Coefficient" tunable parameter to filter out contacts that involve "dead" or non-motile cells based on their Arrest Coefficient. This filter is applied after the Contacts (minus dividing) filter, unless that filter is disabled, in which case it is applied to the total Contacts dataset.
 
-A summary of contact history for each individual cell. For each cell (excluding cells which had no contacts at all), the number of contacts, the total time spent in contact, and the median contact duration are reported. Note that this summary comes after filtering out of mitotic contacts and contacts involving "dead" cells.
+### Contacts Summary:
+
+A summary of contact history for each individual object. For each object (excluding objects which had no contacts at all), the number of contacts, the total time spent in contact, and the median contact duration are reported. Note that this summary comes after filtering out contacts involving dividing cells or "dead" (non-moving) cells. To summarize all possible contacts detected, do not enable the dividing filter and set Maximum Arrest Coefficient to 1.
+
+### Contacts Per Category:
+
+A per-category analysis of contacts, including the number of objects in each category that had at least one or at least three contacts, the median number of contacts per object, the median total time each object spent in contact, and the median duration of each contact event.
+
+
+## Attractors
+
+Attractors are detected by iterating over all objects in the dataset and checking whether any other object is moving towards it. If an object is moving towards another object, it is considered an attraction event and recorded. The results are saved in a separate .xlsx file, and include the timepoint of the attraction event, the distance between the two objects at that timepoint, and the relative speed between the motion of the two objects. The tunable parameters for this function are:
+
+- **Distance threshold**: The maximum distance between two objects at a given timepoint that would be considered an attraction. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
+- **Approach ratio**: An upper limit for the ratio of the distances between the objects at the end and at the start of a candidate attraction event for it to be recorded.
+- **Minimum proximity**: The attracted object must get at least this close to the attractor for at least one timepoint for the attraction event to be recorded.
+- **Time persistence**: The minimum number of consecutive timepoints that the attraction event must persist for it to be recorded.
+- **Maximum time gap**: The number of consecutive timepoints of increasing distance allowed before the attraction chain is broken.
+- **Attractor categories**: A space-separated list of categories of objects that may be considered as attractors. If this field is left blank, all object categories may be considered as attractors.
+- **Attracted categories**: A space-separated list of categories of objects that may be considered as attracted. If this field is left blank, all object categories may be considered as attracted.

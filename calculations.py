@@ -1,170 +1,91 @@
 import numpy as np
 import pandas as pd
 
+def calculations(object_data, tau, object_id, parameters):
+    num_rows, _ = object_data.shape
 
-def calculations(cell, cell_data, num_euclid_spaces, cell_id, parameters):
-
-    # Get number of rows and columns in cell data
-    num_rows, num_cols = np.shape(cell_data)
-
-    # Create empty arrays to hold results
     instantaneous_displacement = np.zeros(num_rows)
-    total_displacement = np.zeros(num_rows)
     path_length = np.zeros(num_rows)
     instantaneous_velocity = np.zeros(num_rows)
     instantaneous_acceleration = np.zeros(num_rows)
-    instantaneous_acceleration_filtered = np.zeros(num_rows)
     instantaneous_velocity_filtered = np.zeros(num_rows)
+    instantaneous_acceleration_filtered = np.zeros(num_rows)
 
-    # Perform calculations for each timepoint
-    for index in range(num_rows):
-        if index == 0:
-            pass
+    timelapse = parameters['timelapse']
+    arrest_limit = parameters['arrest_limit']
+
+    x = object_data[:, 2].astype(float)
+    y = object_data[:, 3].astype(float)
+    z = object_data[:, 4].astype(float)
+
+    dx = np.diff(x)
+    dy = np.diff(y)
+    dz = np.diff(z)
+    disp = np.sqrt(dx**2 + dy**2 + dz**2)
+    instantaneous_displacement[1:] = disp
+    path_length[1:] = np.cumsum(disp)
+    total_displacement = np.sqrt((x - x[0])**2 + (y - y[0])**2 + (z - z[0])**2)
+    instantaneous_velocity[1:] = instantaneous_displacement[1:] / timelapse
+    instantaneous_acceleration[1:] = np.concatenate(([0], np.diff(instantaneous_velocity[1:]) / timelapse))
+    filtered_mask = instantaneous_displacement > arrest_limit
+    instantaneous_velocity_filtered[filtered_mask] = instantaneous_velocity[filtered_mask]
+    acc_diff = np.diff(instantaneous_velocity, prepend=instantaneous_velocity[0])
+    instantaneous_acceleration_filtered[filtered_mask] = acc_diff[filtered_mask] / timelapse
+
+    idx = np.arange(num_rows)
+
+    data = {
+        'Object ID': [object_id] * num_rows,
+        'Time': object_data[:, 1],
+        'Instantaneous Displacement': instantaneous_displacement,
+        'Total Displacement': total_displacement,
+        'Path Length': path_length,
+        'Instantaneous Velocity': instantaneous_velocity,
+        'Instantaneous Acceleration': instantaneous_acceleration,
+        'Instantaneous Velocity Filtered': instantaneous_velocity_filtered,
+        'Instantaneous Acceleration Filtered': instantaneous_acceleration_filtered,
+    }
+
+    coords = np.stack([x, y, z], axis=1)
+
+    lag_idx = np.arange(1, tau + 1)[:, None]
+    valid = idx[None, :] >= lag_idx
+    prev_idx = idx[None, :] - lag_idx
+    curr_coords = coords[None, :, :]
+    prev_coords = coords[prev_idx.clip(min=0), :]
+    diffs = np.where(valid[..., None], curr_coords - prev_coords, 0)
+    dists = np.linalg.norm(diffs, axis=2) * valid
+    euclid_array = dists
+
+    angle_steps = np.arange(1, tau + 1).tolist()
+    angle_medians = []
+
+    for i, step in enumerate(angle_steps):
+        col = np.full(num_rows, np.nan)
+        if num_rows > step:
+            col[step:] = euclid_array[step - 1, step:]
+        data[f'Euclid {step}'] = col
+
+    for step in angle_steps:
+        angles = np.full(num_rows, np.nan)
+        for t in range(num_rows):
+            if t + 2 * step < num_rows:
+                v1 = coords[t + step] - coords[t]
+                v2 = coords[t + 2 * step] - coords[t + step]
+                norm1 = np.linalg.norm(v1)
+                norm2 = np.linalg.norm(v2)
+                if norm1 > 0 and norm2 > 0:
+                    dot = np.clip(np.dot(v1, v2) / (norm1 * norm2), -1.0, 1.0)
+                    angles[t] = np.degrees(np.arccos(dot))
+        data[f'Turning Angle {step}'] = angles
+        if np.any(~np.isnan(angles)):
+            angle_medians.append(np.nanmax(angles))
         else:
-            x0 = cell_data[0, 2]
-            x_curr = cell_data[index, 2]
-            x_prev = cell_data[(index - 1), 2]
-            y0 = cell_data[0, 3]
-            y_curr = cell_data[index, 3]
-            y_prev = cell_data[(index - 1), 3]
-            z0 = cell_data[0, 4]
-            z_curr = cell_data[index, 4]
-            z_prev = cell_data[(index - 1), 4]
-            pl = path_length[index - 1]
-            sum_x = (x_curr - x_prev) ** 2
-            sum_y = (y_curr - y_prev) ** 2
-            sum_z = (z_curr - z_prev) ** 2
-            sum_all = sum_x + sum_y + sum_z
-            inst_displacement = np.sqrt(sum_all)
-            instantaneous_displacement[index] = inst_displacement
-            tot_x = (x_curr - x0) ** 2
-            tot_y = (y_curr - y0) ** 2
-            tot_z = (z_curr - z0) ** 2
-            sum_tot = tot_x + tot_y + tot_z
-            total_displacement[index] = np.sqrt(sum_tot)
-            path_length[index] = pl + np.sqrt(sum_all)
+            angle_medians.append(np.nan)
 
-            instantaneous_velocity[index] = instantaneous_displacement[index] / parameters['timelapse']
-            instantaneous_acceleration[index] = (
-                (instantaneous_velocity[index] - instantaneous_velocity[index - 1]) / parameters['timelapse'])
-            if inst_displacement > parameters['arrest_limit']:
-                instantaneous_velocity_filtered[index] = instantaneous_displacement[index] / parameters['timelapse']
-                instantaneous_acceleration_filtered[index] = (
-                    (instantaneous_velocity[index] - instantaneous_velocity[index - 1]) / parameters['timelapse'])
 
-    # Create empty array for and calculate Euclidian angle
-    euclid_array = np.zeros((num_euclid_spaces, num_rows))
-    for num in range(1, num_euclid_spaces + 1):
-        euclid_tp = np.zeros(num_rows)
-        for index in range(num_rows):
-            if num > index:
-                pass
-            else:
-                x_curr = cell_data[index, 2]
-                x_prev = cell_data[(index - num), 2]
-                y_curr = cell_data[index, 3]
-                y_prev = cell_data[(index - num), 3]
-                z_curr = cell_data[index, 4]
-                z_prev = cell_data[(index - num), 4]
-                x_val = (x_curr - x_prev) ** 2
-                y_val = (y_curr - y_prev) ** 2
-                z_val = (z_curr - z_prev) ** 2
-                euclid_tp[index] = np.sqrt(x_val + y_val + z_val)
-        euclid_array[num - 1] = euclid_tp
+    df_object_calcs = pd.DataFrame(data)
 
-    mod = 3
-    arrest_multiplier = 1
-    space = [s for s in range(1, num_euclid_spaces + 1, 2)]
-    num_tps = len(space)
+    angle_medians_dict = {int(step): angle_medians[i] for i, step in enumerate(angle_steps)}
 
-    angle_array = np.zeros((num_tps, num_rows))
-    filtered_angle_array = np.zeros((num_tps, num_rows))
-
-    # Calculate angle and filtered angle
-    for back_angle in range(num_tps):
-        angle_tp = np.zeros(num_rows)
-        filtered_angle_tp = np.zeros(num_rows)
-        for index in range(num_rows):
-            try:
-                if back_angle * 2 > index:
-                    continue
-                else:
-                    cell = cell
-                    x_curr = cell_data[index, 2]
-                    x_back = cell_data[(index - back_angle), 2]
-                    x_backsq = cell_data[(index - (back_angle * 2)), 2]
-                    y_curr = cell_data[index, 3]
-                    y_back = cell_data[(index - back_angle), 3]
-                    y_backsq = cell_data[(index - (back_angle * 2)), 3]
-                    z_curr = cell_data[index, 4]
-                    z_back = cell_data[(index - back_angle), 4]
-                    z_backsq = cell_data[(index - (back_angle * 2)), 4]
-
-                    x_magnitude0 = x_curr - x_back
-                    y_magnitude0 = y_curr - y_back
-                    z_magnitude0 = z_curr - z_back
-                    x_magnitude1 = x_curr - x_backsq
-                    y_magnitude1 = y_curr - y_backsq
-                    z_magnitude1 = z_curr - z_backsq
-
-                    np.seterr(invalid='ignore')
-                    vec_0 = [x_magnitude0, y_magnitude0, z_magnitude0]
-                    vec_1 = [x_magnitude1, y_magnitude1, z_magnitude1]
-                    vec_0 = vec_0 / np.linalg.norm(vec_0)
-                    vec_1 = vec_1 / np.linalg.norm(vec_1)
-
-                    angle_ = np.arccos(np.clip(np.dot(vec_0, vec_1), -1.0, 1.0))
-                    angle_ = angle_ * 180 / np.pi
-
-                    angle_tp[index] = angle_
-
-                    x_val0 = x_magnitude0 ** 2
-                    y_val0 = y_magnitude0 ** 2
-                    z_val0 = z_magnitude0 ** 2
-                    x_val1 = x_magnitude1 ** 2
-                    y_val1 = y_magnitude1 ** 2
-                    z_val1 = z_magnitude1 ** 2
-
-                    euclid_current = np.sqrt(x_val0 + y_val0 + z_val0)
-                    euclid_previous = np.sqrt(x_val1 + y_val1 + z_val1)
-
-                    if (euclid_current > parameters['arrest_limit'] * arrest_multiplier and
-                            euclid_previous > parameters['arrest_limit'] * arrest_multiplier):
-                        filtered_angle_tp[index] = np.abs(angle_)
-
-            except RuntimeWarning:
-                pass
-        angle_array[back_angle] = angle_tp
-        filtered_angle_array[back_angle] = filtered_angle_tp
-        arrest_multiplier += 1
-        mod += 2
-
-    # Create dictionary of cell calculations then convert to DataFrame
-    cell_calcs = {
-                    'Cell ID': cell_id,
-                    'Time': cell_data[:, 1],
-                    'Instantaneous Displacement': instantaneous_displacement,
-                    'Total Displacement': total_displacement,
-                    'Path Length': path_length,
-                    'Instantaneous Velocity': instantaneous_velocity,
-                    'Instantaneous Acceleration': instantaneous_acceleration,
-                    'Instantaneous Velocity Filtered': instantaneous_velocity_filtered,
-                    'Instantaneous Acceleration Filtered': instantaneous_acceleration_filtered,
-                }
-    df_cell_calcs = pd.DataFrame.from_dict(cell_calcs)
-
-    # Add Euclidian angle, angle, and filtered angle to calculation DataFrame
-    euclid_num = 1
-    for x in euclid_array:
-        df_cell_calcs['Euclid ' + str(euclid_num) + ' TP'] = x
-        euclid_num += 1
-    angle_num = 3
-    for x in angle_array:
-        df_cell_calcs['Angle ' + str(angle_num) + ' TP'] = x
-        angle_num += 2
-    filtered_angle_num = 3
-    for x in filtered_angle_array:
-        df_cell_calcs['Filtered Angle ' + str(filtered_angle_num) + ' TP'] = x
-        filtered_angle_num += 2
-
-    return df_cell_calcs
+    return df_object_calcs, angle_steps, angle_medians_dict
