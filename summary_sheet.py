@@ -2,6 +2,7 @@ import concurrent.futures
 import numpy as np
 import pandas as pd
 import re
+import statistics
 import time as tempo
 import warnings
 from pandas.errors import PerformanceWarning
@@ -11,7 +12,6 @@ from msd_parallel import main as msd_parallel_main
 from msd_loglogfits import main as msd_loglogfits
 from machine_learning import ml_analysis, XGBAbortException
 from shared_state import messages, thread_lock, complete_progress_step
-from overall_medians import overall_medians
 
 def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, parameters, summary_columns):
     object_data = arr_segments[arr_segments[:, 0] == obj, :]
@@ -113,10 +113,23 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
     time_under = valid_disp[valid_disp < parameters['arrest_limit']] if valid_disp.size > 0 else np.array([])
     arrest_coefficient = (time_under.size * time_interval) / duration_val if duration_val != 0 else 0
 
-    cols_angles = [col for col in df_obj_calcs.columns if 'Filtered Angle' in col]
     cols_euclidean = [col for col in df_obj_calcs.columns if 'Euclid' in col]
-    overall_euclidean_median, overall_angle_median, single_euclid, single_angle = overall_medians(
-        obj, df_obj_calcs, cols_angles, cols_euclidean)
+
+    list_of_euclidean_medians = []
+    single_euclidean = []
+
+    for cols_ in cols_euclidean:
+        euclidean_median = df_obj_calcs.loc[df_obj_calcs['Object ID'] == obj, cols_]
+        euclidean_median = [x for x in euclidean_median if x is not None and x != 0]
+        if len(euclidean_median) > 2:
+            euclidean_median = statistics.median(euclidean_median)
+            list_of_euclidean_medians.append(euclidean_median)
+            single_euclidean.append(euclidean_median)
+
+    if len(list_of_euclidean_medians) >= 1:
+        overall_euclidean_median = statistics.median(list_of_euclidean_medians)
+    else:
+        overall_euclidean_median = None
 
     summary_dict = {
         'Object ID': obj,
@@ -137,7 +150,6 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         'Absolute Acceleration Median': abs_acc_median_out,
         'Absolute Acceleration Standard Deviation': abs_acc_stdev_out,
         'Arrest Coefficient': arrest_coefficient,
-        'Overall Angle Median': overall_angle_median,
         'Overall Euclidean Median': overall_euclidean_median,
         'Convex Hull Volume': convex,
         'Category': category
@@ -145,7 +157,7 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
 
     summary_tuple = tuple(summary_dict.get(col, None) for col in summary_columns)
 
-    return obj, summary_tuple, single_euclid, single_angle
+    return obj, summary_tuple, single_euclidean
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile,
                   angle_steps, all_angle_medians):
@@ -191,7 +203,6 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
 
     sum_ = {}
     single_euclid_dict = {}
-    single_angle_dict = {}
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {
@@ -202,46 +213,44 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         for future in concurrent.futures.as_completed(futures):
             obj = futures[future]
             try:
-                obj, summary_tuple, single_euclid, single_angle = future.result()
+                obj, summary_tuple, single_euclid = future.result()
                 sum_[obj] = summary_tuple
                 single_euclid_dict[obj] = single_euclid
-                single_angle_dict[obj] = single_angle
             except Exception:
                 sum_[obj] = (obj,) + (np.nan,) * (n_summary_cols - 1)
                 single_euclid_dict[obj] = {}
-                single_angle_dict[obj] = {}
 
     for obj in unique_objects:
         if obj not in sum_:
             sum_[obj] = (obj,) + (np.nan,) * (n_summary_cols - 1)
             single_euclid_dict[obj] = {}
-            single_angle_dict[obj] = {}
 
     summary_rows = [sum_[obj] for obj in unique_objects]
     df_sum = pd.DataFrame(summary_rows, columns=summary_columns)
     df_sum["Object ID"] = df_sum["Object ID"].astype(int)
 
-    df_single_euclids_df = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
-    df_single_euclids_df.reset_index(inplace=True)
+    df_single_euclids = pd.DataFrame.from_dict(single_euclid_dict, orient='index')
+    df_single_euclids.reset_index(inplace=True)
     cols_euclidean_numbers = [
         int(re.search(r"\d+", str(col)).group()) if re.search(r"\d+", str(col)) else col
-        for col in df_single_euclids_df.columns[1:]]
-    df_single_euclids_df.columns = ["Object ID"] + cols_euclidean_numbers
-    df_single_euclids_df = df_single_euclids_df.sort_values(by="Object ID").reset_index(drop=True)
-    df_single_euclids_df["Object ID"] = df_single_euclids_df["Object ID"].astype(int)
+        for col in df_single_euclids.columns[1:]]
+    df_single_euclids.columns = ["Object ID"] + cols_euclidean_numbers
+    df_single_euclids = df_single_euclids.sort_values(by="Object ID").reset_index(drop=True)
+    df_single_euclids["Object ID"] = df_single_euclids["Object ID"].astype(int)
 
-    df_single_angles_df = pd.DataFrame.from_dict(all_angle_medians, orient='index')
-    df_single_angles_df.reset_index(inplace=True)
-    df_single_angles_df.columns = ["Object ID"] + list(angle_steps)
-    df_single_angles_df = df_single_angles_df.sort_values(by="Object ID").reset_index(drop=True)
-    df_single_angles_df["Object ID"] = df_single_angles_df["Object ID"].astype(int)
+    df_single_angles = pd.DataFrame.from_dict(all_angle_medians, orient='index')
+    df_single_angles.reset_index(inplace=True)
+    df_single_angles.columns = ["Object ID"] + list(angle_steps)
+    df_single_angles = df_single_angles.sort_values(by="Object ID").reset_index(drop=True)
+    df_single_angles["Object ID"] = df_single_angles["Object ID"].astype(int)
 
-    df_single_euclids_df['Overall Euclidean Median'] = df_single_euclids_df.drop('Object ID', axis=1).median(axis=1)
-    df_single_angles_df['Median Max. Angle'] = df_single_angles_df.drop('Object ID', axis=1).max(axis=1)
-
-    df_sum = df_sum.drop(['Overall Euclidean Median', 'Median Max. Angle'], axis=1, errors='ignore')
-    df_sum = df_sum.merge(df_single_euclids_df[['Object ID', 'Overall Euclidean Median']], on='Object ID', how='left')
-    df_sum = df_sum.merge(df_single_angles_df[['Object ID', 'Median Max. Angle']], on='Object ID', how='left')
+    df_single_euclids['Overall Euclidean Median'] = df_single_euclids.drop('Object ID', axis=1).median(axis=1)
+    df_sum['Overall Euclidean Median'] = df_sum['Object ID'].map(
+        df_single_euclids.set_index('Object ID')['Overall Euclidean Median'])
+    angle_step_cols = [col for col in df_single_angles.columns if isinstance(col, int)]
+    median_max_angle = df_single_angles[angle_step_cols].max(axis=1)
+    df_sum['Median Max. Angle'] = df_sum['Object ID'].map(
+        pd.Series(median_max_angle.values, index=df_single_angles['Object ID']))
 
     existing_cols = [col for col in range(1, tau + 1) if col in df_msd.columns]
     df_msd = df_msd[["Object ID"] + existing_cols]
@@ -275,8 +284,8 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
             cols = merged.columns.tolist()
             cols.insert(1, cols.pop(cols.index("Category")))
             return merged[cols]
-        df_single_euclids_df = insert_category(df_single_euclids_df)
-        df_single_angles_df = insert_category(df_single_angles_df)
+        df_single_euclids = insert_category(df_single_euclids)
+        df_single_angles = insert_category(df_single_angles)
         df_msd = insert_category(df_msd)
         df_msd["Category"] = df_msd["Category"].astype(str)
 
@@ -315,5 +324,5 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         except XGBAbortException:
             pass
 
-    return (df_sum, df_single_euclids_df, df_single_angles_df, df_msd, df_msd_sum_all,
+    return (df_sum, df_single_euclids, df_single_angles, df_msd, df_msd_sum_all,
             df_msd_avg_per_cat, df_msd_std_per_cat, df_msd_loglogfits, df_pca)

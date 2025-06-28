@@ -6,7 +6,7 @@ Last Edited: June 27, 2025 (Migrate3D version 2.0)
 
 Migrate3D is a Python program that streamlines and automates biological object motion (e.g. cell migration) analysis, returning meaningful metrics that help the user evaluate biological questions. This program does not handle imaging data, only previously generated tracking data, so it is not meant to replace functions already performed very well by programs such as Imaris, Arivis Pro, CellProfiler, TrackMate etc. Migrate3D’s purpose is to take the tracks produced from any of these programs and quickly and easily process the data to generate various metrics of interest in a transparent and tunable fashion, all done through an intuitive graphical user interface (GUI). In addition to motion analysis, Migrate3D can also detect and quantify object-object interactions, such as contacts or attractions.
 
-These results can be used in downstream analyses to compare different conditions, categories of objects, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity and arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement across selectable time lags, relative turn angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
+These results can be used in downstream analyses to compare different conditions, categories of objects, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity and arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement, turning angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
 
 Migrate3D requires a .csv file input that contains data from object movements through two- or three-dimensional space. After execution, the program will return a set of .xlsx files, each with several worksheets, containing track-by-track summary metrics, mean squared displacement analysis, etc.
 
@@ -26,7 +26,7 @@ The Segments input file should be a .csv with five columns (or four for 2D data)
 
 ### Categories
 
-The Categories input file should be a .csv with object ID and object category. Please ensure that column headers are in the first row of the .csv file input. If no Categories file is imported, the PCA and XGBoost analyses (and anything else done per-category) will not be performed. 
+The Categories input file should be a .csv with object ID and object category. Please ensure that column headers are in the first row of the .csv file input. If no Categories file is imported, a default category ("0") will be assigned to every object, and the PCA and XGBoost analyses (and anything else done per-category) will not be performed. 
 
 ## Installing and Running Migrate3D
 
@@ -210,23 +210,31 @@ Note that the output result spreadsheets will be saved under ~/.pyenv/versions/m
 
 ## Tunable Parameters
 
-Note that you can change the default values of these variables at the top of the main.py script, or you can change them in the GUI before running the analysis.
+Note that you can change the default values of these variables at the top of the main.py script, or you can set the values for the current run in the GUI.
 
 ### Arrest Limit:
 
-A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed, however if they pass this threshold, they will survive the filter and be reported again in their own column (in verbose mode). Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature, and all Velocity/Acceleration metrics will be reported unfiltered (also, the Arrest Coefficient metric will be omitted entirely).
+A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed on that timepoint, however if they pass this threshold, they will survive the filter and be reported again in their own column (in the Calculations sheet in verbose mode).
+
+Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature, and all Velocity/Acceleration metrics will be reported unfiltered (also, the Arrest Coefficient metric will be omitted entirely).
 
 ### Minimum Timepoints:
 
-When a non-zero Arrest Limit has been set, this filter is an integer parameter that denotes the amount of moving timepoints an object must exceed to be considered for certain summary statistics, namely those relating to Velocity and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary statistics, but will still have their own row on the Summary Sheet with values everywhere but those Velocity/Acceleration columns. To turn this filter off, set this value to 0.
+When a non-zero Arrest Limit has been set, this additional filter is an integer parameter that denotes the total number of 'moving' timepoints an object must exceed to be considered for certain summary statistics, namely those relating to Velocity and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary statistics, but will still have their own row on the Summary Sheet with values everywhere but those Velocity/Acceleration columns.
+
+This filter is most useful when the dataset contains objects which are not really moving and are outliers in that sense that could still be useful to have in order to provide context for the rest of the dataset. That said, your dataset may already have been filtered down to only objects you are interested in and they are by definition all moving, in which case you can turn this filter off by setting its value to 0.
 
 ### Contact Length:
 
-A floating-point variable that represents the largest distance between two objects at a given timepoint that would be considered a contact. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
+This parameter only applies to the Contacts module (see 'Formatting Options' below). This is a floating-point variable that represents the largest distance between two objects at a given timepoint that will be considered a contact. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
+
+To set this value, manually find "true" contacts in your dataset, i.e. pairs of objects that you would consider to be in contact with each other at a given timepoint, measure the magnitude of the vector (that would be a 3D vector for a 3D dataset) between those pairs of centroids, and set the parameter to slightly above the largest of these values.
 
 ### Maximum Arrest Coefficient:
 
-A floating point variable between 0 and 1 that uses each object's Arrest Coefficient to filter out "dead" objects during the contact detection process. To turn this filter off, set this value to 1.
+This parameter only applies to the Contacts module (see 'Formatting Options' below). This is a floating point variable between 0 and 1 that uses each object's measured Arrest Coefficient to filter out "dead" objects during the contact detection process. This filter is useful if you are only interested in contacts between objects that are both actively moving at some point during the dataset (e.g. live, motile cells).
+
+To turn this filter off, set this value to 1. Note that if Arrest Limit has been set to 0, this parameter will have no effect as all objects will have an Arrest Coefficient of 0 and will survive the "minus dead" filter.
 
 
 ## Autodetected Parameters
@@ -250,7 +258,7 @@ If an object ID is represented by multiple segments at a given timepoint, they w
 
 ### Interpolation:
 
-If an object ID is missing a timepoint, that timepoint will be inferred by simple linear interpolation and inserted. This will happen with any number of missing timepoints, but this will never add interpolated timepoints before the first or last available timepoints for that object ID, i.e. it will not extend the track in either direction but will fill in internal gaps.
+If an object's track has any gaps (i.e. is internally missing one or more timepoints), the coordinates of that timepoint will be inferred by simple linear interpolation and inserted. This will happen with any number of missing timepoints, but this will never add interpolated timepoints before the first or after the last available timepoints for that object ID, i.e. it will not extend the track in either direction but will fill in internal gaps. If this option is not selected, any object with gaps will be dropped from the analysis entirely. The IDs of dropped objects will be recorded in the results output.
 
 ### Verbose:
 
@@ -262,23 +270,23 @@ Identifies contacts between objects at each timepoint, and returns a separate re
 
 ### Filter out contacts between objects resulting from cell division?
 
-See the Contacts (minus dividing) section below for more details. This option is enabled by default. Disable this if you know there are no cell divisions in the dataset.
+See the Contacts (minus dividing) section below for more details. Enable this if you have identified daughter cells resulting from cell divisions and have manually set those objects' IDs to be consecutive.
 
 ### Attractors:
 
-Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event. An additional set of tunable parameters for this function is available in the GUI. The default values for these parameters can be changed at the top of the main.py script. Note that this function will only run if a Categories file is provided.
+Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event. An additional set of tunable parameters for this function is available in the GUI. The default values for these parameters can be changed at the top of the main.py script.
 
 ### Generate Figures:
 
 The following plotly figures are generated:
 
-- **Summary Stats**: Per-category interactive violin plots for each of the summary statistics, plus the MSD log-log linear fit slope (error bars = 95% confidence interval).
+- **Summary Stats**: Per-category interactive violin plots for each of the summary statistics, plus the MSD log-log linear fit slope (error bars = 95% confidence interval) for each category.
 - **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
-- **Tracks**: An interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks.
+- **Tracks**: An interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks (either raw or origin-zeroed), color-coded by category (if provided). Two versions of this are saved, one which allows filtering by category and one which allows filtering by object. Categories or objects can be toggled on/off by clicking them on the legend.
 - **PCA**: A set of plots of the four PCs will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
 - **MSD**: A log-log plot of the mean per-category MSD vs. τ, each with its linear fit line (dashed), and, for each category, a plot of all per-track MSD values vs. τ (gray traces), with the mean of all tracks overlaid (dark trace) plus the linear fit (dashed red line). The slope and 95% confidence interval of the linear fit for that category mean is also shown on each figure.
 
-The color used for each category will be consistent across all of these figures. For all violin plots, an inner box plot is overlayed showing the median and upper and lower quartiles. All outputs are in .html format which can be viewed in a browser (note that for large 3D datasets, the tracks figure HTML file can take a while to load once opened, and may be poorly responsive).
+The color used for each category will be consistent across all of these figures. For all violin plots, an inner box plot is overlayed showing the median and upper and lower quartiles. All outputs are in .html format which can be viewed in a browser (note that for large 3D datasets, the tracks figure HTML file can take a while to load once opened, and may be poorly responsive) and all figures can be downloaded in PNG format.
 
 ### Subset Categories:
 
@@ -337,25 +345,27 @@ The results of this analysis are saved in a worksheet named "Euclidean medians",
 
 ### Turning Angle:
 
-The angle, θ, between two consecutive vectors, a and b, with a given timepoint interval (up to τ, which is a tunable parameter), is calculated by first finding the dot product of the two vectors:
+Calculation of the angle, θ, between two consecutive vectors, a and b, where each vector spans tau (τ) timepoints. For each value of τ, a moving window of vectors is evaluated from the beginning to the end of the track. This is repeated for all values of τ up to the tunable Maximum Tau Value parameter (see above) or up to half of the maximum number of available timepoints, whichever is smaller.
+
+First, we find the dot product of the two vectors:
 
 $$
 a \cdot b = a_xb_x + a_yb_y + a_zb_z
 $$
 
-Then using Pythagoras's theorem to calculate the magnitudes of each vector, e.g.:
+Then we use Pythagoras's theorem to calculate the magnitude of each vector, e.g.:
 
 $$
 |a| = \sqrt{{a_x}^2 + {a_y}^2 + {a_z}^2}
 $$
 
-And finally, to find the angle θ, taking the inverse cosine of the dot product divided by the two vector magnitudes:
+And finally, to find the angle θ, we take the inverse cosine of the dot product divided by the two vector magnitudes:
 
 $$
 \theta = \cos^{-1} (\frac{a \cdot b}{ |a||b| })
 $$
 
-The results of this analysis are saved in a worksheet named "Turning Angles", with each row being an object ID and each column being a number of timepoints.
+The maximum angle calculated for each value of τ per object is stored in a worksheet named "Turning Angles", with each row being an object ID, each column being a value of τ, and the values within being the maximum angle detected for that value of τ.
 
 
 ## Summary Sheet
@@ -408,13 +418,27 @@ $$
 Outreach\ Ratio =\frac{Maximum\ Euclidean\ Distance}{Path\ Length}
 $$
 
+### Velocity and Acceleration metrics:
+
+The mean, median, and standard deviation of all measured values of Instantaneous Velocity and Instantaneous Acceleration for each object. Acceleration is also given as Absolute Acceleration, in which we convert all negative values of Acceleration to positive.
+
+If the Arrest Limit parameter is enabled (i.e. not 0), the values used to calculate these metrics are first filtered down to observations where the displacement exceeds the Arrest Limit. Additionally, if an object fails the Minimum Timepoints filter (see above), it will not have any values for these metrics in the Summary Sheet, but will still have its own row with all other summary statistics.
+
 ### Arrest Coefficient:
 
-A metric used to determine how motile an object is, with values between 0 and 1, where a value of 0 denotes an object that moved throughout its history, and a value of 1 denotes an object that did not move at all throughout its history. The instantaneous displacement threshold used to determine whether an object is moving at a given timepoint is a tunable variable (Arrest limit). If Arrest Limit is set to 0, this metric will not be calculated and the column will be removed from the output file.
+A metric used to determine how motile an object is, with values between 0 and 1, where a value of 0 denotes an object that moved constantly throughout its history, and a value of 1 denotes an object that did not move at all throughout its history. The instantaneous displacement threshold used to determine whether an object is moving at a given timepoint is a tunable variable (Arrest limit). If Arrest Limit is set to 0, this metric will not be calculated and the column will be removed from the output file.
 
 $$
 Arrest\ Coefficient = \frac{Time\ spent\ arrested}{Duration}
 $$
+
+### Median Max. Angle:
+
+The median of the maximum turning angles for each object across all values of τ. This can be taken as an alternative measure of straightness.
+
+### Overall Euclidean Median:
+
+The median of all Euclidean distances (see "Euclidean Distance" above) calculated for each object across all values of τ. This metric summarizes the typical displacement behavior of an object across multiple time lags. It can serve as a robust central measure that reduces the impact of atypical bursts of movement in an object's history, offering an alternative view to metrics like MSD or Convex Hull Volume that are subject to influence by such extreme movements. It is often highly correlated with those metrics, but during machine learning analysis that will be dealt with due to correlated feature aggregation. 
 
 ### Mean Squared Displacement (MSD):
 
@@ -447,11 +471,13 @@ Features that are highly correlated with each other (i.e. with a Pearson correla
 
 Any categories containing fewer than 5 objects will be excluded from these analyses. This default threshold can be adjusted at the top of machine_learning.py.
 
+Note that the categories available for PCA and XGBoost analyses can be limited to a subset by entering them in the "Subset Categories" field in the GUI. If this field is left blank, all possible categories will be included in these analyses.
+
 ### Principal Component Analysis (PCA):
 
-PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. A Kruskal-Wallis test is performed on the PCA results to determine whether each principal component is significantly different between the provided categories of objects.
+PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. A Kruskal-Wallis test is performed on the PCA results to determine whether each principal component is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons between each category for each PC are provided.
 
-### XGBoost:
+### XGBoost (XGB):
 
 XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. The results are saved in a separate .xlsx file, and include the feature importance scores for each summary statistic (after eliminating redundant parameters) when looking at the entire dataset, as well as for all possible pairs of category-to-category comparisons.
 
@@ -462,15 +488,17 @@ Contacts will iterate over all the objects in the dataset comparing their X, Y, 
 
 ### Contacts (minus dividing):
 
-Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Object IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Object IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Object IDs happen to differ by 1 but were not daughter cells resulting from the same mitosis. Manual spot-checking of contacts is recommended. This filter can be disabled in the GUI, in which case this results sheet will be ommitted.
+Contacts are analyzed for daughter cells resulting from mitosis (which do not represent true cell-cell contacts) and filtered out accordingly. A pair of daughter cells is detected when two cells in contact have Object IDs that differ exactly by 1. This requires manual renumbering of known daughter cells to have Object IDs that differ by 1, and there is a (remote) possibility of missing some true contacts where the Object IDs happen to differ by 1 but were not daughter cells resulting from the same mitosis. Manual spot-checking of contacts is recommended.
+
+This filter can be disabled in the GUI, in which case this results sheet will be ommitted.
 
 ### Contacts (minus dead):
 
-Utilizes the "Maximum arrest coefficient" tunable variable to filter out contacts that involve "dead" or non-motile cells based on their Arrest Coefficient. This filter is applied after the Contacts (minus dividing) filter.
+Utilizes the "Maximum Arrest Coefficient" tunable parameter to filter out contacts that involve "dead" or non-motile cells based on their Arrest Coefficient. This filter is applied after the Contacts (minus dividing) filter, unless that filter is disabled, in which case it is applied to the total Contacts dataset.
 
 ### Contacts Summary:
 
-A summary of contact history for each individual object. For each object (excluding objects which had no contacts at all), the number of contacts, the total time spent in contact, and the median contact duration are reported. Note that this summary comes after filtering out contacts involving dividing cells or "dead" (non-moving) cells.
+A summary of contact history for each individual object. For each object (excluding objects which had no contacts at all), the number of contacts, the total time spent in contact, and the median contact duration are reported. Note that this summary comes after filtering out contacts involving dividing cells or "dead" (non-moving) cells. To summarize all possible contacts detected, do not enable the dividing filter and set Maximum Arrest Coefficient to 1.
 
 ### Contacts Per Category:
 
