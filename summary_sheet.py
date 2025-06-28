@@ -170,10 +170,10 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         'Velocity Mean', 'Velocity Median', 'Velocity Standard Deviation',
         'Acceleration Mean', 'Acceleration Median', 'Acceleration Standard Deviation',
         'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Absolute Acceleration Standard Deviation',
-        'Median Max. Angle', 'Overall Euclidean Median', 'Category'
+        'Median Turning Angle', 'Overall Euclidean Median', 'Category'
     ]
     if parameters['arrest_limit'] != 0:
-        idx = summary_columns.index('Median Max. Angle')
+        idx = summary_columns.index('Median Turning Angle')
         summary_columns.insert(idx, 'Arrest Coefficient')
     idx = summary_columns.index('Category')
     summary_columns.insert(idx, 'Maximum MSD')
@@ -253,7 +253,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     angle_step_cols = [col for col in df_single_angles.columns if isinstance(col, int)]
     median_max_angle = df_single_angles[angle_step_cols].max(axis=1)
 
-    df_sum['Median Max. Angle'] = df_sum['Object ID'].map(
+    df_sum['Median Turning Angle'] = df_sum['Object ID'].map(
         pd.Series(median_max_angle.values, index=df_single_angles['Object ID']))
     df_msd = df_msd.dropna(axis=1, how='all')
     existing_cols = [col for col in range(1, tau + 1) if col in df_msd.columns]

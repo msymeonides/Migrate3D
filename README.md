@@ -1,6 +1,6 @@
 # README
 
-Last Edited: June 27, 2025 (Migrate3D version 2.0)
+Last Edited: June 28, 2025 (Migrate3D version 2.0)
 
 # Migrate3D
 
@@ -365,7 +365,7 @@ $$
 \theta = \cos^{-1} (\frac{a \cdot b}{ |a||b| })
 $$
 
-The maximum angle calculated for each value of τ per object is stored in a worksheet named "Turning Angles", with each row being an object ID, each column being a value of τ, and the values within being the maximum angle detected for that value of τ.
+The median angle calculated for each value of τ per object is stored in a worksheet named "Turning Angles", with each row being an object ID, each column being a value of τ, and the values within being the median angle detected for that value of τ.
 
 
 ## Summary Sheet
@@ -432,9 +432,9 @@ $$
 Arrest\ Coefficient = \frac{Time\ spent\ arrested}{Duration}
 $$
 
-### Median Max. Angle:
+### Median Turning Angle:
 
-The median of the maximum turning angles for each object across all values of τ. This can be taken as an alternative measure of straightness.
+The median of the median turning angles for each object across all values of τ. This can be taken as an alternative measure of straightness.
 
 ### Overall Euclidean Median:
 
