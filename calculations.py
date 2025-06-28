@@ -32,36 +32,7 @@ def calculations(object_data, tau, object_id, parameters):
     acc_diff = np.diff(instantaneous_velocity, prepend=instantaneous_velocity[0])
     instantaneous_acceleration_filtered[filtered_mask] = acc_diff[filtered_mask] / timelapse
 
-    coords = np.stack([x, y, z], axis=1)
-
     idx = np.arange(num_rows)
-    lag_idx = np.arange(1, tau + 1)[:, None]
-    valid = idx[None, :] >= lag_idx
-    prev_idx = idx[None, :] - lag_idx
-    curr_coords = coords[None, :, :]
-    prev_coords = coords[prev_idx.clip(min=0), :]
-    diffs = np.where(valid[..., None], curr_coords - prev_coords, 0)
-    dists = np.linalg.norm(diffs, axis=2) * valid
-    euclid_array = dists
-
-    angle_steps = np.arange(1, tau + 1).tolist()
-    angle_medians = []
-
-    for step in angle_steps:
-        angles = []
-        for t in range(0, num_rows - 2 * int(step)):
-            v1 = coords[t + int(step)] - coords[t]
-            v2 = coords[t + 2 * int(step)] - coords[t + int(step)]
-            norm1 = np.linalg.norm(v1)
-            norm2 = np.linalg.norm(v2)
-            if norm1 > 0 and norm2 > 0:
-                dot = np.clip(np.dot(v1, v2) / (norm1 * norm2), float(-1.0), float(1.0))
-                angle = np.degrees(np.arccos(dot))
-                angles.append(angle)
-        if angles:
-            angle_medians.append(np.max(angles))
-        else:
-            angle_medians.append(np.nan)
 
     data = {
         'Object ID': [object_id] * num_rows,
@@ -75,11 +46,44 @@ def calculations(object_data, tau, object_id, parameters):
         'Instantaneous Acceleration Filtered': instantaneous_acceleration_filtered,
     }
 
+    coords = np.stack([x, y, z], axis=1)
+
+    lag_idx = np.arange(1, tau + 1)[:, None]
+    valid = idx[None, :] >= lag_idx
+    prev_idx = idx[None, :] - lag_idx
+    curr_coords = coords[None, :, :]
+    prev_coords = coords[prev_idx.clip(min=0), :]
+    diffs = np.where(valid[..., None], curr_coords - prev_coords, 0)
+    dists = np.linalg.norm(diffs, axis=2) * valid
+    euclid_array = dists
+
+    angle_steps = np.arange(1, tau + 1).tolist()
+    angle_medians = []
+
     for i, step in enumerate(angle_steps):
         col = np.full(num_rows, np.nan)
         if num_rows > step:
             col[step:] = euclid_array[step - 1, step:]
         data[f'Euclid {step}'] = col
+
+    for step in angle_steps:
+        angles = np.full(num_rows, np.nan)
+        for t in range(num_rows):
+            if t + 2 * step < num_rows:
+                v1 = coords[t + step] - coords[t]
+                v2 = coords[t + 2 * step] - coords[t + step]
+                norm1 = np.linalg.norm(v1)
+                norm2 = np.linalg.norm(v2)
+                if norm1 > 0 and norm2 > 0:
+                    dot = np.clip(np.dot(v1, v2) / (norm1 * norm2), -1.0, 1.0)
+                    angles[t] = np.degrees(np.arccos(dot))
+        data[f'Turning Angle {step}'] = angles
+        if np.any(~np.isnan(angles)):
+            angle_medians.append(np.nanmax(angles))
+        else:
+            angle_medians.append(np.nan)
+
+
     df_object_calcs = pd.DataFrame(data)
 
     angle_medians_dict = {int(step): angle_medians[i] for i, step in enumerate(angle_steps)}

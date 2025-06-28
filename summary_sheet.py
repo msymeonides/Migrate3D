@@ -116,15 +116,15 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
     cols_euclidean = [col for col in df_obj_calcs.columns if 'Euclid' in col]
 
     list_of_euclidean_medians = []
-    single_euclidean = []
-
-    for cols_ in cols_euclidean:
-        euclidean_median = df_obj_calcs.loc[df_obj_calcs['Object ID'] == obj, cols_]
-        euclidean_median = [x for x in euclidean_median if x is not None and x != 0]
+    single_euclidean = {}
+    for col in cols_euclidean:
+        tau_num = int(re.search(r"\d+", str(col)).group())
+        euclidean_median = df_obj_calcs.loc[df_obj_calcs['Object ID'] == obj, col]
+        euclidean_median = [x for x in euclidean_median if pd.notnull(x) and x != 0]
         if len(euclidean_median) > 2:
-            euclidean_median = statistics.median(euclidean_median)
-            list_of_euclidean_medians.append(euclidean_median)
-            single_euclidean.append(euclidean_median)
+            single_euclidean[tau_num] = statistics.median(euclidean_median)
+        else:
+            single_euclidean[tau_num] = np.nan
 
     if len(list_of_euclidean_medians) >= 1:
         overall_euclidean_median = statistics.median(list_of_euclidean_medians)
@@ -237,21 +237,25 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     df_single_euclids.columns = ["Object ID"] + cols_euclidean_numbers
     df_single_euclids = df_single_euclids.sort_values(by="Object ID").reset_index(drop=True)
     df_single_euclids["Object ID"] = df_single_euclids["Object ID"].astype(int)
+    df_single_euclids = df_single_euclids.dropna(axis=1, how='all')
 
     df_single_angles = pd.DataFrame.from_dict(all_angle_medians, orient='index')
     df_single_angles.reset_index(inplace=True)
     df_single_angles.columns = ["Object ID"] + list(angle_steps)
     df_single_angles = df_single_angles.sort_values(by="Object ID").reset_index(drop=True)
     df_single_angles["Object ID"] = df_single_angles["Object ID"].astype(int)
+    df_single_angles = df_single_angles.dropna(axis=1, how='all')
 
-    df_single_euclids['Overall Euclidean Median'] = df_single_euclids.drop('Object ID', axis=1).median(axis=1)
-    df_sum['Overall Euclidean Median'] = df_sum['Object ID'].map(
-        df_single_euclids.set_index('Object ID')['Overall Euclidean Median'])
+    overall_euclidean_median = df_single_euclids.drop("Object ID", axis=1).median(axis=1, skipna=True)
+    df_sum["Overall Euclidean Median"] = df_sum["Object ID"].map(
+        pd.Series(overall_euclidean_median.values, index=df_single_euclids['Object ID']))
+
     angle_step_cols = [col for col in df_single_angles.columns if isinstance(col, int)]
     median_max_angle = df_single_angles[angle_step_cols].max(axis=1)
+
     df_sum['Median Max. Angle'] = df_sum['Object ID'].map(
         pd.Series(median_max_angle.values, index=df_single_angles['Object ID']))
-
+    df_msd = df_msd.dropna(axis=1, how='all')
     existing_cols = [col for col in range(1, tau + 1) if col in df_msd.columns]
     df_msd = df_msd[["Object ID"] + existing_cols]
     df_msd["Object ID"] = df_msd["Object ID"].astype(int)

@@ -4,6 +4,7 @@ import time as tempo
 import statistics
 import base64
 import io
+import re
 from pathlib import Path
 
 from formatting import multi_tracking, interpolate_lazy, remove_tracks_with_gaps
@@ -144,6 +145,14 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             all_angle_steps = angle_steps
 
     df_all_calcs = pd.concat(all_calcs)
+
+    cols_to_check = [col for col in df_all_calcs.columns
+                         if re.match(r'(Euclid|Turning Angle) \d+', str(col))]
+
+    for col in cols_to_check:
+        if df_all_calcs[col].isna().all() or (df_all_calcs[col].fillna(0) == 0).all():
+            df_all_calcs = df_all_calcs.drop(columns=col)
+
     mapping = {0: None}
     toc = tempo.time()
 
