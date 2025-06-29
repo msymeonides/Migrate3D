@@ -479,7 +479,16 @@ PCA is performed on the summary statistics of each object, and the results are s
 
 ### XGBoost (XGB):
 
-XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. The results are saved in a separate .xlsx file, and include the feature importance scores for each summary statistic (after eliminating redundant parameters) when looking at the entire dataset, as well as for all possible pairs of category-to-category comparisons.
+XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. This is performed using the entire dataset ('Full Dataset' sheets), as well as for all possible pairs of categories ('Comparison X' sheets). The output .XLSX file contains the following two sheets for each of these analyses:
+* **Features**: This sheet lists how important each feature was for the model that was determined to be the best at describing the variance in the data. For category-to-category comparisons, the categories being compared are listed below the features table. 
+
+
+* **Report**: This contains a confusion matrix which documents how well this model performed in classifying objects into their respective categories. The confusion matrix includes the following columns for each category included in that comparison:
+  * **Precision**: The proportion of true positive classifications out of all positive classifications made by the model for that category.
+  * **Recall**: The proportion of true positive classifications out of all actual objects in that category.
+  * **F1 Score**: The harmonic mean of Precision and Recall, a measure of the model's accuracy for that category.
+  * **Support**: The number of objects in that category that were included in the analysis.
+  * **Accuracy**: Below each confusion matrix, the overall accuracy of the model is reported, which is the proportion of all objects that were correctly classified into their respective categories.
 
 
 ## Contacts
