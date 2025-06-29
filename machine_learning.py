@@ -182,74 +182,144 @@ def train_and_evaluate(x_train, y_train, x_test, y_test, params):
     except Exception:
         error()
 
+def decode_classification_report_labels(report_df, label_encoder):
+    accuracy_idx = report_df.index.get_loc('accuracy')
+    encoded_labels = label_encoder.transform(label_encoder.classes_)
+    label_mapping = dict(zip(encoded_labels, label_encoder.classes_))
+    new_index = []
+    for i, idx_val in enumerate(report_df.index):
+        if i < accuracy_idx:
+            try:
+                encoded_label = int(str(idx_val))
+                if encoded_label in label_mapping:
+                    new_index.append(str(label_mapping[encoded_label]))
+                else:
+                    new_index.append(str(idx_val))
+            except ValueError:
+                new_index.append(str(idx_val))
+        else:
+            new_index.append(str(idx_val))
+    report_df_copy = report_df.copy()
+    report_df_copy.index = new_index
+
+    return report_df_copy
+
 def perform_xgboost_comparisons(data, category_col, aggregated_features, writer, parameters):
     if category_col not in data.columns:
         raise KeyError(f"'{category_col}' column is missing from the DataFrame.")
-    data = apply_category_filter(data, parameters.get('pca_filter'))
-    aggregated_features = aggregated_features.reindex(data.index).dropna()
+
+    common_indices = data.index.intersection(aggregated_features.index)
+    data = data.loc[common_indices]
+    aggregated_features = aggregated_features.loc[common_indices]
+
     labels = data[category_col]
     unique_categories = data[category_col].unique()
     category_pairs = list(itertools.combinations(unique_categories, 2))
-    for cat1, cat2 in category_pairs:
-        pair_indices = labels.isin([cat1, cat2])
-        pair_data = aggregated_features.reindex(labels.index)[pair_indices]
-        pair_labels = labels[pair_indices]
-        if pair_data.empty or pair_labels.empty:
-            continue
-        label_encoder = LabelEncoder()
-        pair_labels_encoded = label_encoder.fit_transform(pair_labels)
-        x_train, x_test, y_train, y_test = train_test_split(
-            pair_data, pair_labels_encoded, test_size=0.3, random_state=42
-        )
-        model = XGBClassifier(eval_metric='logloss')
-        model.fit(x_train, y_train)
-        y_pred = model.predict(x_test)
-        feature_importance = pd.DataFrame({
-            'Feature': pair_data.columns,
-            'Importance': model.feature_importances_
-        }).sort_values(by='Importance', ascending=False)
-        feature_importance.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Features', index=False)
-        report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
-        report_df = pd.DataFrame(report).transpose()
-        report_df.to_excel(writer, sheet_name=f'{cat1}_vs_{cat2}_Report')
 
-def xgboost(df_sum, parameters, output_file, features, categories, feature_mapping):
-    with thread_lock:
-        messages.append('Starting XGBoost...')
-    try:
-        save_xgb = output_file + '_XGB.xlsx'
-        category_col = 'Category'
-        with pd.ExcelWriter(save_xgb, engine='xlsxwriter') as writer:
+    for comparison_num, (cat1, cat2) in enumerate(category_pairs, 1):
+        try:
+            pair_indices = labels.isin([cat1, cat2])
+            pair_data = aggregated_features[pair_indices]
+            pair_labels = labels[pair_indices]
+
+            if pair_data.empty or pair_labels.empty:
+                continue
+
             label_encoder = LabelEncoder()
-            y_encoded = label_encoder.fit_transform(categories)
-            x_train, x_test, y_train, y_test = train_test_split(features, y_encoded, test_size=0.4, random_state=42)
-            best_params = optimize_hyperparameters(x_train, y_train)
-            _, model = train_and_evaluate(x_train, y_train, x_test, y_test, best_params)
+            pair_labels_encoded = label_encoder.fit_transform(pair_labels)
+
+            x_train, x_test, y_train, y_test = train_test_split(
+                pair_data, pair_labels_encoded, test_size=0.3, random_state=42
+            )
+
+            model = XGBClassifier(eval_metric='logloss')
+            model.fit(x_train, y_train)
             y_pred = model.predict(x_test)
+
             feature_importance = pd.DataFrame({
-                'Features': [",".join(map(str, feature_mapping[col])) for col in features.columns],
+                'Feature': pair_data.columns,
                 'Importance': model.feature_importances_
             }).sort_values(by='Importance', ascending=False)
-            feature_importance.to_excel(writer, sheet_name='Dataset Features', index=False)
-            if y_test is not None and y_pred is not None:
-                report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
-                report_df = pd.DataFrame(report).transpose()
-                report_df.to_excel(writer, sheet_name='Dataset Report')
-            perform_xgboost_comparisons(
-                data=df_sum,
-                category_col=category_col,
-                aggregated_features=features,
-                writer=writer,
-                parameters=parameters
-            )
-        with thread_lock:
-            msg = " XGBoost done."
-            messages[-1] += msg
-        complete_progress_step("XGB")
-    except XGBAbortException:
-        raise
-    except Exception:
-        error()
+
+            blank_row = pd.DataFrame({'Feature': [''], 'Importance': ['']})
+            comparison_info = pd.DataFrame({
+                'Feature': ['Comparison:'],
+                'Importance': [f'{cat1} vs {cat2}']
+            })
+
+            feature_importance_with_info = pd.concat([
+                feature_importance,
+                blank_row,
+                comparison_info
+            ], ignore_index=True)
+
+            sheet_name_features = f'Comparison_{comparison_num}_Features'
+            sheet_name_report = f'Comparison_{comparison_num}_Report'
+
+            feature_importance_with_info.to_excel(writer, sheet_name=sheet_name_features, index=False)
+
+            report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+            report_df = pd.DataFrame(report).transpose()
+            report_df = decode_classification_report_labels(report_df, label_encoder)
+
+            blank_row = pd.DataFrame({
+                'precision': [''],
+                'recall': [''],
+                'f1-score': [''],
+                'support': ['']
+            }, index=[''])
+
+            comparison_info = pd.DataFrame({
+                'precision': ['Comparison:'],
+                'recall': [f'{cat1} vs {cat2}'],
+                'f1-score': [''],
+                'support': ['']
+            }, index=[''])
+
+            report_with_info = pd.concat([report_df, blank_row, comparison_info])
+            report_with_info.to_excel(writer, sheet_name=sheet_name_report)
+
+        except Exception:
+            continue
+
+def xgboost(df_selected, parameters, output_file, features, categories, feature_mapping):
+            with thread_lock:
+                messages.append('Starting XGBoost...')
+            try:
+                save_xgb = output_file + '_XGB.xlsx'
+                category_col = 'Category'
+                with pd.ExcelWriter(save_xgb, engine='xlsxwriter') as writer:
+                    label_encoder = LabelEncoder()
+                    y_encoded = label_encoder.fit_transform(categories)
+                    x_train, x_test, y_train, y_test = train_test_split(features, y_encoded, test_size=0.4, random_state=42)
+                    best_params = optimize_hyperparameters(x_train, y_train)
+                    _, model = train_and_evaluate(x_train, y_train, x_test, y_test, best_params)
+                    y_pred = model.predict(x_test)
+                    feature_importance = pd.DataFrame({
+                        'Features': [",".join(map(str, feature_mapping[col])) for col in features.columns],
+                        'Importance': model.feature_importances_
+                    }).sort_values(by='Importance', ascending=False)
+                    feature_importance.to_excel(writer, sheet_name='Dataset Features', index=False)
+                    if y_test is not None and y_pred is not None:
+                        report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+                        report_df = pd.DataFrame(report).transpose()
+                        report_df = decode_classification_report_labels(report_df, label_encoder)
+                        report_df.to_excel(writer, sheet_name='Dataset Report')
+                    perform_xgboost_comparisons(
+                        data=df_selected,
+                        category_col=category_col,
+                        aggregated_features=features,
+                        writer=writer,
+                        parameters=parameters
+                    )
+                with thread_lock:
+                    msg = " XGBoost done."
+                    messages[-1] += msg
+                complete_progress_step("XGB")
+            except XGBAbortException:
+                raise
+            except Exception:
+                error()
 
 def pca(df_selected, df_processed, categories, savefile):
     if df_processed.empty or len(df_processed) < 4 or df_processed.shape[1] < 4:
@@ -391,7 +461,7 @@ def ml_analysis(df_sum, parameters, savefile):
         return None
     else:
         df_pcscores = pca(df_selected, df_processed, categories, savefile)
-        xgboost(df_sum, parameters, savefile, df_processed, categories, feature_mapping)
+        xgboost(df_selected, parameters, savefile, df_processed, categories, feature_mapping)
         toc = time.time()
         with thread_lock:
             messages.append("Machine learning analysis done in {:.0f} seconds.".format(int(round((toc - tic), 1))))
