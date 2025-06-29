@@ -68,24 +68,31 @@ def calculations(object_data, tau, object_id, parameters):
 
     for step in angle_steps:
         angles = np.full(num_rows, np.nan)
-        for t in range(num_rows):
-            if t + 2 * step < num_rows:
-                v1 = coords[t + step] - coords[t]
-                v2 = coords[t + 2 * step] - coords[t + step]
-                norm1 = np.linalg.norm(v1)
-                norm2 = np.linalg.norm(v2)
-                if norm1 > 0 and norm2 > 0:
-                    dot = np.clip(np.dot(v1, v2) / (norm1 * norm2), -1.0, 1.0)
-                    angles[t] = np.degrees(np.arccos(dot))
+
+        max_t = num_rows - 2 * step
+        if max_t > 0:
+            t_indices = np.arange(max_t)
+
+            v1 = coords[t_indices + step] - coords[t_indices]
+            v2 = coords[t_indices + 2 * step] - coords[t_indices + step]
+
+            norm1 = np.linalg.norm(v1, axis=1)
+            norm2 = np.linalg.norm(v2, axis=1)
+
+            valid_mask = (norm1 > 0) & (norm2 > 0)
+
+            if np.any(valid_mask):
+                dot_products = np.sum(v1[valid_mask] * v2[valid_mask], axis=1)
+                normalized_dots = np.clip(dot_products / (norm1[valid_mask] * norm2[valid_mask]), -1.0, 1.0)
+                angles[t_indices[valid_mask]] = np.degrees(np.arccos(normalized_dots))
+
         data[f'Turning Angle {step}'] = angles
         if np.any(~np.isnan(angles)):
             angle_medians.append(np.nanmedian(angles))
         else:
             angle_medians.append(np.nan)
 
-
     df_object_calcs = pd.DataFrame(data)
-
     angle_medians_dict = {int(step): angle_medians[i] for i, step in enumerate(angle_steps)}
 
     return df_object_calcs, angle_steps, angle_medians_dict
