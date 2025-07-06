@@ -12,8 +12,8 @@ import traceback
 from governor import migrate3D
 from shared_state import messages, thread_lock, get_progress, init_progress_tracker, is_aborted
 
-# Welcome to Migrate3D version 2.0, released June 2025.
-# Please see README.md before running this package
+# Welcome to Migrate3D version 2.1, under construction!
+# Please see README.md before running this package.
 # Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan and Jonah Harris
 # at the University of Vermont, funded by NIH R56-AI172486 and NIH R01-AI172486 (PI: Markus Thali).
 # For more information, see https://github.com/msymeonides/Migrate3D/
