@@ -198,6 +198,14 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         arr_cats = np.array(category_input_list)
         arr_cats[:, 0] = arr_cats[:, 0].astype(int)
 
+    if dropped_objects:
+        remaining_object_ids = set(unique_objects)
+        arr_cats_filtered = []
+        for row in arr_cats:
+            if int(row[0]) in remaining_object_ids:
+                arr_cats_filtered.append(row)
+        arr_cats = np.array(arr_cats_filtered) if arr_cats_filtered else np.array([]).reshape(0, 2)
+
     settings = [
         ('Segments file', seg_path.name),
         ('Categories file', categories_file_name),

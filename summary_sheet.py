@@ -165,20 +165,17 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
 
     summary_columns = [
-        'Object ID', 'Duration', 'Final Euclidean', 'Max Euclidean', 'Path Length',
-        'Straightness', 'Displacement Ratio', 'Outreach Ratio',
-        'Velocity Mean', 'Velocity Median', 'Velocity Standard Deviation',
-        'Acceleration Mean', 'Acceleration Median', 'Acceleration Standard Deviation',
-        'Absolute Acceleration Mean', 'Absolute Acceleration Median', 'Absolute Acceleration Standard Deviation',
-        'Median Turning Angle', 'Overall Euclidean Median', 'Category'
+        'Object ID', 'Category', 'Duration', 'Path Length', 'Final Euclidean', 'Max Euclidean',
+        'Overall Euclidean Median', 'Maximum MSD', 'Displacement Ratio', 'Outreach Ratio', 'Straightness',
+        'Median Turning Angle', 'Velocity Mean', 'Velocity Median', 'Velocity Standard Deviation', 'Acceleration Mean',
+        'Acceleration Median', 'Acceleration Standard Deviation', 'Absolute Acceleration Mean',
+        'Absolute Acceleration Median', 'Absolute Acceleration Standard Deviation'
     ]
     if parameters['arrest_limit'] != 0:
-        idx = summary_columns.index('Median Turning Angle')
+        idx = summary_columns.index('Median Turning Angle') + 1
         summary_columns.insert(idx, 'Arrest Coefficient')
-    idx = summary_columns.index('Category')
-    summary_columns.insert(idx, 'Maximum MSD')
     if not twodim_mode:
-        idx = summary_columns.index('Overall Euclidean Median') + 1
+        idx = summary_columns.index('Maximum MSD') + 1
         summary_columns.insert(idx, 'Convex Hull Volume')
 
     n_summary_cols = len(summary_columns)
@@ -274,7 +271,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
 
     msd_vals_summary = msd_vals.drop(columns="Category", errors="ignore")
     df_msd_sum_all = pd.DataFrame({
-        "Avg": msd_vals_summary.mean(),
+        "Mean": msd_vals_summary.mean(),
         "StDev": msd_vals_summary.std()})
     df_msd_sum_all.index.name = "MSD"
 
