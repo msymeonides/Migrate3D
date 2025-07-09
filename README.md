@@ -1,6 +1,6 @@
 # README
 
-Last Edited: July 5, 2025 (Migrate3D version 2.1)
+Last Edited: July 8, 2025 (Migrate3D version 2.1)
 
 # Migrate3D
 
@@ -283,7 +283,7 @@ The following plotly figures are generated:
 - **Summary Stats**: Per-category interactive violin plots for each of the summary statistics, plus the MSD log-log linear fit slope (error bars = 95% confidence interval) for each category.
 - **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
 - **Tracks**: An interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks (either raw or origin-zeroed), color-coded by category (if provided). Two versions of this are saved, one which allows filtering by category and one which allows filtering by object. Categories or objects can be toggled on/off by clicking them on the legend.
-- **PCA**: A set of plots of the four PCs will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
+- **PCA**: A set of plots of only the first four PCs (even if additional PCs are recorded in the .xlsx PCA output) will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
 - **MSD**: A log-log plot of the mean per-category MSD vs. τ, each with its linear fit line (dashed), and, for each category, a plot of all per-track MSD values vs. τ (gray traces), with the mean of all tracks overlaid (dark trace) plus the linear fit (dashed red line). The slope and 95% confidence interval of the linear fit for that category mean is also shown on each figure.
 
 The color used for each category will be consistent across all of these figures. For all violin plots, an inner box plot is overlayed showing the median and upper and lower quartiles. All outputs are in .html format which can be viewed in a browser (note that for large 3D datasets, the tracks figure HTML file can take a while to load once opened, and may be poorly responsive) and all figures can be downloaded in PNG format.
@@ -475,7 +475,7 @@ Note that the categories available for PCA and XGBoost analyses can be limited t
 
 ### Principal Component Analysis (PCA):
 
-PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. A Kruskal-Wallis test is performed on the PCA results to determine whether each principal component is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons between each category for each PC are provided.
+PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. The minimum number of principal components (PCs) needed to explain at least 95% of the variance is determined, and that is the number of PCs that will end up shown in the output file. A Kruskal-Wallis test is performed on the PCA results to determine whether each PC is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons between each category for each PC are provided.
 
 ### XGBoost (XGB):
 
