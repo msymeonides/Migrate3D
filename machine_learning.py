@@ -17,7 +17,7 @@ class XGBAbortException(Exception):
     pass
 
 min_required = 5    # Minimum number of samples required for a category to be included in PCA and XGBoost
-correlation_threshold = 0.9  # Pearson correlation threshold. Features with correlation above this threshold will be grouped together.
+correlation_threshold = 0.95  # Pearson correlation threshold. Features with correlation above this threshold will be grouped together.
 
 def safe_ml_operation(operation_func, error_step=None, *args, **kwargs):
     try:
@@ -66,7 +66,7 @@ def apply_category_filter(df, cat_filter):
 
     return filtered_df
 
-def group_highly_correlated_features(df, threshold=0.9):
+def group_highly_correlated_features(df, threshold):
     corr_matrix = df.corr().abs()
     np.fill_diagonal(corr_matrix.values, 0)
     pairs = [
@@ -125,7 +125,7 @@ def preprocess_features(df):
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(log_data)
         scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns)
-        feature_groups = group_highly_correlated_features(scaled_df, threshold=0.9)
+        feature_groups = group_highly_correlated_features(scaled_df, threshold=correlation_threshold)
         aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
         return aggregated_features, categories, feature_mapping
     except XGBAbortException:
