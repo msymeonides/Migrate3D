@@ -123,7 +123,7 @@ app.layout = dbc.Container(
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.H6(
-            "Version 2.0, published June 2025. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
+            "Version 2.1, published July 2025. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.Hr(),
@@ -263,7 +263,7 @@ app.layout = dbc.Container(
                                             'value': 'Multitrack'},
                                         {'label': ' Interpolation (if an object ID is missing a timepoint, that timepoint will be inferred by simple linear interpolation and inserted)',
                                             'value': 'Interpolate'},
-                                        {'label': ' Verbose (includes the results of all calculations in the output file)',
+                                        {'label': ' Verbose (enables more detailed outputs, including step-wise calculations and intermediate datasets from ML processing steps)',
                                             'value': 'Verbose'},
                                         {'label': ' Contacts (identifies contacts between objects)',
                                             'value': 'Contacts'},

@@ -1,6 +1,6 @@
 # README
 
-Last Edited: July 8, 2025 (Migrate3D version 2.1)
+Last Edited: July 11, 2025 (Migrate3D version 2.1)
 
 # Migrate3D
 
@@ -262,7 +262,9 @@ If an object's track has any gaps (i.e. is internally missing one or more timepo
 
 ### Verbose:
 
-Includes the results of all intermediate step-wise calculations in the output .xlsx file. This will result in a larger file size, but allows the user to see how each metric was calculated for each object at each timepoint.
+Includes the results of all intermediate step-wise calculations in the main output .xlsx file. This will greatly increase the output file size and the time it takes to save. This additional output allows the user to see how each metric was calculated for each object at each timepoint.
+
+Also, this enables an additional output file which contains dataset processing information from the Machine Learning function. 
 
 ### Contacts:
 
@@ -467,11 +469,14 @@ The highest value of MSD that each object reached during its tracking history at
 
 ## Machine Learning Analyses
 
-Features that are highly correlated with each other (i.e. with a Pearson correlation coefficient greater than 0.9) are aggregated into a single feature by taking the mean of the values for those features within each object and casting that to the new aggregated feature. The correlation threshold can be adjusted at the top of machine_learning.py.
+The summary features calculated for each object are used to perform two machine learning analyses: Principal Component Analysis (PCA) and XGBoost (XGB). Before that happens, however, the dataset is processed as follows:
 
-Any categories containing fewer than 5 objects will be excluded from these analyses. This default threshold can be adjusted at the top of machine_learning.py.
+1. Any category filter specified by the user in the GUI will be applied, then any categories containing fewer than 5 objects will also be removed. The default threshold for minimum number of objects in a category can be adjusted at the top of machine_learning.py. 
+2. Any non-moving objects (i.e. those with a Velocity Mean/Median of 0) are removed from the dataset.
+3. The dataset is transformed (signed log10 + 1), then z-score scaling is performed. This processing step ensures that all features are on a similar scale and are normally distributed, reducing the impact of outliers.
+4. Highly-correlated features (i.e. those with a pairwise Pearson correlation coefficient greater than 0.95) are aggregated into a single feature by taking the mean of the (transformed and scaled) values for those features within each object and casting that to the new aggregated feature. The correlation threshold can be adjusted at the top of machine_learning.py.
 
-Note that the categories available for PCA and XGBoost analyses can be limited to a subset by entering them in the "Subset Categories" field in the GUI. If this field is left blank, all possible categories will be included in these analyses.
+If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into.
 
 ### Principal Component Analysis (PCA):
 

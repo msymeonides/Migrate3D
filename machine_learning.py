@@ -66,7 +66,7 @@ def apply_category_filter(df, cat_filter):
 
     return filtered_df
 
-def group_highly_correlated_features(df, threshold):
+def detect_correlated_features(df, threshold):
     corr_matrix = df.corr().abs()
     np.fill_diagonal(corr_matrix.values, 0)
     pairs = [
@@ -115,18 +115,100 @@ def aggregate_correlated_features(df, feature_groups):
 
     return aggregated_df, feature_mapping
 
-def preprocess_features(df):
+def create_correlation_sheet(df, feature_groups, threshold, writer):
+    corr_matrix = df.corr().abs()
+    np.fill_diagonal(corr_matrix.values, 0)
+
+    feature_to_group = {}
+    for i, group in enumerate(feature_groups):
+        for feature in group:
+            feature_to_group[feature] = i if len(group) > 1 else None
+
+    correlation_decisions = []
+    for i in corr_matrix.columns:
+        for j in corr_matrix.columns:
+            if i < j:
+                corr_value = corr_matrix.loc[i, j]
+                same_group = feature_to_group[i] == feature_to_group[j]
+                meets_threshold = corr_value >= threshold
+                correlation_decisions.append({
+                    'Feature_1': i,
+                    'Feature_2': j,
+                    'Correlation': corr_value,
+                    'Meets_Threshold': meets_threshold,
+                    'Actually_Grouped': same_group,
+                    'Aggregated_Feature_1': feature_to_group[i] if feature_to_group[i] is not None else '',
+                    'Aggregated_Feature_2': feature_to_group[j] if feature_to_group[j] is not None else ''
+                })
+
+    correlations_df = pd.DataFrame(correlation_decisions)
+    correlations_df = correlations_df.sort_values('Correlation', ascending=False)
+    correlations_df.to_excel(writer, sheet_name='Feature Correlations', index=False)
+
+def create_aggregation_sheet(df, feature_groups, aggregated_df, writer):
+    for i, group in enumerate(feature_groups):
+        if len(group) > 1:
+            original_data = df[group].copy()
+            group_name = ", ".join(group)
+            aggregated_data = aggregated_df[[group_name]].copy()
+            aggregated_data.columns = ['Aggregated_Mean']
+            comparison_df = pd.concat([original_data, aggregated_data], axis=1)
+            sheet_name = f'Aggregated Feature {i}'
+            comparison_df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+def preprocess_features(df, writer=None):
     try:
         df_features = df.drop(['Object ID', 'Category'], axis=1)
         categories = df['Category']
+        object_ids = df['Object ID']
+
+        # Filter out non-moving objects (i.e. those with zero mean or median velocity)
+        zero_check_columns = ['Velocity Mean', 'Velocity Median']
+        available_zero_check_columns = [col for col in zero_check_columns if col in df_features.columns]
+
+        if available_zero_check_columns:
+            zero_mask = (df_features[available_zero_check_columns] == 0).any(axis=1)
+            df_features = df_features[~zero_mask]
+            categories = categories[~zero_mask]
+            object_ids = object_ids[~zero_mask]
+
+        df_after_zero_filter = df_features.copy()
+        df_after_zero_filter.insert(0, 'Object ID', object_ids)
+        df_after_zero_filter.insert(1, 'Category', categories)
+
+        # Apply log transformation to the zero-filtered data
         log_data = np.sign(df_features) * np.log(np.abs(df_features) + 1)
         log_data = log_data.dropna()
         categories = categories.loc[log_data.index]
+        object_ids = object_ids.loc[log_data.index]
+
+        # Scale the log-transformed data
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(log_data)
-        scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns)
-        feature_groups = group_highly_correlated_features(scaled_df, threshold=correlation_threshold)
+        scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns, index=log_data.index)
+
+        # Detect and aggregate features using the filtered/scaled/transformed data
+        feature_groups = detect_correlated_features(scaled_df, threshold=correlation_threshold)
         aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
+
+        if writer is not None:
+            df.to_excel(writer, sheet_name='1. Filter Categories', index=False)
+
+            df_after_zero_filter.to_excel(writer, sheet_name='2. Remove Non-Moving Objs.', index=False)
+
+            scaled_data = scaled_df.copy()
+            scaled_data.insert(0, 'Object ID', object_ids)
+            scaled_data.insert(1, 'Category', categories)
+            scaled_data.to_excel(writer, sheet_name='3. Transform & Scale', index=False)
+
+            processed_data = aggregated_features.copy()
+            processed_data.insert(0, 'Object ID', object_ids)
+            processed_data.insert(1, 'Category', categories)
+            processed_data.to_excel(writer, sheet_name='4. Aggregate Corr. Features', index=False)
+
+            create_correlation_sheet(scaled_df, feature_groups, correlation_threshold, writer)
+            create_aggregation_sheet(scaled_df, feature_groups, aggregated_features, writer)
+
         return aggregated_features, categories, feature_mapping
     except XGBAbortException:
         raise
@@ -410,10 +492,8 @@ def pca(df_selected, df_processed, categories, savefile):
 
     save_pca = savefile + '_PCA.xlsx'
     writer = pd.ExcelWriter(save_pca, engine='xlsxwriter')
-    df_selected.to_excel(writer, sheet_name='Full dataset', index=False)
-    df_processed.to_excel(writer, sheet_name='PCA dataset', index=False)
-    df_expl_var.to_excel(writer, sheet_name='PC explained variance', index=True)
     df_pcscores.to_excel(writer, sheet_name='PC scores', index=False)
+    df_expl_var.to_excel(writer, sheet_name='PC explained variance', index=True)
     df_features.to_excel(writer, sheet_name='PC features', index=True)
     df_kruskal.to_excel(writer, sheet_name='Kruskal-Wallis', index=True)
 
@@ -477,7 +557,14 @@ def ml_analysis(df_sum, parameters, savefile):
             error()
 
     df_selected = df_selected.dropna().drop(labels=['Duration', 'Path Length'], axis=1)
-    df_processed, categories_filtered, feature_mapping = preprocess_features(df_selected)
+
+    if parameters.get('verbose', False):
+        verbose_data = savefile + '_ML_Dataset_Processing.xlsx'
+        with pd.ExcelWriter(verbose_data, engine='xlsxwriter') as writer:
+            df_processed, categories_filtered, feature_mapping = preprocess_features(df_selected, writer)
+    else:
+        df_processed, categories_filtered, feature_mapping = preprocess_features(df_selected, None)
+
     df_processed = df_processed.dropna()
 
     common_indices = categories_filtered.index.intersection(df_processed.index)
