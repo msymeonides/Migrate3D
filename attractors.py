@@ -13,8 +13,12 @@ def detect_attractors(arr_segments, unique_objects, cell_types, params):
     all_types = set(cell_types.values())
     if not allowed_attractor_types:
         allowed_attractor_types = list(all_types)
+    else:
+        allowed_attractor_types = [str(t) for t in allowed_attractor_types]
     if not allowed_attracted_types:
         allowed_attracted_types = list(all_types)
+    else:
+        allowed_attracted_types = [str(t) for t in allowed_attracted_types]
 
     all_positions = {obj: arr_segments[arr_segments[:, 0] == obj, 2:5] for obj in unique_objects}
     all_times = {obj: arr_segments[arr_segments[:, 0] == obj, 1] for obj in unique_objects}
