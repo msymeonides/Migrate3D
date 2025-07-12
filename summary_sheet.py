@@ -160,7 +160,7 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
     return obj, summary_tuple, single_euclidean
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile,
-                  angle_steps, all_angle_medians):
+                  angle_steps, all_angle_medians, df_removed):
     warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
     warnings.filterwarnings("ignore", category=PerformanceWarning, message="DataFrame is highly fragmented")
 
@@ -308,6 +308,43 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
             df_sum[col] = np.nan
     df_sum = df_sum[summary_columns]
 
+    min_maxeuclid = parameters.get('min_maxeuclid', 0)
+    euclidean_filtered_count = 0
+
+    if min_maxeuclid > 0:
+        pre_filter_count = len(df_sum)
+        filtered_objects = df_sum[df_sum['Max Euclidean'] < min_maxeuclid]['Object ID'].tolist()
+        df_sum = df_sum[df_sum['Max Euclidean'] >= min_maxeuclid].copy()
+        post_filter_count = len(df_sum)
+        euclidean_filtered_count = pre_filter_count - post_filter_count
+
+        if euclidean_filtered_count > 0:
+            euclidean_removed = pd.DataFrame({
+                'Object ID': filtered_objects,
+                'Reason for removal': ['Min. Max. Euclidean'] * len(filtered_objects)
+            })
+            euclidean_removed['Object ID'] = euclidean_removed['Object ID'].astype(int)
+            df_removed = pd.concat([df_removed, euclidean_removed], ignore_index=True)
+
+            filtered_object_ids = df_sum['Object ID'].tolist()
+            df_single_euclids = df_single_euclids[df_single_euclids['Object ID'].isin(filtered_object_ids)].copy()
+            df_single_angles = df_single_angles[df_single_angles['Object ID'].isin(filtered_object_ids)].copy()
+            df_msd = df_msd[df_msd['Object ID'].isin(filtered_object_ids)].copy()
+            msd_vals = df_msd.set_index("Object ID")[existing_cols]
+            if 'Category' in df_msd.columns:
+                category_df_filtered = df_msd[['Object ID', 'Category']].copy()
+                msd_vals["Category"] = category_df_filtered.set_index('Object ID')['Category']
+                grouped = msd_vals.groupby("Category")
+                df_msd_avg_per_cat = grouped.mean().T
+                df_msd_std_per_cat = grouped.std().T
+                df_msd_avg_per_cat.index.name = "MSD"
+
+            msd_vals_summary = msd_vals.drop(columns="Category", errors="ignore")
+            df_msd_sum_all = pd.DataFrame({
+                "Mean": msd_vals_summary.mean(),
+                "StDev": msd_vals_summary.std()})
+            df_msd_sum_all.index.name = "MSD"
+
     df_msd_loglogfits = msd_loglogfits(df_msd)
     df_msd_loglogfits.columns = df_msd_loglogfits.columns.astype(str)
 
@@ -326,4 +363,4 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
             pass
 
     return (df_sum, df_single_euclids, df_single_angles, df_msd, df_msd_sum_all,
-            df_msd_avg_per_cat, df_msd_std_per_cat, df_msd_loglogfits, df_pca)
+            df_msd_avg_per_cat, df_msd_std_per_cat, df_msd_loglogfits, df_pca, df_removed, euclidean_filtered_count)

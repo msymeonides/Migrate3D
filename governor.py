@@ -17,8 +17,8 @@ from shared_state import messages, thread_lock, set_abort_state, complete_progre
 pd.set_option('future.no_silent_downcasting', True)
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
-              arrested, tau, formatting_options, savefile, segments_file_name, categories_file, parameters,
-              pca_filter, attract_params):
+              arrested, min_maxeuclid, tau, formatting_options, savefile, segments_dataframe, categories_dataframe,
+              segments_filename, categories_filename, parameters, pca_filter, attract_params):
     bigtic = tempo.time()
 
     with thread_lock:
@@ -38,6 +38,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     parameters['moving'] = moving
     parameters['contact_length'] = contact_length
     parameters['arrested'] = arrested
+    parameters['min_maxeuclid'] = min_maxeuclid
     parameters['tau'] = tau
     parameters['pca_filter'] = pca_filter
     parameters['attract_params'] = attract_params
@@ -60,11 +61,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         if 'Generate Figures' in formatting_options:
             parameters['generate_figures'] = True
 
-    seg_path = Path(segments_file_name).expanduser().resolve()
-    parameters['infile_segments'] = str(seg_path)
-
-    infile_segments = pd.read_csv(parameters['infile_segments'], sep=',', dtype={parent_id: int})
-    df_infile = pd.DataFrame(infile_segments)
+    df_infile = segments_dataframe.copy()
+    segments_file_display = segments_filename
 
     if z_for is None:
         df_infile[z_for] = 0
@@ -87,7 +85,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     tic = tempo.time()
 
     with thread_lock:
-        messages.append(f"Formatting input dataset:\n{seg_path}")
+        messages.append(f"Formatting input dataset...")
 
     dropped_objects = []
     df_removed = pd.DataFrame()
@@ -104,18 +102,19 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         arr_segments = arr_segments_filtered
         unique_objects = np.unique(arr_segments[:, 0])
         if dropped_objects:
-            df_removed = pd.DataFrame({'Object ID': dropped_objects})
+            df_removed = pd.DataFrame({
+                'Object ID': dropped_objects,
+                'Reason for removal': ['Gaps'] * len(dropped_objects)
+            })
             df_removed['Object ID'] = df_removed['Object ID'].astype(int)
-            with thread_lock:
-                messages.append(f"Removed {len(dropped_objects)} object(s) with timepoint gaps "
-                                f"(object IDs have been recorded in 'Removed Objects' sheet in the main output file).")
 
     df_segments = pd.DataFrame(arr_segments, columns=['Object ID', 'Time', 'X', 'Y', z_for])
     df_segments['Object ID'] = df_segments['Object ID'].astype(int)
     toc = tempo.time()
 
     with thread_lock:
-        messages.append('...Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1))))
+        msg = ' Formatting done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
+        messages[-1] += msg
         messages.append('')
     complete_progress_step("Formatting")
 
@@ -162,13 +161,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         messages.append('')
     complete_progress_step("Calculations")
 
-    cat_df = pd.DataFrame()
     category_input_list = []
-    object_id_2 = parameters['object_id_2_col']
-    category_col_name = parameters['category_col']
-    categories_file_name = None
 
-    if categories_file is None:
+    if categories_dataframe is None:
         unique_ids = np.unique(arr_segments[:, 0])
         cat_df = pd.DataFrame({
             parameters['object_id_2_col']: unique_ids,
@@ -179,19 +174,13 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         arr_cats = np.array([[int(obj_id), '0'] for obj_id in unique_ids], dtype=object)
         categories_file_name = 'None'
     else:
-        if isinstance(categories_file, str) and categories_file.startswith('data:'):
-            categories_file_name = parameters.get('category_file_name', 'Uploaded via base64')
-            content_type, content_string = categories_file.split(',')
-            decoded = base64.b64decode(content_string)
-            cat_df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-        elif isinstance(categories_file, str) and Path(categories_file).is_file():
-            categories_file_name = str(categories_file)
-            cat_df = pd.read_csv(categories_file)
+        cat_df = categories_dataframe.copy()
+        categories_file_name = categories_filename if categories_filename else 'None'
 
         cat_df = cat_df[[parameters['object_id_2_col'], parameters['category_col']]]
         for row in cat_df.index:
-            object_id2 = int(cat_df[object_id_2][row])
-            category = cat_df[category_col_name][row]
+            object_id2 = int(cat_df[parameters['object_id_2_col']][row])
+            category = cat_df[parameters['category_col']][row]
             category_input_list.append([object_id2, category])
         cat_df.columns = ['Object ID', 'Category']
         cat_df['Category'] = cat_df['Category'].astype(str)
@@ -207,12 +196,13 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         arr_cats = np.array(arr_cats_filtered) if arr_cats_filtered else np.array([]).reshape(0, 2)
 
     settings = [
-        ('Segments file', seg_path.name),
+        ('Segments file', segments_file_display),
         ('Categories file', categories_file_name),
         ('Arrest limit', arrest_limit),
         ('Min. timepoints', parameters['moving']),
         ('Contact length', contact_length),
         ('Max. arrest coeff.', arrested),
+        ('Min. Max. Euclidean', min_maxeuclid),
         ('Timelapse interval', timelapse_interval),
         ('Max. Tau', parameters['tau']),
         ('Multitracking', parameters['multi_track']),
@@ -225,9 +215,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         twodim_mode = True
 
     (df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat,
-     df_msd_loglogfits, df_pca) = summary_sheet(
+     df_msd_loglogfits, df_pca, df_removed, euclidean_filtered_count) = summary_sheet(
         arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile, all_angle_steps,
-        all_angle_medians
+        all_angle_medians, df_removed
     )
 
     df_sum['Category'] = df_sum['Category'].astype(str)
@@ -384,6 +374,23 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         pass
 
     with thread_lock:
+        # Add combined removal message before saving
+        gaps_count = len(dropped_objects)
+        euclidean_count = euclidean_filtered_count
+
+        if gaps_count > 0 and euclidean_count > 0:
+            messages.append(f"Removed {gaps_count} objects with timepoint gaps and {euclidean_count} objects with Max Euclidean < {min_maxeuclid}.")
+            messages.append(f"Removed object IDs have been recorded in 'Removed Objects' sheet in the main output file.")
+            messages.append('')
+        elif gaps_count > 0:
+            messages.append(f"Removed {gaps_count} objects with timepoint gaps.")
+            messages.append(f"Removed object IDs have been recorded in 'Removed Objects' sheet in the main output file.")
+            messages.append('')
+        elif euclidean_count > 0:
+            messages.append(f"Removed {euclidean_count} objects with Max Euclidean < {min_maxeuclid}.")
+            messages.append(f"Removed object IDs have been recorded in 'Removed Objects' sheet in the main output file.")
+            messages.append('')
+
         messages.append('Saving main output to ' + savepath + '...')
         messages.append('')
 
@@ -395,7 +402,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     with pd.ExcelWriter(savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as workbook:
         df_settings.to_excel(workbook, sheet_name='Settings', index=False)
-        if dropped_objects:
+        if not df_removed.empty:
             df_removed.to_excel(workbook, sheet_name='Removed Objects', index=False)
         if parameters['verbose']:
             df_segments.to_excel(workbook, sheet_name='Object Data', index=False)

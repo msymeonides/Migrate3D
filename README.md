@@ -18,11 +18,13 @@ Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan, an
 
 ## Input Files
 
-A Segments input file is required to run Migrate3D. Optionally, a Categories input file can be provided to perform additional analyses. In both cases, the program will "guess" which columns contain which data, but if this fails, you can select them through a drop-down box in the GUI. 
+A Segments input file is required to run Migrate3D. Optionally, a Categories input file can be provided to perform additional analyses. In both cases, the program will "guess" which columns contain which data, but if this fails, you can select them through a drop-down box in the GUI. These input files can be stored in any folder.
 
 ### Segments
 
-The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the number of timepoints elapsed. If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation formatting option is used. The IDs of dropped objects will be recorded in the results output. If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
+The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the timepoint index.
+
+If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation formatting option is used. The IDs of dropped objects will be recorded in the results output (along with any objects dropped due to the "Minimum Max. Euclidean" filter) in the sheet "Removed Objects". If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
 
 ### Categories
 
@@ -236,6 +238,9 @@ This parameter only applies to the Contacts module (see 'Formatting Options' bel
 
 To turn this filter off, set this value to 1. Note that if Arrest Limit has been set to 0, this parameter will have no effect as all objects will have an Arrest Coefficient of 0 and will survive the "minus dead" filter.
 
+### Minimum Max. Euclidean:
+
+This parameter can be used to filter out objects that do not venture far enough from their origin to be considered "moving" in a meaningful way. This is a floating point variable that represents the minimum value of Maximum Euclidean Distance (see Calculations section below) that an object must have to be included in the analysis. The IDs of dropped objects will be recorded in the results output (along with any objects dropped due having gaps in their tracks) in the sheet "Removed Objects".
 
 ## Autodetected Parameters
 
