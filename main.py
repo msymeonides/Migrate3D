@@ -23,6 +23,7 @@ parameters = {'arrest_limit': 3,    # Arrest limit
               'moving': 4,          # Minimum timepoints
               'contact_length': 12, # Contact length
               'arrested': 0.95,     # Maximum arrest coefficient
+              'min_maxeuclid': 0,   # Minimum Max. Euclidean filter
               'timelapse': 1,       # Timelapse interval
               'tau': 10,            # Maximum Tau value
               'savefile': '{:%Y-%m-%d}'.format(date.today()) + '_Migrate3D',
@@ -246,6 +247,9 @@ app.layout = dbc.Container(
                                 html.Div([html.H6(children=['Maximum arrest coefficient (objects with arrest coefficient above this value will be considered arrested)']),
                                 dcc.Input(id='arrested', value=parameters['arrested']),],style={'marginLeft': '5%'}),
                                 html.Hr(),
+                                html.Div([html.H6(children=['Minimum Max. Euclidean (objects whose value of Max. Euclidean is below this value will be excluded from analysis)']),
+                                dcc.Input(id='min_maxeuclid', value=parameters['min_maxeuclid'], placeholder='Enter minimum Max. Euclidean value'),],style={'marginLeft': '5%'}),
+                                html.Hr(),
                                 html.H4('Autodetected parameters'),
                                 html.Div(html.H6('The timelapse interval and maximum tau value will be autodetected from the segments file immediately after it is loaded. Any value can be manually entered in case these are not detected correctly.'),style={'marginLeft': '2%'}),
                                 html.Hr(),
@@ -402,8 +406,8 @@ app.layout = dbc.Container(
 
 def run_migrate_thread(args):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving,
-     contact_length, arrested, tau, formatting_options, savefile,
-     segments_file_name, categories_file, parent_id2, category_col_name,
+     contact_length, arrested, min_maxeuclid, tau, formatting_options, savefile,
+     segments_file_name, categories_file, segments_filename, categories_filename, parent_id2, category_col_name,
      parameters, pca_filter, attract_params) = args
 
     if categories_file is not None:
@@ -430,8 +434,8 @@ def run_migrate_thread(args):
         df_segments, df_sum, df_pca = migrate3D(
             parent_id, time_for, x_for, y_for, z_for, float(timelapse),
             float(arrest_limit), int(moving), int(contact_length), float(arrested),
-            int(tau), formatting_options, savefile,
-            segments_file_name, categories_file, parameters, pca_filter, attract_params)
+            float(min_maxeuclid), int(tau), formatting_options, savefile,
+            segments_file_name, categories_file, segments_filename, categories_filename, parameters, pca_filter, attract_params)
 
         with thread_lock:
             messages.append("You may close the GUI browser tab and terminate the Python process.")
@@ -455,6 +459,7 @@ def run_migrate_thread(args):
     Input('moving', 'value'),
     Input('contact_length', 'value'),
     Input('arrested', 'value'),
+    Input('min_maxeuclid', 'value'),
     Input('tau', 'value'),
     Input('formatting_options', 'value'),
     Input('save_file', 'value'),
@@ -478,7 +483,7 @@ def run_migrate_thread(args):
 def run_migrate(*vals):
     (parent_id, time_for, x_for, y_for, z_for,
      timelapse, arrest_limit, moving, contact_length, arrested,
-     tau, formatting_options, savefile,
+     min_maxeuclid, tau, formatting_options, savefile,
      segments_contents, segments_file,
      category_contents, category_file,
      parent_id2, category_col_name, pca_filter,
@@ -515,12 +520,21 @@ def run_migrate(*vals):
         'allowed_attracted_types': allowed_attracted_types
     }
 
+    # Use the stored dataframes and filenames
+    segments_input = file_storing.get('segments_dataframe', None)
+    categories_input = file_storing.get('categories_dataframe', None)
+    segments_filename = file_storing.get('segments_filename', None)
+    categories_filename = file_storing.get('categories_filename', None)
+
     args = [
         parent_id, time_for, x_for, y_for, z_for,
         float(timelapse), float(arrest_limit), int(moving),
-        float(contact_length), float(arrested), int(tau),
+        float(contact_length), float(arrested), float(min_maxeuclid), int(tau),
         formatting_options, savefile,
-        segments_file, category_file,
+        segments_input,
+        categories_input,
+        segments_filename,
+        categories_filename,
         parent_id2, category_col_name,
         parameters, pca_filter, attract_params
     ]
@@ -548,7 +562,10 @@ def get_segments_file(contents, filename):
         df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
     except Exception:
         return html.Div(['There was an error processing this file.']), [], None, [], None, [], None, [], None, [], None
-    file_storing['Segments'] = df
+
+    file_storing['segments_dataframe'] = df
+    file_storing['segments_filename'] = filename  # Store the actual filename
+
     def guess_column(df, keywords):
         for col in df.columns:
             if any(key.lower() in col.lower() for key in keywords):
@@ -586,7 +603,10 @@ def get_category_file(contents, filename):
         df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
     except Exception:
         return html.Div(['There was an error processing this file.']), [], None, [], None
-    file_storing['Categories'] = df
+
+    file_storing['categories_dataframe'] = df
+    file_storing['categories_filename'] = filename  # Store the actual filename
+
     def guess_column(df, keywords):
         for col in df.columns:
             if any(key.lower() in col.lower() for key in keywords):
@@ -693,6 +713,7 @@ def toggle_attractor_settings(n_clicks):
         Output('moving', 'disabled'),
         Output('contact_length', 'disabled'),
         Output('arrested', 'disabled'),
+        Output('min_maxeuclid', 'disabled'),
         Output('Timelapse', 'disabled'),
         Output('tau', 'disabled'),
         Output('PCA_filter', 'disabled'),
@@ -764,7 +785,7 @@ def update_run_and_freeze(n_clicks, progress):
         btn_disabled = False
 
     freeze = bool(n_clicks and n_clicks > 0)
-    freeze_outputs = [freeze] * 24
+    freeze_outputs = [freeze] * 25
     formatting_style = {'pointerEvents': 'none', 'opacity': 0.5} if freeze else {}
 
     return [btn_text, btn_style, btn_disabled] + freeze_outputs + [formatting_style]
