@@ -1,23 +1,29 @@
+import itertools
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.model_selection import train_test_split, RandomizedSearchCV, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import scikit_posthocs as sp
 from scipy import stats
+import time
 import xgboost.sklearn as xgb
 from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
-from sklearn.metrics import accuracy_score, classification_report
-import itertools
-import time
 
 from shared_state import messages, thread_lock, complete_progress_step
 
 class XGBAbortException(Exception):
     pass
 
-min_required = 5    # Minimum number of samples required for a category to be included in PCA and XGBoost
-correlation_threshold = 0.95  # Pearson correlation threshold. Features with correlation above this threshold will be grouped together.
+min_required_pca = 5            # Minimum number of samples for PCA
+min_required_xgb = 10           # Minimum number of samples for XGBoost
+min_required_train_test = 20    # Minimum for using Train-Test Split method in XGBoost
+test_size = 0.4                 # Proportion of data to use for testing when using Train-Test Split method in XGBoost
+variance_threshold = 0.01       # Threshold for near-zero variance feature removal
+correlation_threshold = 0.95    # Pearson correlation threshold. Features with correlation above this threshold will be grouped together.
+random_seed = 42                # Random seed for reproducibility
 
 def safe_ml_operation(operation_func, error_step=None, *args, **kwargs):
     try:
@@ -29,15 +35,15 @@ def safe_ml_operation(operation_func, error_step=None, *args, **kwargs):
             complete_progress_step(error_step)
         error()
 
-def prepare_data_for_training(features, categories, test_size=0.4):
-    label_encoder = LabelEncoder()
-    y_encoded = label_encoder.fit_transform(categories)
+def remove_near_zero_variance(df, threshold=None):
+    if threshold is None:
+        threshold = variance_threshold
+    selector = VarianceThreshold(threshold=threshold)
+    feature_mask = selector.fit(df).get_support()
+    removed_features = df.columns[~feature_mask].tolist()
+    df_filtered = df.loc[:, feature_mask]
 
-    x_train, x_test, y_train, y_test = train_test_split(
-        features, y_encoded, test_size=test_size, random_state=42, stratify=y_encoded
-    )
-
-    return x_train, x_test, y_train, y_test, label_encoder
+    return df_filtered, removed_features
 
 def error():
     with thread_lock:
@@ -50,7 +56,6 @@ def error():
 def apply_category_filter(df, cat_filter):
     if cat_filter is None:
         return df
-    df = df.copy()
     if pd.api.types.is_numeric_dtype(df['Category']):
         try:
             filter_vals = [int(x) for x in cat_filter]
@@ -116,53 +121,65 @@ def aggregate_correlated_features(df, feature_groups):
     return aggregated_df, feature_mapping
 
 def create_correlation_sheet(df, feature_groups, threshold, writer):
-    corr_matrix = df.corr().abs()
-    np.fill_diagonal(corr_matrix.values, 0)
+    try:
+        corr_matrix = df.corr().abs()
+        np.fill_diagonal(corr_matrix.values, 0)
 
-    feature_to_group = {}
-    for i, group in enumerate(feature_groups):
-        for feature in group:
-            feature_to_group[feature] = i if len(group) > 1 else None
+        feature_to_group = {}
+        for i, group in enumerate(feature_groups):
+            for feature in group:
+                feature_to_group[feature] = i if len(group) > 1 else None
 
-    correlation_decisions = []
-    for i in corr_matrix.columns:
-        for j in corr_matrix.columns:
-            if i < j:
-                corr_value = corr_matrix.loc[i, j]
-                same_group = feature_to_group[i] == feature_to_group[j]
-                meets_threshold = corr_value >= threshold
-                correlation_decisions.append({
-                    'Feature_1': i,
-                    'Feature_2': j,
-                    'Correlation': corr_value,
-                    'Meets_Threshold': meets_threshold,
-                    'Actually_Grouped': same_group,
-                    'Aggregated_Feature_1': feature_to_group[i] if feature_to_group[i] is not None else '',
-                    'Aggregated_Feature_2': feature_to_group[j] if feature_to_group[j] is not None else ''
-                })
+        correlation_decisions = []
+        for i in corr_matrix.columns:
+            for j in corr_matrix.columns:
+                if i < j:
+                    corr_value = corr_matrix.loc[i, j]
+                    same_group = feature_to_group[i] == feature_to_group[j]
+                    meets_threshold = corr_value >= threshold
+                    correlation_decisions.append({
+                        'Feature_1': i,
+                        'Feature_2': j,
+                        'Correlation': corr_value,
+                        'Meets_Threshold': meets_threshold,
+                        'Actually_Grouped': same_group,
+                        'Aggregated_Feature_1': feature_to_group[i] if feature_to_group[i] is not None else '',
+                        'Aggregated_Feature_2': feature_to_group[j] if feature_to_group[j] is not None else ''
+                    })
 
-    correlations_df = pd.DataFrame(correlation_decisions)
-    correlations_df = correlations_df.sort_values('Correlation', ascending=False)
-    correlations_df.to_excel(writer, sheet_name='Feature Correlations', index=False)
+        correlations_df = pd.DataFrame(correlation_decisions)
+        correlations_df = correlations_df.sort_values('Correlation', ascending=False)
+        correlations_df.to_excel(writer, sheet_name='Feature Correlations', index=False)
+    except Exception as e:
+        print(f"ERROR in create_correlation_sheet: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 def create_aggregation_sheet(df, feature_groups, aggregated_df, writer):
-    for i, group in enumerate(feature_groups):
-        if len(group) > 1:
-            original_data = df[group].copy()
-            group_name = ", ".join(group)
-            aggregated_data = aggregated_df[[group_name]].copy()
-            aggregated_data.columns = ['Aggregated_Mean']
-            comparison_df = pd.concat([original_data, aggregated_data], axis=1)
-            sheet_name = f'Aggregated Feature {i}'
-            comparison_df.to_excel(writer, sheet_name=sheet_name, index=False)
+    try:
+        for i, group in enumerate(feature_groups):
+            if len(group) > 1:
+                original_data = df[group]
+                group_name = ", ".join(group)
+                aggregated_data = aggregated_df[[group_name]]
+                aggregated_data.columns = ['Aggregated_Mean']
+                comparison_df = pd.concat([original_data, aggregated_data], axis=1)
+                sheet_name = f'Aggregated Feature {i}'
+                comparison_df.to_excel(writer, sheet_name=sheet_name, index=False)
+    except Exception as e:
+        print(f"ERROR in create_aggregation_sheet: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
-def preprocess_features(df, writer=None):
+def preprocess_features_with_variance_filter(df, writer=None, analysis_type=""):
     try:
         df_features = df.drop(['Object ID', 'Category'], axis=1)
         categories = df['Category']
         object_ids = df['Object ID']
 
-        # Filter out non-moving objects (i.e. those with zero mean or median velocity)
+        if writer is not None:
+            df.to_excel(writer, sheet_name='1. Filter Categories', index=False)
+
         zero_check_columns = ['Velocity Mean', 'Velocity Median']
         available_zero_check_columns = [col for col in zero_check_columns if col in df_features.columns]
 
@@ -172,90 +189,174 @@ def preprocess_features(df, writer=None):
             categories = categories[~zero_mask]
             object_ids = object_ids[~zero_mask]
 
-        df_after_zero_filter = df_features.copy()
-        df_after_zero_filter.insert(0, 'Object ID', object_ids)
-        df_after_zero_filter.insert(1, 'Category', categories)
+        if writer is not None:
+            df_after_zero_filter = df_features.copy()
+            df_after_zero_filter.insert(0, 'Object ID', object_ids)
+            df_after_zero_filter.insert(1, 'Category', categories)
+            df_after_zero_filter.to_excel(writer, sheet_name='2. Remove Non-Moving Objs.', index=False)
 
-        # Apply log transformation to the zero-filtered data
         log_data = np.sign(df_features) * np.log(np.abs(df_features) + 1)
         log_data = log_data.dropna()
         categories = categories.loc[log_data.index]
         object_ids = object_ids.loc[log_data.index]
 
-        # Scale the log-transformed data
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(log_data)
         scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns, index=log_data.index)
 
-        # Detect and aggregate features using the filtered/scaled/transformed data
-        feature_groups = detect_correlated_features(scaled_df, threshold=correlation_threshold)
-        aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df, feature_groups)
+        if writer is not None:
+            scaled_data_with_ids = scaled_df.copy()
+            scaled_data_with_ids.insert(0, 'Object ID', object_ids)
+            scaled_data_with_ids.insert(1, 'Category', categories)
+            scaled_data_with_ids.to_excel(writer, sheet_name='3. Transform & Scale', index=False)
+
+        scaled_df_filtered, removed_features = remove_near_zero_variance(scaled_df, variance_threshold)
+
+        def format_feature_list(features, max_display=5):
+            if len(features) <= max_display:
+                return ', '.join(features)
+            return f"{', '.join(features[:max_display])}... ({len(features)} total)"
+
+        if removed_features:
+            with thread_lock:
+                messages.append(
+                    f"Removed {len(removed_features)} near-zero variance features from {analysis_type}: {format_feature_list(removed_features)}")
+
+        feature_groups = detect_correlated_features(scaled_df_filtered, threshold=correlation_threshold)
+        aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df_filtered, feature_groups)
 
         if writer is not None:
-            df.to_excel(writer, sheet_name='1. Filter Categories', index=False)
-
-            df_after_zero_filter.to_excel(writer, sheet_name='2. Remove Non-Moving Objs.', index=False)
-
-            scaled_data = scaled_df.copy()
-            scaled_data.insert(0, 'Object ID', object_ids)
-            scaled_data.insert(1, 'Category', categories)
-            scaled_data.to_excel(writer, sheet_name='3. Transform & Scale', index=False)
-
             processed_data = aggregated_features.copy()
             processed_data.insert(0, 'Object ID', object_ids)
             processed_data.insert(1, 'Category', categories)
             processed_data.to_excel(writer, sheet_name='4. Aggregate Corr. Features', index=False)
 
-            create_correlation_sheet(scaled_df, feature_groups, correlation_threshold, writer)
-            create_aggregation_sheet(scaled_df, feature_groups, aggregated_features, writer)
+            create_correlation_sheet(scaled_df_filtered, feature_groups, correlation_threshold, writer)
+            create_aggregation_sheet(scaled_df_filtered, feature_groups, aggregated_features, writer)
 
-        return aggregated_features, categories, feature_mapping
+        return aggregated_features, categories, feature_mapping, removed_features
+
     except XGBAbortException:
         raise
-    except Exception:
-        complete_progress_step("PCA")
+    except Exception as e:
+        print(f"DEBUG {analysis_type}: Exception occurred: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+        if analysis_type == "PCA":
+            complete_progress_step("PCA")
+        else:
+            complete_progress_step("XGB")
         error()
 
-def optimize_hyperparameters(x_train, y_train):
-    param_grid = {
-        'n_estimators': [50, 100, 200, 300, 400, 500],
-        'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3],
-        'max_depth': [3, 5, 7, 9, 11],
-        'gamma': [0.0, 0.05, 0.1, 0.2, 0.3],
-        'subsample': [0.6, 0.7, 0.8, 0.9, 1.0],
-        'colsample_bytree': [0.6, 0.7, 0.8, 0.9, 1.0],
-        'min_child_weight': [1, 3, 5, 7],
-        'reg_alpha': [0.0, 0.1, 0.5],
-        'reg_lambda': [0.0, 0.1, 0.5]
-    }
-    model = xgb.XGBClassifier(objective='multi:softmax',
-                              eval_metric='mlogloss',
-                              num_class=len(np.unique(y_train)),
-                              n_jobs=-1)
+def prepare_data_for_training(features, categories, use_kfold=False):
+    label_encoder = LabelEncoder()
+    y_encoded = label_encoder.fit_transform(categories)
+
+    if use_kfold:
+        return features, None, y_encoded, None, label_encoder, True
+    else:
+        x_train, x_test, y_train, y_test = train_test_split(
+            features, y_encoded, test_size=test_size, random_state=random_seed, stratify=y_encoded
+        )
+        return x_train, x_test, y_train, y_test, label_encoder, False
+
+def prepare_data_for_analysis(df_selected, min_samples, analysis_type=""):
+    class_counts = df_selected['Category'].value_counts()
+    to_drop = class_counts[class_counts < min_samples].index.tolist()
+
+    if to_drop:
+        with thread_lock:
+            excluded_categories = ', '.join(map(str, to_drop))
+            messages.append(
+                f"Excluded the following categories from {analysis_type} (<{min_samples} samples): {excluded_categories}"
+            )
+
+    df_filtered = df_selected[~df_selected['Category'].isin(to_drop)]
+
+    if df_filtered.empty:
+        return None, None, None
+
+    remaining_counts = df_filtered['Category'].value_counts()
+    use_kfold = any(count < min_required_train_test for count in remaining_counts)
+
+    categories = df_filtered['Category']
+    features = df_filtered.drop(['Object ID', 'Category'], axis=1)
+    return df_filtered, categories, features
+
+def adaptive_hyperparameter_grid(total_samples):
+    if total_samples < 50:
+        return {
+            'n_estimators': [50, 100, 200],
+            'learning_rate': [0.05, 0.1, 0.2],
+            'max_depth': [2, 3, 4],
+            'gamma': [0.0, 0.1],
+            'subsample': [0.8, 1.0],
+            'colsample_bytree': [0.8, 1.0],
+            'min_child_weight': [1, 3],
+            'reg_alpha': [0.0, 0.1],
+            'reg_lambda': [0.0, 0.1]
+        }
+    else:
+        return {
+            'n_estimators': [100, 200, 300, 500],
+            'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3],
+            'max_depth': [3, 5, 7, 9],
+            'gamma': [0.0, 0.05, 0.1, 0.2],
+            'subsample': [0.6, 0.8, 1.0],
+            'colsample_bytree': [0.6, 0.8, 1.0],
+            'min_child_weight': [1, 3, 5],
+            'reg_alpha': [0.0, 0.1, 0.5],
+            'reg_lambda': [0.0, 0.1, 0.5]
+        }
+
+def optimize_hyperparameters_adaptive(x_train, y_train, use_kfold=False):
+    total_samples = len(x_train)
+    param_grid = adaptive_hyperparameter_grid(total_samples)
+
+    model = xgb.XGBClassifier(
+        objective='multi:softmax',
+        eval_metric='mlogloss',
+        num_class=len(np.unique(y_train)),
+        n_jobs=-1
+    )
+
     try:
+        if use_kfold:
+            min_class_size = np.bincount(y_train).min()
+            cv_folds = min(5, min_class_size, total_samples // len(np.unique(y_train)))
+            cv_folds = max(2, cv_folds)
+
+            cv_strategy = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_seed)
+        else:
+            cv_strategy = 3
+
         random_search = RandomizedSearchCV(
             estimator=model,
             param_distributions=param_grid,
-            n_iter=100,
-            cv=3,
+            n_iter=50 if total_samples < 50 else 100,
+            cv=cv_strategy,
             scoring='accuracy',
             n_jobs=-1,
-            random_state=42
+            random_state=random_seed,
         )
+
         random_search.fit(x_train, y_train)
         return random_search.best_params_
+
     except Exception:
-        return {
-            'n_estimators': 100,
-            'learning_rate': 0.1,
-            'max_depth': 5,
-            'gamma': 0.0,
-            'subsample': 1.0,
-            'colsample_bytree': 1.0,
-            'min_child_weight': 1,
-            'reg_alpha': 0.0,
-            'reg_lambda': 0.0
-        }
+        if total_samples < 50:
+            return {
+                'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3,
+                'gamma': 0.0, 'subsample': 1.0, 'colsample_bytree': 1.0,
+                'min_child_weight': 1, 'reg_alpha': 0.0, 'reg_lambda': 0.0
+            }
+        else:
+            return {
+                'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 5,
+                'gamma': 0.0, 'subsample': 1.0, 'colsample_bytree': 1.0,
+                'min_child_weight': 1, 'reg_alpha': 0.0, 'reg_lambda': 0.0
+            }
 
 def train_and_evaluate(x_train, y_train, x_test, y_test, params):
     try:
@@ -277,8 +378,7 @@ def train_and_evaluate(x_train, y_train, x_test, y_test, params):
         error()
 
 def decode_classification_report_labels(report_df, label_encoder):
-    encoded_labels = label_encoder.transform(label_encoder.classes_)
-    label_mapping = dict(zip(encoded_labels, label_encoder.classes_))
+    label_mapping = dict(enumerate(label_encoder.classes_))
 
     summary_rows = ['accuracy', 'macro avg', 'weighted avg']
     filtered_report = report_df[~report_df.index.isin(summary_rows)]
@@ -286,11 +386,8 @@ def decode_classification_report_labels(report_df, label_encoder):
     new_index = []
     for idx_val in filtered_report.index:
         try:
-            encoded_label = int(str(idx_val))
-            if encoded_label in label_mapping:
-                new_index.append(str(label_mapping[encoded_label]))
-            else:
-                new_index.append(str(idx_val))
+            encoded_label = int(idx_val)
+            new_index.append(str(label_mapping.get(encoded_label, idx_val)))
         except ValueError:
             new_index.append(str(idx_val))
 
@@ -309,30 +406,92 @@ def xgboost_pairwise(data, category_col, aggregated_features, writer):
 
     for comparison_num, (cat1, cat2) in enumerate(category_pairs, 1):
         try:
-            pair_indices = labels.isin([cat1, cat2])
-            pair_data = aggregated_features[pair_indices]
-            pair_labels = labels[pair_indices]
+            pair_mask = labels.isin([cat1, cat2])
+            pair_indices = labels[pair_mask].index
+
+            pair_data = aggregated_features.loc[pair_indices]
+            pair_labels = labels.loc[pair_indices]
 
             if pair_data.empty or pair_labels.empty:
                 continue
 
-            x_train, x_test, y_train, y_test, label_encoder = prepare_data_for_training(
-                pair_data, pair_labels, test_size=0.4
-            )
+            pair_category_counts = pd.Series(pair_labels).value_counts()
+            pair_use_kfold = any(count < min_required_xgb for count in pair_category_counts)
 
-            model = XGBClassifier(eval_metric='logloss')
-            model.fit(x_train, y_train)
-            y_pred = model.predict(x_test)
+            if pair_use_kfold:
+                label_encoder = LabelEncoder()
+                y_encoded = label_encoder.fit_transform(pair_labels)
+
+                best_params = optimize_hyperparameters_adaptive(pair_data, y_encoded, pair_use_kfold)
+
+                model = XGBClassifier(
+                    objective='multi:softmax',
+                    eval_metric='mlogloss',
+                    num_class=len(np.unique(y_encoded)),
+                    n_jobs=-1,
+                    **best_params
+                )
+
+                cv_folds = max(2, min(3, len(pair_labels) // 4))
+                cv_strategy = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_seed)
+
+                y_true_all = []
+                y_pred_all = []
+
+                for train_idx, test_idx in cv_strategy.split(pair_data, y_encoded):
+                    try:
+                        X_train_cv, X_test_cv = pair_data.iloc[train_idx], pair_data.iloc[test_idx]
+                        y_train_cv, y_test_cv = y_encoded[train_idx], y_encoded[test_idx]
+
+                        model.fit(X_train_cv, y_train_cv)
+                        y_pred_cv = model.predict(X_test_cv)
+
+                        if len(y_test_cv) == len(y_pred_cv):
+                            y_true_all.extend(y_test_cv)
+                            y_pred_all.extend(y_pred_cv)
+                    except Exception:
+                        continue
+
+                if len(y_true_all) == 0 or len(y_pred_all) == 0:
+                    with thread_lock:
+                        messages.append(f"Warning: No valid predictions for comparison {cat1} vs {cat2}")
+                    continue
+
+                model.fit(pair_data, y_encoded)
+
+            else:
+                x_train, x_test, y_train, y_test, label_encoder, _ = prepare_data_for_training(
+                    pair_data, pair_labels, use_kfold=pair_use_kfold)
+
+                best_params = optimize_hyperparameters_adaptive(x_train, y_train, False)
+
+                model = XGBClassifier(
+                    objective='multi:softmax',
+                    eval_metric='mlogloss',
+                    num_class=len(np.unique(y_train)),
+                    n_jobs=-1,
+                    **best_params
+                )
+
+                model.fit(x_train, y_train)
+
+                y_true_all = y_test
+                y_pred_all = model.predict(x_test)
+
+            if len(y_true_all) != len(y_pred_all):
+                with thread_lock:
+                    messages.append(f"Warning: Array length mismatch for comparison {cat1} vs {cat2}")
+                continue
 
             feature_importance = pd.DataFrame({
-                'Feature': pair_data.columns,
+                'Feature': pair_data.columns.tolist(),
                 'Importance': model.feature_importances_
             }).sort_values(by='Importance', ascending=False)
 
             blank_row = pd.DataFrame({'Feature': [''], 'Importance': ['']})
             comparison_info = pd.DataFrame({
-                'Feature': ['Categories:'],
-                'Importance': [f'{cat1} vs {cat2}']
+                'Feature': ['Categories:', 'Method:'],
+                'Importance': [f'{cat1} vs {cat2}', 'K-fold CV' if pair_use_kfold else 'Train-Test Split']
             })
 
             feature_importance_with_info = pd.concat([
@@ -342,51 +501,84 @@ def xgboost_pairwise(data, category_col, aggregated_features, writer):
             ], ignore_index=True)
 
             sheet_name_features = f'Pair_{comparison_num}_Features'
-            sheet_name_report = f'Pair_{comparison_num}_Report'
-
             feature_importance_with_info.to_excel(writer, sheet_name=sheet_name_features, index=False)
 
-            report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+            report = classification_report(y_true_all, y_pred_all, output_dict=True, zero_division=0)
             report_df = pd.DataFrame(report).transpose()
             accuracy_value = report_df.loc['accuracy', 'precision']
             report_df = decode_classification_report_labels(report_df, label_encoder)
 
             blank_row = pd.DataFrame({
-                'precision': [''],
-                'recall': [''],
-                'f1-score': [''],
-                'support': ['']
+                'precision': [''], 'recall': [''], 'f1-score': [''], 'support': ['']
             }, index=[''])
 
             comparison_info = pd.DataFrame({
-                'precision': ['Accuracy:'],
-                'recall': [f'{accuracy_value:.3f}'],
-                'f1-score': [''],
-                'support': ['']
-            }, index=[''])
+                'precision': ['Accuracy:', 'Method:'],
+                'recall': [f'{accuracy_value:.3f}', 'K-fold CV' if pair_use_kfold else 'Train-Test Split'],
+                'f1-score': ['', ''],
+                'support': ['', '']
+            }, index=['', ''])
 
             report_with_info = pd.concat([report_df, blank_row, comparison_info])
+
+            sheet_name_report = f'Pair_{comparison_num}_Report'
             report_with_info.to_excel(writer, sheet_name=sheet_name_report)
 
-        except Exception:
+        except Exception as e:
+            with thread_lock:
+                messages.append(f"Warning: Failed pairwise comparison {cat1} vs {cat2}: {str(e)}")
             continue
 
-def xgboost(df_selected, output_file, features, categories, feature_mapping):
+def xgboost_adaptive(df_selected, output_file, features, categories, feature_mapping):
     with thread_lock:
         messages.append('Starting XGBoost...')
     try:
         save_xgb = output_file + '_XGB.xlsx'
-        category_col = 'Category'
+        category_counts = pd.Series(categories).value_counts()
+        use_kfold = any(count < min_required_xgb for count in category_counts)
+
         with pd.ExcelWriter(save_xgb, engine='xlsxwriter') as writer:
-            x_train, x_test, y_train, y_test, label_encoder = prepare_data_for_training(features, categories)
-            best_params = optimize_hyperparameters(x_train, y_train)
-            _, model = train_and_evaluate(x_train, y_train, x_test, y_test, best_params)
-            y_pred = model.predict(x_test)
+            x_train, x_test, y_train, y_test, label_encoder, is_kfold = prepare_data_for_training(
+                features, categories, use_kfold=use_kfold)
+
+            best_params = optimize_hyperparameters_adaptive(x_train, y_train, is_kfold)
+
+            if not is_kfold:
+                _, model = train_and_evaluate(x_train, y_train, x_test, y_test, best_params)
+                y_pred = model.predict(x_test)
+            else:
+                model = xgb.XGBClassifier(
+                    objective='multi:softmax',
+                    eval_metric='mlogloss',
+                    num_class=len(np.unique(y_train)),
+                    n_jobs=-1,
+                    **best_params
+                )
+                model.fit(x_train, y_train)
+
+                y_pred_full = model.predict(x_train)
+                y_test = y_train
+                y_pred = y_pred_full
+
             feature_importance = pd.DataFrame({
-                'Features': [",".join(map(str, feature_mapping[col])) for col in features.columns],
+                'Feature': features.columns.tolist(),
                 'Importance': model.feature_importances_
             }).sort_values(by='Importance', ascending=False)
-            feature_importance.to_excel(writer, sheet_name='Full Dataset Features', index=False)
+
+            blank_row = pd.DataFrame({'Feature': [''], 'Importance': ['']})
+            comparison_info = pd.DataFrame({
+                'Feature': ['Categories:', 'Method:'],
+                'Importance': [f'Full Dataset', 'K-fold CV' if is_kfold else 'Train-Test Split']
+            })
+
+            feature_importance_with_info = pd.concat([
+                feature_importance,
+                blank_row,
+                comparison_info
+            ], ignore_index=True)
+
+            feature_importance_with_info.to_excel(writer, sheet_name='Full Dataset Features', index=False)
+
             if y_test is not None and y_pred is not None:
                 report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
                 report_df = pd.DataFrame(report).transpose()
@@ -394,31 +586,37 @@ def xgboost(df_selected, output_file, features, categories, feature_mapping):
                 report_df = decode_classification_report_labels(report_df, label_encoder)
 
                 blank_row = pd.DataFrame({
-                    'precision': [''],
-                    'recall': [''],
-                    'f1-score': [''],
-                    'support': ['']
+                    'precision': [''], 'recall': [''], 'f1-score': [''], 'support': ['']
                 }, index=[''])
 
                 accuracy_info = pd.DataFrame({
-                    'precision': ['Accuracy:'],
-                    'recall': [f'{accuracy_value:.3f}'],
-                    'f1-score': [''],
-                    'support': ['']
-                }, index=[''])
+                    'precision': ['Accuracy:', 'Method:'],
+                    'recall': [f'{accuracy_value:.3f}', 'K-fold CV' if is_kfold else 'Train-Test Split'],
+                    'f1-score': ['', ''],
+                    'support': ['', '']
+                }, index=['', ''])
 
                 report_with_info = pd.concat([report_df, blank_row, accuracy_info])
                 report_with_info.to_excel(writer, sheet_name='Full Dataset Report')
-            xgboost_pairwise(
-                data=df_selected,
-                category_col=category_col,
-                aggregated_features=features,
-                writer=writer
-            )
+
+            aligned_df_selected = df_selected.loc[features.index]
+            aligned_df_selected = aligned_df_selected.copy()
+            aligned_df_selected['Category'] = categories.loc[features.index]
+
+            unique_categories = aligned_df_selected['Category'].nunique()
+            if unique_categories > 2:
+                xgboost_pairwise(
+                    data=aligned_df_selected,
+                    category_col='Category',
+                    aggregated_features=features,
+                    writer=writer
+                )
+
         with thread_lock:
             msg = " XGBoost done."
             messages[-1] += msg
         complete_progress_step("XGB")
+
     except XGBAbortException:
         raise
     except Exception:
@@ -437,8 +635,8 @@ def pca(df_selected, df_processed, categories, savefile):
 
     valid_idx = ~df_processed.isnull().any(axis=1)
     df_processed = df_processed[valid_idx]
-    categories = categories[valid_idx]
-    df_selected = df_selected[valid_idx]
+    categories = categories.loc[df_processed.index]
+    df_selected = df_selected.loc[df_processed.index]
 
     object_ids = df_selected['Object ID'].values
 
@@ -487,7 +685,7 @@ def pca(df_selected, df_processed, categories, savefile):
     for i in range(1, n_components_95 + 1):
         pc_name = f'PC{i}'
         posthoc_tests[pc_name] = sp.posthoc_dunn(
-            df_pcscores, val_col=pc_name, group_col='Category', p_adjust='bonferroni'
+            df_pcscores, val_col=pc_name, group_col='Category', p_adjust='holm'
         )
 
     save_pca = savefile + '_PCA.xlsx'
@@ -544,48 +742,75 @@ def ml_analysis(df_sum, parameters, savefile):
     df_sum = df_sum.drop(columns=exclude_features, errors='ignore')
 
     df_selected = apply_category_filter(df_sum, parameters.get('pca_filter'))
-
-    class_counts = df_selected['Category'].value_counts()
-    to_drop = class_counts[class_counts < min_required].index.tolist()
-    if to_drop:
-        for group in to_drop:
-            with thread_lock:
-                messages.append(f"Excluded category '{group}'. Only {class_counts[group]} objects (requires at least {min_required}).")
-        df_selected = df_selected[~df_selected['Category'].isin(to_drop)]
-        if df_selected.empty:
-            complete_progress_step("PCA")
-            error()
-
     df_selected = df_selected.dropna().drop(labels=['Duration', 'Path Length'], axis=1)
 
-    if parameters.get('verbose', False):
-        verbose_data = savefile + '_ML_Dataset_Processing.xlsx'
-        with pd.ExcelWriter(verbose_data, engine='xlsxwriter') as writer:
-            df_processed, categories_filtered, feature_mapping = preprocess_features(df_selected, writer)
+    df_pca, categories_pca, features_pca = prepare_data_for_analysis(
+        df_selected, min_required_pca, "PCA")
+
+    df_xgb, categories_xgb, features_xgb = prepare_data_for_analysis(
+        df_selected, min_required_xgb, "XGBoost")
+
+    df_pcscores = None
+
+    if df_pca is not None:
+        try:
+            if parameters.get('verbose', False):
+                verbose_file_pca = f'{savefile}_PCA_Dataset_Processing.xlsx'
+                with pd.ExcelWriter(verbose_file_pca, engine='xlsxwriter') as writer:
+                    df_processed_pca, categories_filtered_pca, feature_mapping_pca, removed_features_pca = (
+                        preprocess_features_with_variance_filter(df_pca, writer, "PCA"))
+            else:
+                df_processed_pca, categories_filtered_pca, feature_mapping_pca, removed_features_pca = (
+                    preprocess_features_with_variance_filter(df_pca, None, "PCA"))
+
+            if df_processed_pca is not None and not df_processed_pca.empty:
+                df_pcscores = safe_ml_operation(pca, "PCA", df_pca, df_processed_pca, categories_filtered_pca, savefile)
+            else:
+                with thread_lock:
+                    messages.append("PCA preprocessing resulted in empty dataset")
+                complete_progress_step("PCA")
+        except XGBAbortException:
+            pass
+        except Exception as e:
+            with thread_lock:
+                messages.append(f"Error in PCA analysis: {str(e)}")
+            complete_progress_step("PCA")
     else:
-        df_processed, categories_filtered, feature_mapping = preprocess_features(df_selected, None)
-
-    df_processed = df_processed.dropna()
-
-    common_indices = categories_filtered.index.intersection(df_processed.index)
-    df_selected = df_selected.loc[common_indices]
-    df_processed = df_processed.loc[common_indices]
-    categories_filtered = categories_filtered.loc[common_indices]
-
-    remaining_categories = np.unique(categories_filtered)
-    if len(remaining_categories) <= 1:
         with thread_lock:
-            messages.append("No categories remaining after data cleaning, skipping PCA and XGBoost...")
-            messages.append('')
+            messages.append(f"Insufficient data for PCA (requires at least {min_required_pca} samples per category)")
         complete_progress_step("PCA")
-        complete_progress_step("XGBoost")
-        return None
-    else:
-        df_pcscores = pca(df_selected, df_processed, categories_filtered, savefile)
-        xgboost(df_selected, savefile, df_processed, categories_filtered, feature_mapping)
 
-        toc = time.time()
+    if df_xgb is not None:
+        try:
+            if parameters.get('verbose', False):
+                verbose_file_xgb = f'{savefile}_XGBoost_Dataset_Processing.xlsx'
+                with pd.ExcelWriter(verbose_file_xgb, engine='xlsxwriter') as writer:
+                    df_processed_xgb, categories_filtered_xgb, feature_mapping_xgb, removed_features_xgb = (
+                        preprocess_features_with_variance_filter(df_xgb, writer, "XGBoost"))
+            else:
+                df_processed_xgb, categories_filtered_xgb, feature_mapping_xgb, removed_features_xgb = (
+                    preprocess_features_with_variance_filter(df_xgb, None, "XGBoost"))
+
+            if df_processed_xgb is not None and not df_processed_xgb.empty:
+                safe_ml_operation(xgboost_adaptive, "XGB", df_xgb, savefile, df_processed_xgb,
+                                categories_filtered_xgb, feature_mapping_xgb)
+            else:
+                with thread_lock:
+                    messages.append("XGBoost preprocessing resulted in empty dataset")
+                complete_progress_step("XGB")
+        except XGBAbortException:
+            pass
+        except Exception as e:
+            with thread_lock:
+                messages.append(f"Error in XGBoost analysis: {str(e)}")
+            complete_progress_step("XGB")
+    else:
         with thread_lock:
-            messages.append(f"Machine learning analysis done in {int(toc - tic)} seconds.")
-            messages.append('')
-        return df_pcscores
+            messages.append(f"Insufficient data for XGBoost (requires at least {min_required_xgb} samples per category)")
+        complete_progress_step("XGB")
+
+    toc = time.time()
+    with thread_lock:
+        messages.append(f"Machine learning analysis done in {int(toc - tic)} seconds.")
+        messages.append('')
+    return df_pcscores
