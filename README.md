@@ -476,30 +476,33 @@ The highest value of MSD that each object reached during its tracking history at
 
 The summary features calculated for each object are used to perform two machine learning analyses: Principal Component Analysis (PCA) and XGBoost (XGB). Before that happens, however, the dataset is processed as follows:
 
-1. Any category filter specified by the user in the GUI will be applied, then any categories containing fewer than 5 objects will also be removed. The default threshold for minimum number of objects in a category can be adjusted at the top of machine_learning.py. 
+1. Any category filter specified by the user in the GUI will be applied, then any categories containing fewer objects than a set threshold (separate ones for PCA and XGB) will also be removed. These default thresholds (5 for PCA, 10 for XGB) can be adjusted at the top of machine_learning.py. 
 2. Any non-moving objects (i.e. those with a Velocity Mean/Median of 0) are removed from the dataset.
 3. The dataset is transformed (signed log10 + 1), then z-score scaling is performed. This processing step ensures that all features are on a similar scale and are normally distributed, reducing the impact of outliers.
-4. Highly-correlated features (i.e. those with a pairwise Pearson correlation coefficient greater than 0.95) are aggregated into a single feature by taking the mean of the (transformed and scaled) values for those features within each object and casting that to the new aggregated feature. The correlation threshold can be adjusted at the top of machine_learning.py.
+4. Features with zero variance are removed, and highly-correlated features (i.e. those with a pairwise Pearson correlation coefficient greater than 0.95) are aggregated into a single feature by taking the mean of the (transformed and scaled) values for those features within each object and casting that to the new aggregated feature. The threshold for variance (default = 0.01) and the feature correlation threshold (default = 0.95) can be adjusted at the top of machine_learning.py.
 
-If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into.
+If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into. A separate output file is generated for PCA and for XGB as the data processing is done separately.
 
 ### Principal Component Analysis (PCA):
 
-PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. The minimum number of principal components (PCs) needed to explain at least 95% of the variance is determined, and that is the number of PCs that will end up shown in the output file. A Kruskal-Wallis test is performed on the PCA results to determine whether each PC is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons between each category for each PC are provided.
+PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. The minimum number of principal components (PCs) needed to explain at least 95% of the variance is determined, and that is the number of PCs that will end up shown in the output file. A Kruskal-Wallis test is performed on the PCA results to determine whether each PC is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons (with Holm-Bonferroni correction) between each category for each PC are provided.
 
 ### XGBoost (XGB):
 
 XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. This is performed using the entire dataset ('Full Dataset' sheets), as well as for all possible pairs of categories ('Comparison X' sheets). The output .XLSX file contains the following two sheets for each of these analyses:
 * **Features**: This sheet lists how important each feature was for the model that was determined to be the best at describing the variance in the data. For category-to-category comparisons, the categories being compared are listed below the features table. 
+  * **Categories**: Lists which categories were analyzed in this sheet.
+  * **Method**: Lists the method used to train the model. This will be either "Train-Test Split" or "K-Fold CV" (for Stratified K-Fold Cross-Validation). Train-Test Split is the default method (using a 60%-40% training/testing split, respectively), but if the number of objects in one of the categories in a comparison is too low, the K-fold CV method will be used instead. Refer to XGBoost documentation for explanations on these methods. The thresholds for the minimum number of objects in a category to use Train-Test Split (default = 20) or to still use XGB but with K-Fold CV (default = 10), as well as the proportion of the dataset to use for testing when using the Train-Test Split method (default = 0.4), can be adjusted at the top of machine_learning.py.
 
-
-* **Report**: This contains a confusion matrix which documents how well this model performed in classifying objects into their respective categories. The confusion matrix includes the following columns for each category included in that comparison:
+* **Report**: This contains a confusion matrix which documents how well this model performed in classifying objects into their respective categories. Each row corresponds to a category included in that comparison (with the leftmost value in the row being the category's name), and the confusion matrix includes the following columns:
   * **Precision**: The proportion of true positive classifications out of all positive classifications made by the model for that category.
   * **Recall**: The proportion of true positive classifications out of all actual objects in that category.
   * **F1 Score**: The harmonic mean of Precision and Recall, a measure of the model's accuracy for that category.
   * **Support**: The number of objects in that category that were included in the analysis.
   * **Accuracy**: Below each confusion matrix, the overall accuracy of the model is reported, which is the proportion of all objects that were correctly classified into their respective categories.
+  * **Method**: Either "Train-Test Split" or "K-Fold CV", as explained above.
 
+Note that if only two categories are present in the dataset, only the "Full Dataset" analysis will be performed, as the only possible category-to-category comparison is identical to analyzing the full dataset.
 
 ## Contacts
 
