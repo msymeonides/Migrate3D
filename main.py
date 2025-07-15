@@ -520,7 +520,6 @@ def run_migrate(*vals):
         'allowed_attracted_types': allowed_attracted_types
     }
 
-    # Use the stored dataframes and filenames
     segments_input = file_storing.get('segments_dataframe', None)
     categories_input = file_storing.get('categories_dataframe', None)
     segments_filename = file_storing.get('segments_filename', None)
@@ -564,7 +563,7 @@ def get_segments_file(contents, filename):
         return html.Div(['There was an error processing this file.']), [], None, [], None, [], None, [], None, [], None
 
     file_storing['segments_dataframe'] = df
-    file_storing['segments_filename'] = filename  # Store the actual filename
+    file_storing['segments_filename'] = filename
 
     def guess_column(df, keywords):
         for col in df.columns:
@@ -605,7 +604,7 @@ def get_category_file(contents, filename):
         return html.Div(['There was an error processing this file.']), [], None, [], None
 
     file_storing['categories_dataframe'] = df
-    file_storing['categories_filename'] = filename  # Store the actual filename
+    file_storing['categories_filename'] = filename
 
     def guess_column(df, keywords):
         for col in df.columns:

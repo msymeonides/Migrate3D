@@ -216,7 +216,7 @@ Note that you can change the default values of these variables at the top of the
 
 ### Arrest Limit:
 
-A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed on that timepoint, however if they pass this threshold, they will survive the filter and be reported again in their own column (in the Calculations sheet in verbose mode).
+A floating point variable that is used to determine whether an object has "really" moved between two timepoints. This parameter is compared to each object’s instantaneous displacement between each pair of consecutive timepoints, and if that value is at least equal to the user’s Arrest Limit input, it will consider the object as moving within that timeframe. It is important to note that even if the instantaneous displacement is below the user’s Arrest Limit input, calculations will still be performed on that timepoint, however if they pass this threshold, they will survive the filter and be reported again in their own column (in the Calculations output in verbose mode).
 
 Set this value by examining tracks of control objects which should not be moving and finding the maximum instantaneous displacement that they exhibit. It is not recommended to set this value to 0 as it is exceedingly unlikely that your imaging system is perfectly stable and all non-zero values of instantaneous displacement represent "biologically true" movements. However, setting this value to 0 will disable this feature, and all Velocity/Acceleration metrics will be reported unfiltered (also, the Arrest Coefficient metric will be omitted entirely).
 
@@ -267,7 +267,7 @@ If an object's track has any gaps (i.e. is internally missing one or more timepo
 
 ### Verbose:
 
-Includes the results of all intermediate step-wise calculations in the main output .xlsx file. This will greatly increase the output file size and the time it takes to save. This additional output allows the user to see how each metric was calculated for each object at each timepoint.
+Includes the results of all intermediate step-wise calculations in a separate .xlsx file (_Calculations.xlsx). Due to the size of this output file, enabling verbose mode may significantly increase the time needed for the final "Saving main output" step. This additional output allows the user to see how each metric was calculated for each object at each timepoint.
 
 Also, this enables an additional output file which contains dataset processing information from the Machine Learning function. 
 
@@ -481,7 +481,7 @@ The summary features calculated for each object are used to perform two machine 
 3. The dataset is transformed (signed log10 + 1), then z-score scaling is performed. This processing step ensures that all features are on a similar scale and are normally distributed, reducing the impact of outliers.
 4. Features with zero variance are removed, and highly-correlated features (i.e. those with a pairwise Pearson correlation coefficient greater than 0.95) are aggregated into a single feature by taking the mean of the (transformed and scaled) values for those features within each object and casting that to the new aggregated feature. The threshold for variance (default = 0.01) and the feature correlation threshold (default = 0.95) can be adjusted at the top of machine_learning.py.
 
-If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into. A separate output file is generated for PCA and for XGB as the data processing is done separately.
+If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into. A separate verbose output file is generated for PCA and for XGB as the data processing is done separately.
 
 ### Principal Component Analysis (PCA):
 

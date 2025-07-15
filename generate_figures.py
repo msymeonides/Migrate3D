@@ -41,7 +41,6 @@ def summary_figures(df, fit_stats, color_map=None):
                     scalemode='count',
                     width=0.8,
                     box_visible=True,
-                    hoverinfo='skip',
                     name=f'Cat {cat}'
                 ),
                 row=row + 1, col=col_idx + 1
@@ -54,6 +53,22 @@ def summary_figures(df, fit_stats, color_map=None):
     if fit_stats is not None:
         i = len(columns)
         row, col_idx = divmod(i, n_cols)
+        y_error_tops = []
+
+        for cat in categories:
+            stats = fit_stats.get(cat, {})
+            slope = stats.get('slope', None)
+            if slope is not None:
+                ci_high = stats.get('ci_high', 0) - stats.get('slope', 0)
+                y_error_tops.append(slope + ci_high)
+
+        if y_error_tops:
+            y_max = max(y_error_tops)
+            y_padding = y_max * 0.1
+            y_range = [0, y_max + y_padding]
+        else:
+            y_range = [0, None]
+
         for cat in categories:
             stats = fit_stats.get(cat, {})
             slope = stats.get('slope', None)
@@ -80,16 +95,20 @@ def summary_figures(df, fit_stats, color_map=None):
                     ),
                     legendgroup=f'cat{cat}',
                     showlegend=False,
-                    name=f'Cat {cat}',
-                    hoverinfo='skip'
+                    name=f'Cat {cat}'
                 ),
                 row=row + 1, col=col_idx + 1
             )
         fig.update_xaxes(
             type='category',
+            range=[-0.5, len(categories) - 0.5],
             row=row + 1, col=col_idx + 1
         )
-        fig.update_yaxes(title_text='Slope', range=[0, None], row=row + 1, col=col_idx + 1)
+        fig.update_yaxes(
+            title_text='Slope',
+            range=y_range,
+            row=row + 1, col=col_idx + 1
+        )
     fig.update_layout(
         violinmode='group',
         plot_bgcolor='white',
@@ -130,7 +149,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                 go.Scatter(
                     x=[x_min, x_max], y=[0, 0],
                     mode='lines', line=dict(color='black', width=1),
-                    opacity=0.7, showlegend=False, hoverinfo='skip'
+                    opacity=0.7, showlegend=False
                 ),
                 row=1, col=col
             )
@@ -140,7 +159,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                 go.Scatter(
                     x=[0, 0], y=[y_min, y_max],
                     mode='lines', line=dict(color='black', width=1),
-                    opacity=0.7, showlegend=False, hoverinfo='skip'
+                    opacity=0.7, showlegend=False
                 ),
                 row=1, col=col
             )
@@ -198,7 +217,6 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
             fig.add_trace(
                 go.Scatter3d(
                     x=x_data, y=y_data, z=z_data,
-                    hoverinfo='none',
                     line=dict(width=4),
                     marker=dict(size=12),
                     **common_args
@@ -486,8 +504,7 @@ def pca_figures(df_pca, color_map=None):
                     line_color=color_map[cat],
                     legendgroup=f'cat{cat}',
                     showlegend=(i == 0),
-                    box_visible=True,
-                    hoverinfo='skip'
+                    box_visible=True
                 ),
                 row=row + 1, col=col + 1
             )
@@ -507,8 +524,7 @@ def pca_figures(df_pca, color_map=None):
                     marker=dict(color=color_map[cat], size=10),
                     name=f'Cat {cat}',
                     legendgroup=f'cat{cat}',
-                    showlegend=(i == 0),
-                    hoverinfo='skip'
+                    showlegend=(i == 0)
                 ),
                 row=row + 1, col=col + 1
             )
@@ -546,8 +562,7 @@ def pca_figures(df_pca, color_map=None):
                     marker=dict(color=color_map[cat], size=6),
                     name=f'Cat {cat}',
                     legendgroup=f'cat{cat}',
-                    showlegend=(i == 0),
-                    hoverinfo='skip'
+                    showlegend=(i == 0)
                 ),
                 row=row + 1, col=col + 1
             )
