@@ -733,15 +733,10 @@ def ml_analysis(df_sum, parameters, savefile):
             (df_sum['Convex Hull Volume'] == 0).all()):
         exclude_features.append('Convex Hull Volume')
     df_sum = df_sum.drop(columns=exclude_features, errors='ignore')
-
     df_selected = apply_category_filter(df_sum, parameters.get('pca_filter'))
-    df_selected = df_selected.dropna().drop(labels=['Duration', 'Path Length'], axis=1)
 
-    df_pca, categories_pca, features_pca = prepare_data_for_analysis(
-        df_selected, min_required_pca, "PCA")
-
-    df_xgb, categories_xgb, features_xgb = prepare_data_for_analysis(
-        df_selected, min_required_xgb, "XGBoost")
+    df_pca, categories_pca, features_pca = prepare_data_for_analysis(df_selected, min_required_pca, "PCA")
+    df_xgb, categories_xgb, features_xgb = prepare_data_for_analysis(df_selected, min_required_xgb, "XGBoost")
 
     df_pcscores = None
 
