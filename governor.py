@@ -388,7 +388,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             messages.append('')
 
         if parameters['verbose']:
-            messages.append('Saving main output and detailed calculations to ' + savepath + '...')
+            messages.append('Saving main output to ' + savepath + '...')
             messages.append('Please wait patiently. Save times are significantly longer when verbose mode is enabled...')
             messages.append('')
         else:
