@@ -220,7 +220,7 @@ def preprocess_features_with_variance_filter(df, writer=None, analysis_type=""):
         if removed_features:
             with thread_lock:
                 messages.append(
-                    f"Removed {len(removed_features)} near-zero variance features from {analysis_type}: {format_feature_list(removed_features)}")
+                    f"Removed {len(removed_features)} near-zero variance feature(s) from {analysis_type}: {format_feature_list(removed_features)}")
 
         feature_groups = detect_correlated_features(scaled_df_filtered, threshold=correlation_threshold)
         aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df_filtered, feature_groups)
@@ -269,7 +269,7 @@ def prepare_data_for_analysis(df_selected, min_samples, analysis_type=""):
         with thread_lock:
             excluded_categories = ', '.join(map(str, to_drop))
             messages.append(
-                f"Excluded the following categories from {analysis_type} (<{min_samples} samples): {excluded_categories}"
+                f"Excluded the following category(ies) from {analysis_type} (<{min_samples} samples): {excluded_categories}"
             )
 
     df_filtered = df_selected[~df_selected['Category'].isin(to_drop)]
@@ -478,11 +478,6 @@ def xgboost_pairwise(data, category_col, aggregated_features, writer):
                 y_true_all = y_test
                 y_pred_all = model.predict(x_test)
 
-            if len(y_true_all) != len(y_pred_all):
-                with thread_lock:
-                    messages.append(f"Warning: Array length mismatch for comparison {cat1} vs {cat2}")
-                continue
-
             feature_importance = pd.DataFrame({
                 'Feature': pair_data.columns.tolist(),
                 'Importance': model.feature_importances_
@@ -525,8 +520,6 @@ def xgboost_pairwise(data, category_col, aggregated_features, writer):
             report_with_info.to_excel(writer, sheet_name=sheet_name_report)
 
         except Exception as e:
-            with thread_lock:
-                messages.append(f"Warning: Failed pairwise comparison {cat1} vs {cat2}: {str(e)}")
             continue
 
 def xgboost_adaptive(df_selected, output_file, features, categories, feature_mapping):

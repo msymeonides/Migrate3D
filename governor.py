@@ -2,10 +2,7 @@ import pandas as pd
 import numpy as np
 import time as tempo
 import statistics
-import base64
-import io
 import re
-from pathlib import Path
 
 from formatting import multi_tracking, interpolate_lazy, remove_tracks_with_gaps
 from calculations import calculations
@@ -374,25 +371,29 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         pass
 
     with thread_lock:
-        # Add combined removal message before saving
         gaps_count = len(dropped_objects)
         euclidean_count = euclidean_filtered_count
 
         if gaps_count > 0 and euclidean_count > 0:
-            messages.append(f"Removed {gaps_count} objects with timepoint gaps and {euclidean_count} objects with Max Euclidean < {min_maxeuclid}.")
-            messages.append(f"Removed object IDs have been recorded in 'Removed Objects' sheet in the main output file.")
+            messages.append(f"Removed {gaps_count} object(s) with timepoint gaps and {euclidean_count} object(s) with Max Euclidean < {min_maxeuclid}.")
+            messages.append(f"Removed object ID(s) recorded in 'Removed Objects' sheet in the main results file.")
             messages.append('')
         elif gaps_count > 0:
-            messages.append(f"Removed {gaps_count} objects with timepoint gaps.")
-            messages.append(f"Removed object IDs have been recorded in 'Removed Objects' sheet in the main output file.")
+            messages.append(f"Removed {gaps_count} object(s) with timepoint gaps.")
+            messages.append(f"Removed object ID(s) recorded in 'Removed Objects' sheet in the main results file.")
             messages.append('')
         elif euclidean_count > 0:
-            messages.append(f"Removed {euclidean_count} objects with Max Euclidean < {min_maxeuclid}.")
-            messages.append(f"Removed object IDs have been recorded in 'Removed Objects' sheet in the main output file.")
+            messages.append(f"Removed {euclidean_count} object(s) with Max Euclidean < {min_maxeuclid}.")
+            messages.append(f"Removed object ID(s) recorded in 'Removed Objects' sheet in the main results file.")
             messages.append('')
 
-        messages.append('Saving main output to ' + savepath + '...')
-        messages.append('')
+        if parameters['verbose']:
+            messages.append('Saving main output and detailed calculations to ' + savepath + '...')
+            messages.append('Please wait patiently. Save times are significantly longer when verbose mode is enabled...')
+            messages.append('')
+        else:
+            messages.append('Saving main output to ' + savepath + '...')
+            messages.append('')
 
     df_all_calcs = df_all_calcs.replace(mapping)
     cols_to_replace = [col for col in df_sum.columns if col != 'Category']
@@ -404,17 +405,21 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         df_settings.to_excel(workbook, sheet_name='Settings', index=False)
         if not df_removed.empty:
             df_removed.to_excel(workbook, sheet_name='Removed Objects', index=False)
-        if parameters['verbose']:
-            df_segments.to_excel(workbook, sheet_name='Object Data', index=False)
-            df_all_calcs.to_excel(workbook, sheet_name='Calculations', index=False)
         df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
         df_single_euclid.to_excel(workbook, sheet_name='Euclidean Medians', index=False)
         df_single_angle.to_excel(workbook, sheet_name='Turning Angles', index=False)
         df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)
         df_msd_sum_all.to_excel(workbook, sheet_name='MSD Summary', index=True)
-        df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
-        df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
+        if 'Category' in df_msd.columns and df_msd['Category'].nunique() > 1:
+            df_msd_avg_per_cat.to_excel(workbook, sheet_name='MSD Mean Per Category', index=True)
+            df_msd_std_per_cat.to_excel(workbook, sheet_name='MSD StDev Per Category', index=True)
         df_msd_loglogfits.to_excel(workbook, sheet_name='MSD Log-Log Fits', index=True)
+
+    if parameters['verbose']:
+        calc_savepath = savefile + '_Calculations.xlsx'
+        with pd.ExcelWriter(calc_savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as calc_workbook:
+            df_segments.to_excel(calc_workbook, sheet_name='Object Data', index=False)
+            df_all_calcs.to_excel(calc_workbook, sheet_name='Calculations', index=False)
 
     complete_progress_step("Final results save")
     bigtoc = tempo.time()

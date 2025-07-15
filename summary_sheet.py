@@ -331,7 +331,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
             df_single_angles = df_single_angles[df_single_angles['Object ID'].isin(filtered_object_ids)].copy()
             df_msd = df_msd[df_msd['Object ID'].isin(filtered_object_ids)].copy()
             msd_vals = df_msd.set_index("Object ID")[existing_cols]
-            if 'Category' in df_msd.columns:
+            if 'Category' in df_msd.columns and df_msd['Category'].nunique() > 1:
                 category_df_filtered = df_msd[['Object ID', 'Category']].copy()
                 msd_vals["Category"] = category_df_filtered.set_index('Object ID')['Category']
                 grouped = msd_vals.groupby("Category")

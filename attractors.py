@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
-
 def detect_attractors(arr_segments, unique_objects, cell_types, params):
     distance_threshold = params['distance_threshold']
     time_persistence = params['time_persistence']
@@ -94,7 +93,6 @@ def detect_attractors(arr_segments, unique_objects, cell_types, params):
 
     return attractor_events
 
-
 def evaluate_and_clear(chain, attractor_events, attractor_id, other_id, params):
     approach_ratio = params['approach_ratio']
     min_proximity = params['min_proximity']
@@ -109,7 +107,6 @@ def evaluate_and_clear(chain, attractor_events, attractor_id, other_id, params):
             if min_distance <= min_proximity:
                 attractor_events.append((attractor_id, other_id, chain.copy()))
     chain.clear()
-
 
 def save_results(attractor_events, output_file, cell_types, df_all_calcs):
     rows = []
@@ -156,7 +153,6 @@ def save_results(attractor_events, output_file, cell_types, df_all_calcs):
         wrap_format.set_text_wrap()
         for col_num, value in enumerate(df.columns.values):
             worksheet.write(0, col_num, value, wrap_format)
-
 
 def attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, params):
     events = detect_attractors(arr_segments, unique_objects, cell_types, params)
