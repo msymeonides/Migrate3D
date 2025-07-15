@@ -222,7 +222,7 @@ Set this value by examining tracks of control objects which should not be moving
 
 ### Minimum Timepoints:
 
-When a non-zero Arrest Limit has been set, this additional filter is an integer parameter that denotes the total number of 'moving' timepoints an object must exceed to be considered for certain summary statistics, namely those relating to Velocity and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary statistics, but will still have their own row on the Summary Sheet with values everywhere but those Velocity/Acceleration columns.
+When a non-zero Arrest Limit has been set, this additional filter is an integer parameter that denotes the total number of 'moving' timepoints an object must exceed to be considered for certain summary features, namely those relating to Velocity and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary features, but will still have their own row on the Summary Sheet with values everywhere but those Velocity/Acceleration columns.
 
 This filter is most useful when the dataset contains objects which are not really moving and are outliers in that sense that could still be useful to have in order to provide context for the rest of the dataset. That said, your dataset may already have been filtered down to only objects you are interested in and they are by definition all moving, in which case you can turn this filter off by setting its value to 0.
 
@@ -273,7 +273,7 @@ Also, this enables an additional output file which contains dataset processing i
 
 ### Contacts:
 
-Identifies contacts between objects at each timepoint, and returns a separate results .xlsx file containing each detected contact as well as a summary of contact history for each object (excluding objects that had no detected contacts), as well as per-category summary statistics.
+Identifies contacts between objects at each timepoint, and returns a separate results .xlsx file containing each detected contact as well as a summary of contact history for each object (excluding objects that had no detected contacts), as well as per-category summary features.
 
 ### Filter out contacts between objects resulting from cell division?
 
@@ -287,7 +287,7 @@ Identifies instances where an object is attracting other objects towards it (eve
 
 The following plotly figures are generated:
 
-- **Summary Stats**: Per-category interactive violin plots for each of the summary statistics, plus the MSD log-log linear fit slope (error bars = 95% confidence interval) for each category.
+- **Summary Stats**: Per-category interactive violin plots for each of the summary features, plus the MSD log-log linear fit slope (error bars = 95% confidence interval) for each category.
 - **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
 - **Tracks**: An interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks (either raw or origin-zeroed), color-coded by category (if provided). Two versions of this are saved, one which allows filtering by category and one which allows filtering by object. Categories or objects can be toggled on/off by clicking them on the legend.
 - **PCA**: A set of plots of only the first four PCs (even if additional PCs are recorded in the .xlsx PCA output) will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
@@ -377,7 +377,7 @@ The median angle calculated for each value of τ per object is stored in a works
 
 ## Summary Sheet
 
-Summary statistics using the data acquired over an object’s entire tracking period.
+Summary features calculated using the data acquired over an object’s entire tracking period.
 
 ### Final Euclidean Distance:
 
@@ -429,7 +429,7 @@ $$
 
 The mean, median, and standard deviation of all measured values of Instantaneous Velocity and Instantaneous Acceleration for each object. Acceleration is also given as Absolute Acceleration, in which we convert all negative values of Acceleration to positive.
 
-If the Arrest Limit parameter is enabled (i.e. not 0), the values used to calculate these metrics are first filtered down to observations where the displacement exceeds the Arrest Limit. Additionally, if an object fails the Minimum Timepoints filter (see above), it will not have any values for these metrics in the Summary Sheet, but will still have its own row with all other summary statistics.
+If the Arrest Limit parameter is enabled (i.e. not 0), the values used to calculate these metrics are first filtered down to observations where the displacement exceeds the Arrest Limit. Additionally, if an object fails the Minimum Timepoints filter (see above), it will not have any values for these metrics in the Summary Sheet, but will still have its own row with all other summary features.
 
 ### Arrest Coefficient:
 
@@ -485,7 +485,7 @@ If verbose mode is enabled, the result of each dataset processing step will be s
 
 ### Principal Component Analysis (PCA):
 
-PCA is performed on the summary statistics of each object, and the results are saved in a separate .xlsx file. The minimum number of principal components (PCs) needed to explain at least 95% of the variance is determined, and that is the number of PCs that will end up shown in the output file. A Kruskal-Wallis test is performed on the PCA results to determine whether each PC is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons (with Holm-Bonferroni correction) between each category for each PC are provided.
+PCA is performed on the summary features of each object, and the results are saved in a separate .xlsx file. The minimum number of principal components (PCs) needed to explain at least 95% of the variance is determined, and that is the number of PCs that will end up shown in the output file. A Kruskal-Wallis test is performed on the PCA results to determine whether each PC is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons (with Holm-Bonferroni correction) between each category for each PC are provided.
 
 ### XGBoost (XGB):
 

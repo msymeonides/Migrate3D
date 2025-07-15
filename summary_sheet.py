@@ -195,7 +195,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     df_all_calcs_by_obj = dict(tuple(df_all_calcs.groupby("Object ID")))
 
     with thread_lock:
-        messages.append("Calculating summary statistics...")
+        messages.append("Calculating summary features...")
     tic = tempo.time()
 
     sum_ = {}
@@ -350,7 +350,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
 
     toc = tempo.time()
     with thread_lock:
-        msg = " Summary statistics done in {:.0f} seconds.".format(int(round((toc - tic), 1)))
+        msg = " Summary features done in {:.0f} seconds.".format(int(round((toc - tic), 1)))
         messages[-1] += msg
         messages.append("")
     complete_progress_step("Summary")

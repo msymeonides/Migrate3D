@@ -405,7 +405,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         df_settings.to_excel(workbook, sheet_name='Settings', index=False)
         if not df_removed.empty:
             df_removed.to_excel(workbook, sheet_name='Removed Objects', index=False)
-        df_sum.to_excel(workbook, sheet_name='Summary Statistics', index=False)
+        df_sum.to_excel(workbook, sheet_name='Summary Features', index=False)
         df_single_euclid.to_excel(workbook, sheet_name='Euclidean Medians', index=False)
         df_single_angle.to_excel(workbook, sheet_name='Turning Angles', index=False)
         df_msd.to_excel(workbook, sheet_name='Mean Squared Displacements', index=False)

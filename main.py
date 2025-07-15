@@ -275,7 +275,7 @@ app.layout = dbc.Container(
                                             'value': 'ContactDivFilter'},
                                         {'label': ' Attractors (identifies instances where an object is attracting other objects towards it)',
                                             'value': 'Attractors'},
-                                        {'label': ' Generate Figures (creates figures for summary statistics, PCA, and MSD)',
+                                        {'label': ' Generate Figures (creates figures for summary features, PCA, and MSD)',
                                             'value': 'Generate Figures'}
                                     ],
                                     value=default_formatting_options,
