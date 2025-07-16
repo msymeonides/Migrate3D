@@ -1,6 +1,6 @@
 # README
 
-Last Edited: July 11, 2025 (Migrate3D version 2.1)
+Last Edited: July 16, 2025 (Migrate3D version 2.1)
 
 # Migrate3D
 
@@ -481,7 +481,7 @@ The summary features calculated for each object are used to perform two machine 
 3. The dataset is transformed (signed log10 + 1), then z-score scaling is performed. This processing step ensures that all features are on a similar scale and are normally distributed, reducing the impact of outliers.
 4. Features with zero variance are removed, and highly-correlated features (i.e. those with a pairwise Pearson correlation coefficient greater than 0.95) are aggregated into a single feature by taking the mean of the (transformed and scaled) values for those features within each object and casting that to the new aggregated feature. The threshold for variance (default = 0.01) and the feature correlation threshold (default = 0.95) can be adjusted at the top of machine_learning.py.
 
-If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into. A separate verbose output file is generated for PCA and for XGB as the data processing is done separately.
+If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into. A separate verbose output file is generated for PCA and for each of the two runs of XGB, as the data processing is done separately each run.
 
 ### Principal Component Analysis (PCA):
 
@@ -489,20 +489,21 @@ PCA is performed on the summary features of each object, and the results are sav
 
 ### XGBoost (XGB):
 
-XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. This is performed using the entire dataset ('Full Dataset' sheets), as well as for all possible pairs of categories ('Comparison X' sheets). The output .XLSX file contains the following two sheets for each of these analyses:
-* **Features**: This sheet lists how important each feature was for the model that was determined to be the best at describing the variance in the data. For category-to-category comparisons, the categories being compared are listed below the features table. 
-  * **Categories**: Lists which categories were analyzed in this sheet.
-  * **Method**: Lists the method used to train the model. This will be either "Train-Test Split" or "K-Fold CV" (for Stratified K-Fold Cross-Validation). Train-Test Split is the default method (using a 60%-40% training/testing split, respectively), but if the number of objects in one of the categories in a comparison is too low, the K-fold CV method will be used instead. Refer to XGBoost documentation for explanations on these methods. The thresholds for the minimum number of objects in a category to use Train-Test Split (default = 20) or to still use XGB but with K-Fold CV (default = 10), as well as the proportion of the dataset to use for testing when using the Train-Test Split method (default = 0.4), can be adjusted at the top of machine_learning.py.
+XGBoost is a decision tree-based machine learning algorithm that can reveal which motion parameters are most important for describing the variation in a dataset. This is performed using the entire dataset ('Full Dataset' sheets), as well as for all possible pairs of categories ('Pairwise' sheets). The output .XLSX file contains the following two sheets for each of these analyses:
+* **Features**: This sheet lists how important each feature was for the model that was determined to be the best at describing the variance in the data. For pairwise comparisons, the two categories being compared are listed in the two leftmost columns.
 
-* **Report**: This contains a confusion matrix which documents how well this model performed in classifying objects into their respective categories. Each row corresponds to a category included in that comparison (with the leftmost value in the row being the category's name), and the confusion matrix includes the following columns:
+
+* **Report**: This contains a confusion matrix which documents how well this model performed in classifying objects into their respective categories. Each row corresponds to a category included in that comparison, and the confusion matrix includes the following columns:
   * **Precision**: The proportion of true positive classifications out of all positive classifications made by the model for that category.
   * **Recall**: The proportion of true positive classifications out of all actual objects in that category.
   * **F1 Score**: The harmonic mean of Precision and Recall, a measure of the model's accuracy for that category.
   * **Support**: The number of objects in that category that were included in the analysis.
   * **Accuracy**: Below each confusion matrix, the overall accuracy of the model is reported, which is the proportion of all objects that were correctly classified into their respective categories.
-  * **Method**: Either "Train-Test Split" or "K-Fold CV", as explained above.
+  * **Method**: Lists the method used to train the model. This will be either "Train-Test Split" or "K-Fold CV" (for Stratified K-Fold Cross-Validation). Train-Test Split is the default method (using a 60%-40% training/testing split, respectively), but if the number of objects in one of the categories in a comparison is too low, the K-fold CV method will be used instead. Refer to XGBoost documentation for explanations on these methods. The thresholds for the minimum number of objects in a category to use Train-Test Split (default = 20) or to still use XGB but with K-Fold CV (default = 10), as well as the proportion of the dataset to use for testing when using the Train-Test Split method (default = 0.4), can be adjusted at the top of machine_learning.py.
 
 Note that if only two categories are present in the dataset, only the "Full Dataset" analysis will be performed, as the only possible category-to-category comparison is identical to analyzing the full dataset.
+
+In addition to using the summary features as the input for XGBoost, the program also performs a separate analysis using the PC scores for each object (that result from the PCA run) as the input features. This allows for an easy way to tell which PCs classify objects best for each category. The results of this analysis are saved in a separate .xlsx file with the same structure as described above.
 
 ## Contacts
 

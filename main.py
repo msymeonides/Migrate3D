@@ -567,14 +567,15 @@ def get_segments_file(contents, filename):
 
     def guess_column(df, keywords):
         for col in df.columns:
-            if any(key.lower() in col.lower() for key in keywords):
+            col_lower = col.lower()
+            if any(col_lower == key.lower() for key in keywords):
                 return col
         return None
-    id_guess = guess_column(df, ['id', 'track', 'parent', 'cell', 'object'])
-    time_guess = guess_column(df, ['time', 'frame'])
-    x_guess = guess_column(df, ['x'])
-    y_guess = guess_column(df, ['y'])
-    z_guess = guess_column(df, ['z'])
+    id_guess = guess_column(df, ['id', 'track', 'track id', 'cell', 'cell id', 'object', 'object id', 'parent', 'parent id'])
+    time_guess = guess_column(df, ['t', 'time', 'frame'])
+    x_guess = guess_column(df, ['x', 'x coordinate'])
+    y_guess = guess_column(df, ['y', 'y coordinate'])
+    z_guess = guess_column(df, ['z', 'z coordinate'])
     options = list(df.columns)
     return (
         filename,
@@ -608,10 +609,11 @@ def get_category_file(contents, filename):
 
     def guess_column(df, keywords):
         for col in df.columns:
-            if any(key.lower() in col.lower() for key in keywords):
+            col_lower = col.lower()
+            if any(col_lower == key.lower() for key in keywords):
                 return col
         return None
-    id_guess = guess_column(df, ['id', 'track', 'parent', 'cell', 'object'])
+    id_guess = guess_column(df, ['id', 'track', 'track id', 'cell', 'cell id', 'object', 'object id', 'parent', 'parent id'])
     category_guess = guess_column(df, ['category', 'label', 'type', 'code'])
     options = list(df.columns)
     return filename, options, id_guess, options, category_guess
