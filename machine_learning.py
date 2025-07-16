@@ -231,14 +231,6 @@ def prepare_data_for_training(features, categories, use_kfold=False):
 def prepare_data_for_analysis(df_selected, min_samples, analysis_type=""):
     class_counts = df_selected['Category'].value_counts()
     to_drop = class_counts[class_counts < min_samples].index.tolist()
-
-    if to_drop:
-        with thread_lock:
-            excluded_categories = ', '.join(map(str, to_drop))
-            messages.append(
-                f"Excluded the following category(ies) from {analysis_type} (<{min_samples} samples): {excluded_categories}"
-            )
-
     df_filtered = df_selected[~df_selected['Category'].isin(to_drop)]
 
     if df_filtered.empty:
