@@ -275,7 +275,7 @@ Also, this enables an additional output file which contains dataset processing i
 
 Identifies contacts between objects at each timepoint, and returns a separate results .xlsx file containing each detected contact as well as a summary of contact history for each object (excluding objects that had no detected contacts), as well as per-category summary features.
 
-### Filter out contacts between objects resulting from cell division?
+### Dividing Contacts Filter:
 
 See the Contacts (minus dividing) section below for more details. Enable this if you have identified daughter cells resulting from cell divisions and have manually set those objects' IDs to be consecutive.
 
