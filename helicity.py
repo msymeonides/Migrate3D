@@ -1,6 +1,7 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 from scipy.interpolate import splprep, splev
+import warnings
 
 def compute_spline(object_data):
     x = object_data[:, 2].astype(float)
@@ -12,7 +13,11 @@ def compute_spline(object_data):
     num_points = len(time_raw)
     u_raw = np.linspace(0, 1, len(time_raw))
     smoothing = len(time_raw) * 0.1
-    tck, u = splprep(pos_raw.T, u=u_raw, s=smoothing)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="A theoretically impossible result")
+        tck, u = splprep(pos_raw.T, u=u_raw, s=smoothing)
+
     u_fine = np.linspace(0, 1, num_points)
     pos_spline = np.array(splev(u_fine, tck)).T
     total_time = time_raw[-1] - time_raw[0]
