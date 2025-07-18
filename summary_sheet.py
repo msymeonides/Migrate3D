@@ -10,6 +10,7 @@ from scipy.spatial import ConvexHull
 
 from msd_parallel import main as msd_parallel_main
 from msd_loglogfits import main as msd_loglogfits
+from helicity import compute_helicity_analysis
 from machine_learning import ml_analysis, XGBAbortException
 from shared_state import messages, thread_lock, complete_progress_step
 
@@ -192,6 +193,25 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         messages.append("")
     complete_progress_step("MSD")
 
+    df_helicity = None
+    if parameters['helicity']:
+        if twodim_mode:
+            with thread_lock:
+                messages.append('Helicity skipped, 3D dataset required.')
+                messages.append('')
+            complete_progress_step('Helicity')
+        else:
+            with thread_lock:
+                messages.append('Calculating helicity...')
+
+            df_helicity = compute_helicity_analysis(arr_segments, arr_cats)
+
+            with thread_lock:
+                msg = ' Done.'
+                messages[-1] += msg
+                messages.append('')
+            complete_progress_step('Helicity')
+
     df_all_calcs_by_obj = dict(tuple(df_all_calcs.groupby("Object ID")))
 
     with thread_lock:
@@ -347,6 +367,12 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
 
     df_msd_loglogfits = msd_loglogfits(df_msd)
     df_msd_loglogfits.columns = df_msd_loglogfits.columns.astype(str)
+
+    if df_helicity is not None and not df_helicity.empty:
+        helicity_metrics = ['Mean Helicity', 'Mean Curvature']
+        helicity_cols = ['Object ID'] + helicity_metrics
+        df_helicity_subset = df_helicity[helicity_cols].copy()
+        df_sum = df_sum.merge(df_helicity_subset, on='Object ID', how='left')
 
     toc = tempo.time()
     with thread_lock:

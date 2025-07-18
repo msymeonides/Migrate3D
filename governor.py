@@ -55,6 +55,8 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters['contact_div_filter'] = True
         if 'Attractors' in formatting_options:
             parameters['attractors'] = True
+        if 'Helicity' in formatting_options:
+            parameters['helicity'] = True
         if 'Generate Figures' in formatting_options:
             parameters['generate_figures'] = True
 
@@ -211,6 +213,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     if arr_segments.shape[1] < 5 or np.all(arr_segments[:, 4] == 0):
         twodim_mode = True
 
+    df_contacts_summary = None
+    df_contacts_per_category = None
+    df_helicity = None
+
     (df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat,
      df_msd_loglogfits, df_pca, df_removed, euclidean_filtered_count) = summary_sheet(
         arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile, all_angle_steps,
@@ -220,9 +226,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     df_sum['Category'] = df_sum['Category'].astype(str)
     savepath = savefile + '_Results.xlsx'
     savecontacts = savefile + '_Contacts.xlsx'
-
-    df_contacts_summary = None
-    df_contacts_per_category = None
 
     if parameters['contact']:
         with thread_lock:
