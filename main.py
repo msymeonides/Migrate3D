@@ -1,5 +1,5 @@
 import base64
-from dash import Dash, dcc, html, Input, Output, State, exceptions
+from dash import Dash, dcc, html, Input, Output, State, exceptions, callback_context
 import dash_bootstrap_components as dbc
 from datetime import date
 import io
@@ -12,7 +12,7 @@ import traceback
 from governor import migrate3D
 from shared_state import messages, thread_lock, get_progress, init_progress_tracker, is_aborted
 
-# Welcome to Migrate3D version 2.1, under construction!
+# Welcome to Migrate3D version 2.5, under construction!
 # Please see README.md before running this package.
 # Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan and Jonah Harris
 # at the University of Vermont, funded by NIH R56-AI172486 and NIH R01-AI172486 (PI: Markus Thali).
@@ -121,11 +121,11 @@ app.layout = dbc.Container(
             style={"height": "90px", "alignItems": "center"}
         ),
         html.H4(
-            "Comprehensive motion analysis software package",
+            "Comprehensive motion analysis made easy",
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.H6(
-            "Version 2.1, published July 2025. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
+            "Version 2.5, published July 2025. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.Hr(),
@@ -350,8 +350,68 @@ app.layout = dbc.Container(
                                         'padding': '20px 40px',
                                         'width': '40%',
                                         'alignSelf': 'center',
-                                        'marginTop': '50px'
+                                        'marginTop': '50px',
+                                        'backgroundColor': '#e0e0e0',
+                                        'color': 'black',
+                                        'border': 'none',
+                                        'borderRadius': '5px',
+                                        'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+                                        'cursor': 'pointer'
                                     }
+                                ),
+                                html.Div(style={'height': '150px'}),
+                                html.Div(
+                                    id='replicate-analysis-container',
+                                    style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center'},
+                                    children=[
+                                        html.Div(
+                                            children=[
+                                                html.Pre(
+                                                    'Use the button below if you are done analyzing all the replicates of your experiment. This assumes that '
+                                                    'they were all run with the same parameters, that the results files are all still present in the Migrate3D '
+                                                    'working folder, and that the filenames are identical and end in "-r#" where # is the index number of the '
+                                                    'replicate.\n\n'
+                                                    'In the "Save results as:" box at the bottom left, enter the filename prefix that is common to all of the '
+                                                    'replicates belonging to this experiment, then click the button below to perform the replicate analysis.',
+                                                    style={
+                                                        'whiteSpace': 'pre-wrap',
+                                                        'margin': 0
+                                                    }
+                                                )
+                                            ],
+                                            style={
+                                                'width': '100%',
+                                                'alignSelf': 'center',
+                                                'minWidth': '200px',
+                                                'maxHeight': '1000px',
+                                                'overflowY': 'auto',
+                                                'boxShadow': '0 2px 8px rgba(0,0,0,0.2)',
+                                                'borderRadius': '8px',
+                                                'padding': '16px',
+                                                'zIndex': 2000,
+                                                'border': '1px solid #ccc'
+                                            }
+                                        ),
+                                        html.Button(
+                                            'Perform replicate analysis',
+                                            id='replicate-analysis-button',
+                                            n_clicks=0,
+                                            disabled=False,
+                                            style={
+                                                'fontSize': '2rem',
+                                                'padding': '20px 40px',
+                                                'width': '40%',
+                                                'alignSelf': 'center',
+                                                'marginTop': '20px',
+                                                'backgroundColor': '#e0e0e0',
+                                                'color': 'black',
+                                                'border': 'none',
+                                                'borderRadius': '5px',
+                                                'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+                                                'cursor': 'pointer'
+                                            }
+                                        )
+                                    ]
                                 ),
                                 html.Div(
                                     id='attractor-settings-div',
@@ -401,7 +461,7 @@ app.layout = dbc.Container(
                 ),
         html.Br(),
         html.Br(),
-        html.Div(id='dummy', style={'display': 'none'})
+        html.Div(id='dummy', style={'display': 'none'}),
     ],
     className="body",
     fluid=True
@@ -749,7 +809,10 @@ def update_run_and_freeze(n_clicks, progress):
                 'marginTop': '50px',
                 'backgroundColor': '#dc3545',
                 'color': 'white',
-                'border': 'none'
+                'border': 'none',
+                'borderRadius': '5px',
+                'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+                'cursor': 'pointer'
             }
         else:
             btn_text = "Done!"
@@ -761,7 +824,10 @@ def update_run_and_freeze(n_clicks, progress):
                 'marginTop': '50px',
                 'backgroundColor': '#FFD700',
                 'color': 'black',
-                'border': 'none'
+                'border': 'none',
+                'borderRadius': '5px',
+                'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+                'cursor': 'pointer'
             }
         btn_disabled = True
     elif n_clicks and n_clicks > 0:
@@ -774,7 +840,10 @@ def update_run_and_freeze(n_clicks, progress):
             'marginTop': '50px',
             'backgroundColor': '#7bb77b',
             'color': 'white',
-            'border': 'none'
+            'border': 'none',
+            'borderRadius': '5px',
+            'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+            'cursor': 'pointer'
         }
         btn_disabled = True
     else:
@@ -787,7 +856,10 @@ def update_run_and_freeze(n_clicks, progress):
             'marginTop': '50px',
             'backgroundColor': '#e0e0e0',
             'color': 'black',
-            'border': 'none'
+            'border': 'none',
+            'borderRadius': '5px',
+            'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+            'cursor': 'pointer'
         }
         btn_disabled = False
 
@@ -796,6 +868,72 @@ def update_run_and_freeze(n_clicks, progress):
     formatting_style = {'pointerEvents': 'none', 'opacity': 0.5} if freeze else {}
 
     return [btn_text, btn_style, btn_disabled] + freeze_outputs + [formatting_style]
+
+@app.callback(
+    [
+        Output('replicate-analysis-button', 'children'),
+        Output('replicate-analysis-button', 'style'),
+        Output('replicate-analysis-button', 'disabled'),
+    ],
+    [Input('replicate-analysis-button', 'n_clicks'), Input('progress-interval', 'n_intervals')],
+    [State('save_file', 'value')],
+    prevent_initial_call=True
+)
+def run_replicate_analysis(n_clicks, n_intervals, savefile):
+    if n_clicks == 0:
+        raise exceptions.PreventUpdate
+
+    with thread_lock:
+        if "Replicate analysis completed successfully!" in messages:
+            btn_style = {
+                'fontSize': '2rem',
+                'padding': '20px 40px',
+                'width': '40%',
+                'alignSelf': 'center',
+                'marginTop': '20px',
+                'backgroundColor': '#FFD700',
+                'color': 'black',
+                'border': 'none',
+                'borderRadius': '5px',
+                'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+                'cursor': 'pointer'
+            }
+            return "Replicate analysis done!", btn_style, True
+
+    ctx = callback_context
+    if ctx.triggered and ctx.triggered[0]['prop_id'] == 'replicate-analysis-button.n_clicks':
+        def run_superplots_thread():
+            try:
+                from superplots import superplots
+                import re
+                base_name = re.sub(r'-r\d+$', '', savefile)
+                input_pattern = f"{base_name}-r*_Results.xlsx"
+                superplots(input_pattern)
+                with thread_lock:
+                    messages.append("")
+                    messages.append("Replicate analysis completed successfully!")
+            except Exception as e:
+                with thread_lock:
+                    messages.append("")
+                    messages.append(f"Error in replicate analysis: {str(e)}")
+
+        thread = threading.Thread(target=run_superplots_thread)
+        thread.start()
+
+    btn_style = {
+        'fontSize': '2rem',
+        'padding': '20px 40px',
+        'width': '40%',
+        'alignSelf': 'center',
+        'marginTop': '20px',
+        'backgroundColor': '#7bb77b',
+        'color': 'white',
+        'border': 'none',
+        'borderRadius': '5px',
+        'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+        'cursor': 'pointer'
+    }
+    return "Running replicate analysis...", btn_style, True
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
