@@ -289,16 +289,16 @@ This option should be used only when the objects in the dataset are expected to 
 
 - **Mean/Median Helicity**: A measure of how much and in what direction an object is moving helically. Values lie between -1 and 1, where -1 indicates perfect counter-clockwise (left-handed) rotation, 0 indicates no rotation, and 1 indicates perfect clockwise (right-handed) rotation. This is calculated as follows: 
 
-  $$`\vec{curl}_v = \nabla \times (\vec{v}(t-1) \times \vec{v}(t))`$$
+  $$\vec{curl}_v = \nabla \times (\vec{v}(t-1) \times \vec{v}(t))$$
 
-  $$`helicity_{inst}(t) = \frac{\vec{v}(t) \cdot \vec{curl}_v(t)}{|\vec{v}(t)|^2 + \epsilon}`$$
+  $$helicity_{inst}(t) = \frac{\vec{v}(t) \cdot \vec{curl}_v(t)}{|\vec{v}(t)|^2 + \epsilon}$$
 
   Where $`\vec{curl}_v`$ is the curl of the velocity field, $`\vec{v}(t)`$ is the velocity vector at time t, $`\nabla`$ is the gradient operator with respect to time, $`helicity_{inst}(t)`$ is the instantaneous helicity at time t, $`|\vec{v}(t)|`$ is the velocity magnitude, and $`\epsilon = 1 \times 10^{-8}`$ is a small constant to prevent division by zero.
 
 
 - **Mean Curvature**: A measure of how sharply the track bends, where higher values indicate more curved motion. This is calculated as follows:
 
-  $$`\kappa(t) = \frac{|\vec{v}(t) \times \vec{a}(t)|}{|\vec{v}(t)|^3}`$$
+  $$\kappa(t) = \frac{|\vec{v}(t) \times \vec{a}(t)|}{|\vec{v}(t)|^3}$$
 
   Where $`\kappa(t)`$ is the instantaneous curvature at time t, $`\vec{v}(t)`$ is the velocity vector at time t, and $`\vec{a}(t)`$ is the acceleration vector at time t.
 
