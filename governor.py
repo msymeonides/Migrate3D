@@ -14,7 +14,7 @@ from shared_state import messages, thread_lock, set_abort_state, complete_progre
 pd.set_option('future.no_silent_downcasting', True)
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
-              arrested, min_maxeuclid, tau, formatting_options, savefile, segments_dataframe, categories_dataframe,
+              arrested, min_maxeuclid, tau, options, savefile, segments_dataframe, categories_dataframe,
               segments_filename, categories_filename, parameters, pca_filter, attract_params):
     bigtic = tempo.time()
 
@@ -40,24 +40,24 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     parameters['pca_filter'] = pca_filter
     parameters['attract_params'] = attract_params
 
-    if formatting_options is None:
+    if options is None:
         pass
     else:
-        if 'Multitrack' in formatting_options:
+        if 'Multitrack' in options:
             parameters['multi_track'] = True
-        if 'Interpolate' in formatting_options:
+        if 'Interpolate' in options:
             parameters['interpolate'] = True
-        if 'Verbose' in formatting_options:
+        if 'Verbose' in options:
             parameters['verbose'] = True
-        if 'Contacts' in formatting_options:
+        if 'Contacts' in options:
             parameters['contact'] = True
-        if 'ContactDivFilter' in formatting_options:
+        if 'ContactDivFilter' in options:
             parameters['contact_div_filter'] = True
-        if 'Attractors' in formatting_options:
+        if 'Attractors' in options:
             parameters['attractors'] = True
-        if 'Helicity' in formatting_options:
+        if 'Helicity' in options:
             parameters['helicity'] = True
-        if 'Generate Figures' in formatting_options:
+        if 'Generate Figures' in options:
             parameters['generate_figures'] = True
 
     df_infile = segments_dataframe.copy()
