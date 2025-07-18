@@ -123,7 +123,7 @@ def summary_figures(df, fit_stats, color_map=None):
     fig.update_layout(
         violinmode='group',
         plot_bgcolor='white',
-        title={'text': 'Summary Statistics', 'x': 0.5, 'font': {'size': 28}},
+        title={'text': 'Summary Features', 'x': 0.5, 'font': {'size': 28}},
         height=400 * n_rows,
         autosize=True
     )
