@@ -1,6 +1,6 @@
 # README
 
-Last Edited: July 16, 2025 (Migrate3D version 2.1)
+Last Edited: July 18, 2025 (Migrate3D version 2.1)
 
 # Migrate3D
 
@@ -283,14 +283,59 @@ See the Contacts (minus dividing) section below for more details. Enable this if
 
 Identifies instances where an object is attracting other objects towards it (even if both objects are moving), and returns a separate results .xlsx file containing data on each detected attraction event. An additional set of tunable parameters for this function is available in the GUI. The default values for these parameters can be changed at the top of the main.py script.
 
+### Helicity:
+
+This option should be used only when the objects in the dataset are expected to exhibit helicity in their motion. Enabling this option will use spline-smoothed versions of the tracks to calculate two additional summary features related to helicity:
+
+- **Mean Helicity**: A measure of how much and in what direction an object is moving helically. Values lie between -1 and 1, where -1 indicates perfect counter-clockwise (left-handed) rotation, 0 indicates no rotation, and 1 indicates perfect clockwise (right-handed) rotation. Mathematically: 
+
+  $$
+  \vec{curl}_v = \nabla \times (\vec{v}(t-1) \times \vec{v}(t))
+  $$
+
+  $$
+  helicity_{inst}(t) = \frac{\vec{v}(t) \cdot \vec{curl}_v(t)}{|\vec{v}(t)|^2 + \epsilon}
+  $$
+
+  $$
+  Mean\ Helicity = \langle helicity_{inst} \rangle
+  $$
+
+  Where $\vec{curl}_v$ is the curl of the velocity field, $\vec{v}(t)$ is the velocity vector at time t, $\nabla$ is the gradient operator with respect to time, $helicity_{inst}(t)$ is the instantaneous helicity at time t, $|\vec{v}(t)|$ is the velocity magnitude, and $\epsilon = 1 \times 10^{-8}$ is a small constant to prevent division by zero.
+
+
+- **Mean Curvature**: A measure of how sharply the track bends, where higher values indicate more curved motion. Mathematically:
+
+  $$
+  \kappa(t) = \frac{|\vec{v}(t) \times \vec{a}(t)|}{|\vec{v}(t)|^3}
+  $$
+
+  $$
+  Mean\ Curvature = \langle \kappa(t) \rangle
+  $$
+
+  Where $\kappa(t)$ is the instantaneous curvature at time t, $\vec{v}(t)$ is the velocity vector at time t, and $\vec{a}(t)$ is the acceleration vector at time t.
+
+These two features will be appended to the Summary Sheet and will appear in the Summary Features HTML figure output. Additionally, these features will become available for Machine Learning analysis together with all other summary features.
+
+Note that tracks must have at least 20 timepoints for these calculations to give a result, otherwise these fields will be left blank. This threshold can be adjusted at the top of helicity.py.
+
 ### Generate Figures:
 
 The following plotly figures are generated:
 
-- **Summary Stats**: Per-category interactive violin plots for each of the summary features, plus the MSD log-log linear fit slope (error bars = 95% confidence interval) for each category.
+- **Summary Features**: Per-category interactive violin plots for each of the summary features, plus the MSD log-log linear fit slope (error bars = 95% confidence interval) for each category.
+
+
 - **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
+
+
 - **Tracks**: An interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks (either raw or origin-zeroed), color-coded by category (if provided). Two versions of this are saved, one which allows filtering by category and one which allows filtering by object. Categories or objects can be toggled on/off by clicking them on the legend.
+
+
 - **PCA**: A set of plots of only the first four PCs (even if additional PCs are recorded in the .xlsx PCA output) will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).
+
+
 - **MSD**: A log-log plot of the mean per-category MSD vs. τ, each with its linear fit line (dashed), and, for each category, a plot of all per-track MSD values vs. τ (gray traces), with the mean of all tracks overlaid (dark trace) plus the linear fit (dashed red line). The slope and 95% confidence interval of the linear fit for that category mean is also shown on each figure.
 
 The color used for each category will be consistent across all of these figures. For all violin plots, an inner box plot is overlayed showing the median and upper and lower quartiles. All outputs are in .html format which can be viewed in a browser (note that for large 3D datasets, the tracks figure HTML file can take a while to load once opened, and may be poorly responsive) and all figures can be downloaded in PNG format.
@@ -375,7 +420,7 @@ $$
 The median angle calculated for each value of τ per object is stored in a worksheet named "Turning Angles", with each row being an object ID, each column being a value of τ, and the values within being the median angle detected for that value of τ.
 
 
-## Summary Sheet
+## Summary Features
 
 Summary features calculated using the data acquired over an object’s entire tracking period.
 
@@ -476,9 +521,15 @@ The highest value of MSD that each object reached during its tracking history at
 
 The summary features calculated for each object are used to perform two machine learning analyses: Principal Component Analysis (PCA) and XGBoost (XGB). Before that happens, however, the dataset is processed as follows:
 
-1. Any category filter specified by the user in the GUI will be applied, then any categories containing fewer objects than a set threshold (separate ones for PCA and XGB) will also be removed. These default thresholds (5 for PCA, 10 for XGB) can be adjusted at the top of machine_learning.py. 
+1. Any category filter specified by the user in the GUI will be applied, then any categories containing fewer objects than a set threshold (separate ones for PCA and XGB) will also be removed. These default thresholds (5 for PCA, 10 for XGB) can be adjusted at the top of machine_learning.py.
+
+
 2. Any non-moving objects (i.e. those with a Velocity Mean/Median of 0) are removed from the dataset.
+
+
 3. The dataset is transformed (signed log10 + 1), then z-score scaling is performed. This processing step ensures that all features are on a similar scale and are normally distributed, reducing the impact of outliers.
+
+
 4. Features with zero variance are removed, and highly-correlated features (i.e. those with a pairwise Pearson correlation coefficient greater than 0.95) are aggregated into a single feature by taking the mean of the (transformed and scaled) values for those features within each object and casting that to the new aggregated feature. The threshold for variance (default = 0.01) and the feature correlation threshold (default = 0.95) can be adjusted at the top of machine_learning.py.
 
 If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into. A separate verbose output file is generated for PCA and for each of the two runs of XGB, as the data processing is done separately each run.
@@ -533,9 +584,21 @@ A per-category analysis of contacts, including the number of objects in each cat
 Attractors are detected by iterating over all objects in the dataset and checking whether any other object is moving towards it. If an object is moving towards another object, it is considered an attraction event and recorded. The results are saved in a separate .xlsx file, and include the timepoint of the attraction event, the distance between the two objects at that timepoint, and the relative speed between the motion of the two objects. The tunable parameters for this function are:
 
 - **Distance threshold**: The maximum distance between two objects at a given timepoint that would be considered an attraction. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
+ 
+ 
 - **Approach ratio**: An upper limit for the ratio of the distances between the objects at the end and at the start of a candidate attraction event for it to be recorded.
+ 
+
 - **Minimum proximity**: The attracted object must get at least this close to the attractor for at least one timepoint for the attraction event to be recorded.
+ 
+ 
 - **Time persistence**: The minimum number of consecutive timepoints that the attraction event must persist for it to be recorded.
-- **Maximum time gap**: The number of consecutive timepoints of increasing distance allowed before the attraction chain is broken.
+
+
+- **Maximum time gap**: The number of consecutive timepoints of increasing distance allowed before the attraction chain is broken. 
+
+
 - **Attractor categories**: A space-separated list of categories of objects that may be considered as attractors. If this field is left blank, all object categories may be considered as attractors.
+
+
 - **Attracted categories**: A space-separated list of categories of objects that may be considered as attracted. If this field is left blank, all object categories may be considered as attracted.

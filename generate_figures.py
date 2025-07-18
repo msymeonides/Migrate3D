@@ -18,97 +18,108 @@ def summary_figures(df, fit_stats, color_map=None):
     categories = sorted(df['Category'].dropna().unique())
     if color_map is None:
         color_map = get_category_color_map(categories)
-    n_plots = len(columns) + (1 if fit_stats is not None else 0)
-    subplot_titles = columns + (['MSD log-log fit slope'] if fit_stats is not None else [])
+
+    # Insert MSD log-log fit slope after Outreach Ratio if fit_stats is provided
+    if fit_stats is not None and 'Outreach Ratio' in columns:
+        outreach_idx = columns.index('Outreach Ratio')
+        columns.insert(outreach_idx + 1, 'MSD log-log fit slope')
+    elif fit_stats is not None:
+        columns.append('MSD log-log fit slope')
+
+    n_plots = len(columns)
+    subplot_titles = columns
     n_cols = 4
     n_rows = math.ceil(n_plots / n_cols)
     fig = make_subplots(
         rows=n_rows, cols=n_cols, subplot_titles=subplot_titles,
         vertical_spacing=0.05, horizontal_spacing=0.05
     )
+
     for i, col in enumerate(columns):
         row, col_idx = divmod(i, n_cols)
-        for cat in categories:
-            df_cat = df[df['Category'] == cat]
-            fig.add_trace(
-                go.Violin(
-                    x=[str(cat)] * len(df_cat),
-                    y=df_cat[col],
-                    marker_color=color_map.get(cat, 'black'),
-                    legendgroup=f'cat{cat}',
-                    showlegend=(i == 0),
-                    scalegroup=f'{col}',
-                    scalemode='count',
-                    width=0.8,
-                    box_visible=True,
-                    name=f'Cat {cat}'
-                ),
-                row=row + 1, col=col_idx + 1
-            )
-        fig.update_xaxes(
-            type='category',
-            row=row + 1, col=col_idx + 1
-        )
 
-    if fit_stats is not None:
-        i = len(columns)
-        row, col_idx = divmod(i, n_cols)
-        y_error_tops = []
+        if col == 'MSD log-log fit slope' and fit_stats is not None:
+            # Handle MSD log-log fit slope plot
+            y_error_tops = []
 
-        for cat in categories:
-            stats = fit_stats.get(cat, {})
-            slope = stats.get('slope', None)
-            if slope is not None:
+            for cat in categories:
+                stats = fit_stats.get(cat, {})
+                slope = stats.get('slope', None)
+                if slope is not None:
+                    ci_high = stats.get('ci_high', 0) - stats.get('slope', 0)
+                    y_error_tops.append(slope + ci_high)
+
+            if y_error_tops:
+                y_max = max(y_error_tops)
+                y_padding = y_max * 0.1
+                y_range = [0, y_max + y_padding]
+            else:
+                y_range = [0, None]
+
+            for cat in categories:
+                stats = fit_stats.get(cat, {})
+                slope = stats.get('slope', None)
+                ci_low = stats.get('slope', 0) - stats.get('ci_low', 0)
                 ci_high = stats.get('ci_high', 0) - stats.get('slope', 0)
-                y_error_tops.append(slope + ci_high)
-
-        if y_error_tops:
-            y_max = max(y_error_tops)
-            y_padding = y_max * 0.1
-            y_range = [0, y_max + y_padding]
-        else:
-            y_range = [0, None]
-
-        for cat in categories:
-            stats = fit_stats.get(cat, {})
-            slope = stats.get('slope', None)
-            ci_low = stats.get('slope', 0) - stats.get('ci_low', 0)
-            ci_high = stats.get('ci_high', 0) - stats.get('slope', 0)
-            fig.add_trace(
-                go.Scatter(
-                    x=[str(cat)],
-                    y=[slope],
-                    mode='markers',
-                    marker=dict(
-                        color=color_map.get(cat, 'black'),
-                        size=11,
-                        line=dict(width=1, color=color_map.get(cat, 'black'))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[str(cat)],
+                        y=[slope],
+                        mode='markers',
+                        marker=dict(
+                            color=color_map.get(cat, 'black'),
+                            size=11,
+                            line=dict(width=1, color=color_map.get(cat, 'black'))
+                        ),
+                        error_y=dict(
+                            type='data',
+                            symmetric=False,
+                            array=[ci_high],
+                            arrayminus=[ci_low],
+                            thickness=1,
+                            color='black',
+                            width=8
+                        ),
+                        legendgroup=f'cat{cat}',
+                        showlegend=False,
+                        name=f'Cat {cat}'
                     ),
-                    error_y=dict(
-                        type='data',
-                        symmetric=False,
-                        array=[ci_high],
-                        arrayminus=[ci_low],
-                        thickness=1,
-                        color='black',
-                        width=8
-                    ),
-                    legendgroup=f'cat{cat}',
-                    showlegend=False,
-                    name=f'Cat {cat}'
-                ),
+                    row=row + 1, col=col_idx + 1
+                )
+            fig.update_xaxes(
+                type='category',
+                range=[-0.5, len(categories) - 0.5],
                 row=row + 1, col=col_idx + 1
             )
-        fig.update_xaxes(
-            type='category',
-            range=[-0.5, len(categories) - 0.5],
-            row=row + 1, col=col_idx + 1
-        )
-        fig.update_yaxes(
-            title_text='Slope',
-            range=y_range,
-            row=row + 1, col=col_idx + 1
-        )
+            fig.update_yaxes(
+                title_text='Slope',
+                range=y_range,
+                row=row + 1, col=col_idx + 1
+            )
+        else:
+            # Handle regular violin plots
+            for cat in categories:
+                df_cat = df[df['Category'] == cat]
+                fig.add_trace(
+                    go.Violin(
+                        x=[str(cat)] * len(df_cat),
+                        y=df_cat[col],
+                        marker_color=color_map.get(cat, 'black'),
+                        legendgroup=f'cat{cat}',
+                        showlegend=(i == 0),
+                        scalegroup=f'{col}',
+                        scalemode='count',
+                        width=0.8,
+                        box_visible=True,
+                        name=f'Cat {cat}'
+                    ),
+                    row=row + 1, col=col_idx + 1
+                )
+            fig.update_xaxes(
+                type='category',
+                row=row + 1, col=col_idx + 1
+            )
+
     fig.update_layout(
         violinmode='group',
         plot_bgcolor='white',
@@ -859,7 +870,7 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
                 f.write(fig.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
 
     sumstat_figs = summary_figures(df_sum, fit_stats, color_map=color_map)
-    with open(f'{savefile}_Figures_Summary-Stats.html', 'w', encoding='utf-8') as f:
+    with open(f'{savefile}_Figures_Summary-Features.html', 'w', encoding='utf-8') as f:
         for fig in sumstat_figs:
             fig_html = fig.to_html(full_html=False, include_plotlyjs='cdn', config={'responsive': True})
             f.write(f"<div style='width:95vw;'>{fig_html}</div>")

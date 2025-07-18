@@ -33,8 +33,8 @@ parameters = {'arrest_limit': 3,    # Arrest limit
               'contact': False,
               'contact_div_filter': False,
               'attractors': False,
+              'helicity': False,
               'generate_figures': False,
-              'pca_filter': None,
               'infile_categories': False, 'object_id_col_name': 'Parent ID', 'time_col_name': "Time",
               'x_col_name': 'X Coordinate', 'y_col_name': 'Y Coordinate', 'z_col_name': 'Z Coordinate',
               'object_id_2_col': 'ID', 'category_col': 'Category',
@@ -64,6 +64,7 @@ formatting_option_map = {
     'contact': 'Contacts',
     'contact_div_filter': 'ContactDivFilter',
     'attractors': 'Attractors',
+    'helicity': 'Helicity',
     'generate_figures': 'Generate Figures'
 }
 default_formatting_options = [
@@ -275,6 +276,8 @@ app.layout = dbc.Container(
                                             'value': 'ContactDivFilter'},
                                         {'label': ' Attractors (identifies instances where an object is attracting other objects towards it)',
                                             'value': 'Attractors'},
+                                        {'label': ' Helicity (calculates helicity and curvature metrics for 3D tracks)',
+                                            'value': 'Helicity'},
                                         {'label': ' Generate Figures (creates figures for summary features, PCA, and MSD)',
                                             'value': 'Generate Figures'}
                                     ],
@@ -426,6 +429,7 @@ def run_migrate_thread(args):
         "pca_xgb": parameters.get("infile_categories", False),
         "contacts": True if formatting_options and "Contacts" in formatting_options else False,
         "attractors": True if formatting_options and "Attractors" in formatting_options else False,
+        "helicity": True if formatting_options and "Helicity" in formatting_options else False,
         "generate_figures": True if formatting_options and "Generate Figures" in formatting_options else False
     }
     init_progress_tracker(optional_flags)
