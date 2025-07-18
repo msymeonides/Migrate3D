@@ -141,15 +141,15 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         'Straightness': straightness,
         'Displacement Ratio': displacement_ratio,
         'Outreach Ratio': outreach_ratio,
-        'Velocity Mean': velocity_mean_out,
-        'Velocity Median': velocity_median_out,
-        'Velocity Standard Deviation': velocity_stdev_out,
-        'Acceleration Mean': acceleration_mean_out,
-        'Acceleration Median': acceleration_median_out,
-        'Acceleration Standard Deviation': acceleration_stdev_out,
-        'Absolute Acceleration Mean': abs_acc_mean_out,
-        'Absolute Acceleration Median': abs_acc_median_out,
-        'Absolute Acceleration Standard Deviation': abs_acc_stdev_out,
+        'Mean Velocity': velocity_mean_out,
+        'Median Velocity': velocity_median_out,
+        'StDev Velocity': velocity_stdev_out,
+        'Mean Acceleration': acceleration_mean_out,
+        'Median Acceleration': acceleration_median_out,
+        'StDev Acceleration': acceleration_stdev_out,
+        'Mean Absolute Acceleration': abs_acc_mean_out,
+        'Median Absolute Acceleration': abs_acc_median_out,
+        'StDev Absolute Acceleration': abs_acc_stdev_out,
         'Arrest Coefficient': arrest_coefficient,
         'Overall Euclidean Median': overall_euclidean_median,
         'Convex Hull Volume': convex,
@@ -168,9 +168,9 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     summary_columns = [
         'Object ID', 'Category', 'Duration', 'Path Length', 'Final Euclidean', 'Max Euclidean',
         'Overall Euclidean Median', 'Maximum MSD', 'Displacement Ratio', 'Outreach Ratio', 'Straightness',
-        'Median Turning Angle', 'Velocity Mean', 'Velocity Median', 'Velocity Standard Deviation', 'Acceleration Mean',
-        'Acceleration Median', 'Acceleration Standard Deviation', 'Absolute Acceleration Mean',
-        'Absolute Acceleration Median', 'Absolute Acceleration Standard Deviation'
+        'Median Turning Angle', 'Mean Velocity', 'Median Velocity', 'StDev Velocity', 'Mean Acceleration',
+        'Median Acceleration', 'StDev Acceleration', 'Mean Absolute Acceleration',
+        'Median Absolute Acceleration', 'StDev Absolute Acceleration'
     ]
     if parameters['arrest_limit'] != 0:
         idx = summary_columns.index('Median Turning Angle') + 1
@@ -204,7 +204,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
             with thread_lock:
                 messages.append('Calculating helicity...')
 
-            df_helicity = compute_helicity_analysis(arr_segments, arr_cats)
+            df_helicity = compute_helicity_analysis(arr_segments, arr_cats, parameters)
 
             with thread_lock:
                 msg = ' Done.'
@@ -369,7 +369,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     df_msd_loglogfits.columns = df_msd_loglogfits.columns.astype(str)
 
     if df_helicity is not None and not df_helicity.empty:
-        helicity_metrics = ['Mean Helicity', 'Mean Curvature']
+        helicity_metrics = ['Mean Helicity', 'Median Helicity', 'Mean Curvature', 'Median Curvature']
         helicity_cols = ['Object ID'] + helicity_metrics
         df_helicity_subset = df_helicity[helicity_cols].copy()
         df_sum = df_sum.merge(df_helicity_subset, on='Object ID', how='left')

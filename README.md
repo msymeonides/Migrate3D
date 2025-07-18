@@ -24,7 +24,7 @@ A Segments input file is required to run Migrate3D. Optionally, a Categories inp
 
 The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the timepoint index.
 
-If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation formatting option is used. The IDs of dropped objects will be recorded in the results output (along with any objects dropped due to the "Minimum Max. Euclidean" filter) in the sheet "Removed Objects". If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
+If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation option is used. The IDs of dropped objects will be recorded in the results output (along with any objects dropped due to the "Minimum Max. Euclidean" filter) in the sheet "Removed Objects". If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
 
 ### Categories
 
@@ -222,19 +222,19 @@ Set this value by examining tracks of control objects which should not be moving
 
 ### Minimum Timepoints:
 
-When a non-zero Arrest Limit has been set, this additional filter is an integer parameter that denotes the total number of 'moving' timepoints an object must exceed to be considered for certain summary features, namely those relating to Velocity and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary features, but will still have their own row on the Summary Sheet with values everywhere but those Velocity/Acceleration columns.
+This filter is an integer parameter that denotes the total number of 'moving' timepoints an object must exceed to be considered for certain summary features, namely those relating to Helicity, Velocity, and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary features, but will still have their own row on the Summary Sheet with values everywhere but those Helicity/Velocity/Acceleration columns.
 
-This filter is most useful when the dataset contains objects which are not really moving and are outliers in that sense that could still be useful to have in order to provide context for the rest of the dataset. That said, your dataset may already have been filtered down to only objects you are interested in and they are by definition all moving, in which case you can turn this filter off by setting its value to 0.
+This filter is most useful when the dataset contains objects which are not really moving and are outliers in that sense that could still be useful to have in order to provide context for the rest of the dataset. That said, your dataset may already have been filtered down to only objects you are interested in and they are by definition all moving, in which case you can turn this filter off by setting its value to 0. When the Helicity option is enabled, this parameter should be set to a number of timepoints that is the minimum at which you can still visually see helicity in the tracks in your particular dataset. 
 
 ### Contact Length:
 
-This parameter only applies to the Contacts module (see 'Formatting Options' below). This is a floating-point variable that represents the largest distance between two objects at a given timepoint that will be considered a contact. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
+This parameter only applies to the Contacts module (see 'Options' below). This is a floating-point variable that represents the largest distance between two objects at a given timepoint that will be considered a contact. The program assumes same units as that of the X/Y/Z coordinates given in the input dataset.
 
 To set this value, manually find "true" contacts in your dataset, i.e. pairs of objects that you would consider to be in contact with each other at a given timepoint, measure the magnitude of the vector (that would be a 3D vector for a 3D dataset) between those pairs of centroids, and set the parameter to slightly above the largest of these values.
 
 ### Maximum Arrest Coefficient:
 
-This parameter only applies to the Contacts module (see 'Formatting Options' below). This is a floating point variable between 0 and 1 that uses each object's measured Arrest Coefficient to filter out "dead" objects during the contact detection process. This filter is useful if you are only interested in contacts between objects that are both actively moving at some point during the dataset (e.g. live, motile cells).
+This parameter only applies to the Contacts module (see 'Options' below). This is a floating point variable between 0 and 1 that uses each object's measured Arrest Coefficient to filter out "dead" objects during the contact detection process. This filter is useful if you are only interested in contacts between objects that are both actively moving at some point during the dataset (e.g. live, motile cells).
 
 To turn this filter off, set this value to 1. Note that if Arrest Limit has been set to 0, this parameter will have no effect as all objects will have an Arrest Coefficient of 0 and will survive the "minus dead" filter.
 
@@ -253,9 +253,9 @@ The time between each observation (assumes the same units as the values in the T
 An integer variable that controls the number of intervals to calculate for Mean Squared Displacement, Euclidean Distances, and Turning Angles. This is autodetected from the input dataset by calculating the maximum number of timepoints in all object IDs, but can be manually overridden in the GUI if necessary.
 
 
-## Formatting options
+## Options
 
-All of these formatting options are optional, but depending on the nature of your dataset, may be necessary to ensure accurate results.
+All of these are optional, but depending on the nature of your dataset, may be necessary to ensure accurate results.
 
 ### Multitracking:
 
@@ -287,7 +287,7 @@ Identifies instances where an object is attracting other objects towards it (eve
 
 This option should be used only when the objects in the dataset are expected to exhibit helicity in their motion. Enabling this option will use spline-smoothed versions of the tracks to calculate two additional summary features related to helicity:
 
-- **Mean Helicity**: A measure of how much and in what direction an object is moving helically. Values lie between -1 and 1, where -1 indicates perfect counter-clockwise (left-handed) rotation, 0 indicates no rotation, and 1 indicates perfect clockwise (right-handed) rotation. Mathematically: 
+- **Mean/Median Helicity**: A measure of how much and in what direction an object is moving helically. Values lie between -1 and 1, where -1 indicates perfect counter-clockwise (left-handed) rotation, 0 indicates no rotation, and 1 indicates perfect clockwise (right-handed) rotation. This is calculated as follows: 
 
   $$
   \vec{curl}_v = \nabla \times (\vec{v}(t-1) \times \vec{v}(t))
@@ -297,28 +297,20 @@ This option should be used only when the objects in the dataset are expected to 
   helicity_{inst}(t) = \frac{\vec{v}(t) \cdot \vec{curl}_v(t)}{|\vec{v}(t)|^2 + \epsilon}
   $$
 
-  $$
-  Mean\ Helicity = \langle helicity_{inst} \rangle
-  $$
-
   Where $\vec{curl}_v$ is the curl of the velocity field, $\vec{v}(t)$ is the velocity vector at time t, $\nabla$ is the gradient operator with respect to time, $helicity_{inst}(t)$ is the instantaneous helicity at time t, $|\vec{v}(t)|$ is the velocity magnitude, and $\epsilon = 1 \times 10^{-8}$ is a small constant to prevent division by zero.
 
 
-- **Mean Curvature**: A measure of how sharply the track bends, where higher values indicate more curved motion. Mathematically:
+- **Mean Curvature**: A measure of how sharply the track bends, where higher values indicate more curved motion. This is calculated as follows:
 
   $$
   \kappa(t) = \frac{|\vec{v}(t) \times \vec{a}(t)|}{|\vec{v}(t)|^3}
-  $$
-
-  $$
-  Mean\ Curvature = \langle \kappa(t) \rangle
   $$
 
   Where $\kappa(t)$ is the instantaneous curvature at time t, $\vec{v}(t)$ is the velocity vector at time t, and $\vec{a}(t)$ is the acceleration vector at time t.
 
 These two features will be appended to the Summary Sheet and will appear in the Summary Features HTML figure output. Additionally, these features will become available for Machine Learning analysis together with all other summary features.
 
-Note that tracks must have at least 20 timepoints for these calculations to give a result, otherwise these fields will be left blank. This threshold can be adjusted at the top of helicity.py.
+The "Minimum timepoints" tunable parameter can be used to set a minimum track length limit for these calculations to be done for a given track.
 
 ### Generate Figures:
 

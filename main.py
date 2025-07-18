@@ -57,7 +57,7 @@ app = Dash(__name__, assets_folder='assets', assets_url_path='/assets/', externa
 with thread_lock:
     messages.append('Waiting for user input. Load data, adjust parameters and options, and click "Run Migrate3D" to start the analysis.')
 
-formatting_option_map = {
+option_map = {
     'multi_track': 'Multitrack',
     'interpolate': 'Interpolate',
     'verbose': 'Verbose',
@@ -67,8 +67,8 @@ formatting_option_map = {
     'helicity': 'Helicity',
     'generate_figures': 'Generate Figures'
 }
-default_formatting_options = [
-    v for k, v in formatting_option_map.items() if parameters.get(k, False)
+default_options = [
+    v for k, v in option_map.items() if parameters.get(k, False)
 ]
 
 app.layout = dbc.Container(
@@ -260,9 +260,9 @@ app.layout = dbc.Container(
                                 html.Div([html.H6(children=['Maximum Tau value (Default: The maximum number of timepoints in the dataset)']),
                                 dcc.Input(id='tau', value=parameters['tau'], placeholder='Enter max. tau value'),],style={'marginLeft': '5%'}),
                                 html.Hr(),
-                                html.H4(children=['Formatting options']),
+                                html.H4(children=['Options']),
                                 dcc.Checklist(
-                                    id='formatting_options',
+                                    id='options',
                                     options=[
                                         {'label': ' Multitracking (if an object ID is represented by multiple segments at a given timepoint, they will be spatially averaged into one segment)',
                                             'value': 'Multitrack'},
@@ -276,12 +276,12 @@ app.layout = dbc.Container(
                                             'value': 'ContactDivFilter'},
                                         {'label': ' Attractors (identifies instances where an object is attracting other objects towards it)',
                                             'value': 'Attractors'},
-                                        {'label': ' Helicity (calculates two additional features; use for tracks which exhibit helical motion)',
+                                        {'label': ' Helicity (calculates additional summary features; use for tracks which exhibit helical motion)',
                                             'value': 'Helicity'},
                                         {'label': ' Generate Figures (creates figures for summary features, PCA, and MSD)',
                                             'value': 'Generate Figures'}
                                     ],
-                                    value=default_formatting_options,
+                                    value=default_options,
                                     inputStyle={'width': '30px', 'height': '30px', 'marginRight': '5px',
                                                 'marginBottom': '5px', 'marginTop': '5px'},
                                     labelStyle={'display': 'block', 'alignItems': 'center', 'marginLeft': '5%'}
@@ -409,7 +409,7 @@ app.layout = dbc.Container(
 
 def run_migrate_thread(args):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving,
-     contact_length, arrested, min_maxeuclid, tau, formatting_options, savefile,
+     contact_length, arrested, min_maxeuclid, tau, options, savefile,
      segments_file_name, categories_file, segments_filename, categories_filename, parent_id2, category_col_name,
      parameters, pca_filter, attract_params) = args
 
@@ -423,14 +423,14 @@ def run_migrate_thread(args):
         parameters['infile_categories'] = False
 
     parameters['contact_div_filter'] = (
-            formatting_options is not None and "ContactDivFilter" in formatting_options
+            options is not None and "ContactDivFilter" in options
     )
     optional_flags = {
         "pca_xgb": parameters.get("infile_categories", False),
-        "contacts": True if formatting_options and "Contacts" in formatting_options else False,
-        "attractors": True if formatting_options and "Attractors" in formatting_options else False,
-        "helicity": True if formatting_options and "Helicity" in formatting_options else False,
-        "generate_figures": True if formatting_options and "Generate Figures" in formatting_options else False
+        "contacts": True if options and "Contacts" in options else False,
+        "attractors": True if options and "Attractors" in options else False,
+        "helicity": True if options and "Helicity" in options else False,
+        "generate_figures": True if options and "Generate Figures" in options else False
     }
     init_progress_tracker(optional_flags)
 
@@ -438,7 +438,7 @@ def run_migrate_thread(args):
         df_segments, df_sum, df_pca = migrate3D(
             parent_id, time_for, x_for, y_for, z_for, float(timelapse),
             float(arrest_limit), int(moving), int(contact_length), float(arrested),
-            float(min_maxeuclid), int(tau), formatting_options, savefile,
+            float(min_maxeuclid), int(tau), options, savefile,
             segments_file_name, categories_file, segments_filename, categories_filename, parameters, pca_filter, attract_params)
 
         with thread_lock:
@@ -465,7 +465,7 @@ def run_migrate_thread(args):
     Input('arrested', 'value'),
     Input('min_maxeuclid', 'value'),
     Input('tau', 'value'),
-    Input('formatting_options', 'value'),
+    Input('options', 'value'),
     Input('save_file', 'value'),
     Input('segments_upload', 'contents'),
     State('segments_upload', 'filename'),
@@ -487,7 +487,7 @@ def run_migrate_thread(args):
 def run_migrate(*vals):
     (parent_id, time_for, x_for, y_for, z_for,
      timelapse, arrest_limit, moving, contact_length, arrested,
-     min_maxeuclid, tau, formatting_options, savefile,
+     min_maxeuclid, tau, options, savefile,
      segments_contents, segments_file,
      category_contents, category_file,
      parent_id2, category_col_name, pca_filter,
@@ -533,7 +533,7 @@ def run_migrate(*vals):
         parent_id, time_for, x_for, y_for, z_for,
         float(timelapse), float(arrest_limit), int(moving),
         float(contact_length), float(arrested), float(min_maxeuclid), int(tau),
-        formatting_options, savefile,
+        options, savefile,
         segments_input,
         categories_input,
         segments_filename,
@@ -732,7 +732,7 @@ def toggle_attractor_settings(n_clicks):
         Output('max_gaps', 'disabled'),
         Output('allowed_attractors', 'disabled'),
         Output('allowed_attracted', 'disabled'),
-        Output('formatting_options', 'style'),
+        Output('options', 'style'),
     ],
     [Input('Run_migrate', 'n_clicks'), Input('progress-bar', 'value')],
     prevent_initial_call=False
