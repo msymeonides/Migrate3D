@@ -297,7 +297,7 @@ This option should be used only when the objects in the dataset are expected to 
   helicity_{inst}(t) = \frac{\vec{v}(t) \cdot \vec{curl}_v(t)}{|\vec{v}(t)|^2 + \epsilon}
   $$
 
-  Where $\vec{curl}_v$ is the curl of the velocity field, $\vec{v}(t)$ is the velocity vector at time t, $\nabla$ is the gradient operator with respect to time, $helicity_{inst}(t)$ is the instantaneous helicity at time t, $|\vec{v}(t)|$ is the velocity magnitude, and $\epsilon = 1 \times 10^{-8}$ is a small constant to prevent division by zero.
+  Where $`\vec{curl}_v`$ is the curl of the velocity field, $`\vec{v}(t)`$ is the velocity vector at time t, $`\nabla`$ is the gradient operator with respect to time, $`helicity_{inst}(t)`$ is the instantaneous helicity at time t, $`|\vec{v}(t)|`$ is the velocity magnitude, and $`\epsilon = 1 \times 10^{-8}`$ is a small constant to prevent division by zero.
 
 
 - **Mean Curvature**: A measure of how sharply the track bends, where higher values indicate more curved motion. This is calculated as follows:
@@ -306,7 +306,7 @@ This option should be used only when the objects in the dataset are expected to 
   \kappa(t) = \frac{|\vec{v}(t) \times \vec{a}(t)|}{|\vec{v}(t)|^3}
   $$
 
-  Where $\kappa(t)$ is the instantaneous curvature at time t, $\vec{v}(t)$ is the velocity vector at time t, and $\vec{a}(t)$ is the acceleration vector at time t.
+  Where $`\kappa(t)`$ is the instantaneous curvature at time t, $`\vec{v}(t)`$ is the velocity vector at time t, and $`\vec{a}(t)`$ is the acceleration vector at time t.
 
 These two features will be appended to the Summary Sheet and will appear in the Summary Features HTML figure output. Additionally, these features will become available for Machine Learning analysis together with all other summary features.
 
