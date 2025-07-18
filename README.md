@@ -1,6 +1,6 @@
 # README
 
-Last Edited: July 18, 2025 (Migrate3D version 2.1)
+Last Edited: July 18, 2025 (Migrate3D version 2.5)
 
 # Migrate3D
 
@@ -593,3 +593,25 @@ Attractors are detected by iterating over all objects in the dataset and checkin
 
 
 - **Attracted categories**: A space-separated list of categories of objects that may be considered as attracted. If this field is left blank, all object categories may be considered as attracted.
+
+
+## Replicate Analysis
+
+Migrate3D can also be used to analyze replicates, generating superplots and performing statistical analysis. Replicate analysis can be performed independently of the main Migrate3D run, but it assumes data were generated using Migrate3D as it uses the _Results.xlsx output. To perform replicate analysis:
+
+1. Analyze each replicate separately, keeping all parameters and options the same, and using the same output filename except for the suffix "-r#" where # is the number of the replicate being analyzed.
+
+
+2. In the "Save results as:" box, enter the filename prefix you have been using for these runs. Whether you include the "-r#" suffix at this stage is irrelevant, the inputs will be recognized either way.
+
+
+3. Click the "Perform replicate analysis" button.
+
+This will generate two additional output files with the following filename suffixes (removing the "-r#"):
+
+- **_Figures-Superplots.html**: Superplots of all summary features, with color-coded point clouds for each replicate, and a box plot with a line at the median, box edges at the upper and lower quartile, and error bars denoting the 95% confidence interval for each replicate. The color used for each replicate will be consistent across all figures, and the figure legend is interactive; click on a replicate to disable or enable its visibility in the figure.
+
+
+- **_Replicate-Stats.xlsx**: A spreadsheet containing the results of statistical analysis performed on the summary features across all replicates. This includes a Kruskal-Wallis test for each feature, and post-hoc pairwise comparisons between each replicate using the Holm-Bonferroni correction. The results include Kruskal-Wallis p-values and post-hoc adjusted p-values for each pairwise comparison between categories.
+
+Note: Ensure that all object IDs across all replicates are unique (an easy way is to add a numerical prefix denoting the replicate number), and that category labels are consistent across input files.

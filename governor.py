@@ -215,7 +215,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
     df_contacts_summary = None
     df_contacts_per_category = None
-    df_helicity = None
 
     (df_sum, df_single_euclid, df_single_angle, df_msd, df_msd_sum_all, df_msd_avg_per_cat, df_msd_std_per_cat,
      df_msd_loglogfits, df_pca, df_removed, euclidean_filtered_count) = summary_sheet(
