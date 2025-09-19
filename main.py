@@ -1,11 +1,11 @@
-import base64
 from dash import Dash, dcc, html, Input, Output, State, exceptions, callback_context
 import dash_bootstrap_components as dbc
+import dash_uploader as du
 from datetime import date
-import io
 import numpy as np
 import os
 import pandas as pd
+import shutil
 import threading
 import traceback
 
@@ -53,7 +53,12 @@ attract_params = {
 
 file_storing = {}
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+UPLOAD_FOLDER_ROOT = os.path.join(os.getcwd(), 'uploads')
+os.makedirs(UPLOAD_FOLDER_ROOT, exist_ok=True)
 app = Dash(__name__, assets_folder='assets', assets_url_path='/assets/', external_stylesheets=[dbc.themes.BOOTSTRAP])
+du.configure_upload(app, UPLOAD_FOLDER_ROOT)
+
 with thread_lock:
     messages.append('Waiting for user input. Load data, adjust parameters and options, and click "Run Migrate3D" to start the analysis.')
 
@@ -149,40 +154,74 @@ app.layout = dbc.Container(
                     style={'marginBottom': '10px', 'gridColumn': '2'}
                 ),
                 html.Div(
-                    dcc.Upload(
+                    [
+                    du.Upload(
                         id='segments_upload',
-                        children='Segments .csv file (drag and drop, or click to select a file):',
-                        style={
-                            'width': '100%',
-                            'minWidth': '500px',
+                        text='Segments .csv file (drag and drop, or click to select a file):',
+                        text_completed='Uploaded: ',
+                        cancel_button=False,
+                        pause_button=False,
+                        filetypes=['csv'],
+                        max_file_size=5120,
+                        default_style={
+                            'width': '50%',
+                            'minWidth': '250px',
                             'height': '60px',
                             'lineHeight': '60px',
                             'borderWidth': '1px',
                             'borderStyle': 'dashed',
                             'borderRadius': '5px',
                             'textAlign': 'center',
-                            'margin': '0 auto'
+                            'fontSize': '18px',
+                            'margin': '1 auto'
                         }
                     ),
-                    style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'gridColumn': '1'}
+                    html.Div(
+                        id='segments_status',
+                        style={
+                            'marginTop': '5px',
+                            'textAlign': 'center',
+                            'fontSize': '16px',
+                            'color': '#666',
+                            'fontWeight': 'bolder'
+                        }
+                    )
+                ], style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'gridColumn': '1'}
                 ),
                 html.Div(
-                    dcc.Upload(
+                    [
+                    du.Upload(
                         id='category_upload',
-                        children='Categories .csv file (drag and drop, or click to select a file):',
-                        style={
-                            'width': '100%',
-                            'minWidth': '500px',
+                        text='Categories .csv file (drag and drop, or click to select a file):',
+                        text_completed='Uploaded: ',
+                        cancel_button=False,
+                        pause_button=False,
+                        filetypes=['csv'],
+                        max_file_size=5120,
+                        default_style={
+                            'width': '50%',
+                            'minWidth': '250px',
                             'height': '60px',
                             'lineHeight': '60px',
                             'borderWidth': '1px',
                             'borderStyle': 'dashed',
                             'borderRadius': '5px',
                             'textAlign': 'center',
-                            'margin': '0 auto'
+                            'fontSize': '18px',
+                            'margin': '1 auto'
                         }
                     ),
-                    style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'gridColumn': '2'}
+                    html.Div(
+                        id='categories_status',
+                        style={
+                            'marginTop': '5px',
+                            'textAlign': 'center',
+                            'fontSize': '16px',
+                            'color': '#666',
+                            'fontWeight': 'bolder'
+                        }
+                    )
+                ], style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center', 'gridColumn': '2'}
                 ),
             ]
         ),
@@ -339,7 +378,7 @@ app.layout = dbc.Container(
                                             'flex': '1'
                                         }
                                     )
-                                ]),
+                             ]),
                                 html.Button(
                                     'Run Migrate3D',
                                     id='Run_migrate',
@@ -511,6 +550,13 @@ def run_migrate_thread(args):
             messages.append(f"Error: {str(e)}")
         traceback.print_exc()
 
+    finally:
+        try:
+            shutil.rmtree(UPLOAD_FOLDER_ROOT)
+            os.makedirs(UPLOAD_FOLDER_ROOT, exist_ok=True)
+        except Exception as cleanup_error:
+            print(f"Error cleaning uploads folder: {cleanup_error}")
+
 @app.callback(
     Output('dummy', 'children'),
     Input('parent_id', 'value'),
@@ -527,10 +573,6 @@ def run_migrate_thread(args):
     Input('tau', 'value'),
     Input('options', 'value'),
     Input('save_file', 'value'),
-    Input('segments_upload', 'contents'),
-    State('segments_upload', 'filename'),
-    Input('category_upload', 'contents'),
-    State('category_upload', 'filename'),
     Input('parent_id2', 'value'),
     Input('category_col', 'value'),
     Input('PCA_filter', 'value'),
@@ -548,8 +590,6 @@ def run_migrate(*vals):
     (parent_id, time_for, x_for, y_for, z_for,
      timelapse, arrest_limit, moving, contact_length, arrested,
      min_maxeuclid, tau, options, savefile,
-     segments_contents, segments_file,
-     category_contents, category_file,
      parent_id2, category_col_name, pca_filter,
      run_clicks, dist_thr, approach_ratio, min_proximity,
      time_persistence, max_gaps,
@@ -606,25 +646,31 @@ def run_migrate(*vals):
     return None
 
 @app.callback(
-    Output('segments_upload', 'children'),
     Output('parent_id', 'options'), Output('parent_id', 'value'),
     Output('time_formatting', 'options'), Output('time_formatting', 'value'),
     Output('x_axis', 'options'), Output('x_axis', 'value'),
     Output('y_axis', 'options'), Output('y_axis', 'value'),
     Output('z_axis', 'options'), Output('z_axis', 'value'),
-    Input('segments_upload', 'contents'),
-    State('segments_upload', 'filename'),
+    Output('Timelapse', 'value'), Output('tau', 'value'),
+    Input('segments_upload', 'isCompleted'),
+    State('segments_upload', 'fileNames'),
+    State('segments_upload', 'upload_id'),
     prevent_initial_call=True
 )
-def get_segments_file(contents, filename):
-    if contents is None:
+def get_segments_file(isCompleted, fileNames, upload_id):
+    if not isCompleted or not fileNames or not upload_id:
         raise exceptions.PreventUpdate
-    content_type, content_string = contents.split(',')
-    decoded = base64.b64decode(content_string)
+
+    filename = fileNames[0]
+    file_path = os.path.join(UPLOAD_FOLDER_ROOT, upload_id, filename)
+
+    if not os.path.exists(file_path):
+        return [], None, [], None, [], None, [], None, [], None, None, None
+
     try:
-        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-    except Exception:
-        return html.Div(['There was an error processing this file.']), [], None, [], None, [], None, [], None, [], None
+        df = pd.read_csv(file_path)
+    except Exception as e:
+        return [], None, [], None, [], None, [], None, [], None, None, None
 
     file_storing['segments_dataframe'] = df
     file_storing['segments_filename'] = filename
@@ -635,6 +681,7 @@ def get_segments_file(contents, filename):
             if any(col_lower == key.lower() for key in keywords):
                 return col
         return None
+
     id_guess = guess_column(df, ['id', 'track', 'track id', 'trackid', 'cell', 'cell id', 'cellid', 'object',
                                  'object id', 'objectid','parent', 'parent id', 'parentid'])
     time_guess = guess_column(df, ['t', 'time', 'frame'])
@@ -642,32 +689,66 @@ def get_segments_file(contents, filename):
     y_guess = guess_column(df, ['y', 'y coordinate', 'y position', 'coordinate y', 'position y'])
     z_guess = guess_column(df, ['z', 'z coordinate', 'z position', 'coordinate z', 'position z'])
     options = list(df.columns)
+
+    detected_timelapse = None
+    detected_tau = None
+
+    if id_guess and time_guess and id_guess in df.columns and time_guess in df.columns:
+        try:
+            df_copy = df.copy()
+            df_copy[time_guess] = pd.to_numeric(df_copy[time_guess], errors='coerce')
+
+            intervals = []
+            for _, group in df_copy.groupby(id_guess):
+                times = group[time_guess].dropna().sort_values().unique()
+                if len(times) > 1:
+                    diffs = pd.Series(times).diff().dropna()
+                    intervals.extend(diffs)
+
+            if intervals:
+                rounded_intervals = pd.Series(intervals).round(6)
+                detected_interval = rounded_intervals.mode()
+                if not detected_interval.empty:
+                    detected_timelapse = float(detected_interval.iloc[0])
+
+            counts = df_copy.groupby(id_guess)[time_guess].nunique()
+            if len(counts) > 0:
+                detected_tau = int(np.max(counts))
+
+        except Exception:
+            pass
+
     return (
-        filename,
         options, id_guess,
         options, time_guess,
         options, x_guess,
         options, y_guess,
-        options, z_guess
+        options, z_guess,
+        detected_timelapse, detected_tau
     )
 
 @app.callback(
-    Output('category_upload', 'children'),
     Output('parent_id2', 'options'), Output('parent_id2', 'value'),
     Output('category_col', 'options'), Output('category_col', 'value'),
-    Input('category_upload', 'contents'),
-    State('category_upload', 'filename'),
+    Input('category_upload', 'isCompleted'),
+    State('category_upload', 'fileNames'),
+    State('category_upload', 'upload_id'),
     prevent_initial_call=True
 )
-def get_category_file(contents, filename):
-    if contents is None:
+def get_category_file(isCompleted, fileNames, upload_id):
+    if not isCompleted or not fileNames or not upload_id:
         raise exceptions.PreventUpdate
-    content_type, content_string = contents.split(',')
-    decoded = base64.b64decode(content_string)
+
+    filename = fileNames[0]
+    file_path = os.path.join(UPLOAD_FOLDER_ROOT, upload_id, filename)
+
+    if not os.path.exists(file_path):
+        return [], None, [], None
+
     try:
-        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-    except Exception:
-        return html.Div(['There was an error processing this file.']), [], None, [], None
+        df = pd.read_csv(file_path)
+    except Exception as e:
+        return [], None, [], None
 
     file_storing['categories_dataframe'] = df
     file_storing['categories_filename'] = filename
@@ -678,23 +759,25 @@ def get_category_file(contents, filename):
             if any(col_lower == key.lower() for key in keywords):
                 return col
         return None
+
     id_guess = guess_column(df, ['id', 'track', 'track id', 'trackid', 'cell', 'cell id', 'cellid', 'object',
                                  'object id', 'objectid','parent', 'parent id', 'parentid'])
     category_guess = guess_column(df, ['category', 'label', 'type', 'code'])
     options = list(df.columns)
-    return filename, options, id_guess, options, category_guess
+
+    return options, id_guess, options, category_guess
 
 @app.callback(
     Output('progress-bar', 'value'),
     Output('progress-bar', 'color'),
-    Input("progress-interval", 'n_intervals'),
+    Input('progress-interval', 'n_intervals')
 )
-def update_pbar(n):
+def update_progress_bar(n):
     progress = get_progress()
     if progress == 100:
-        return progress, 'danger' if is_aborted() else 'warning'
+        return progress, 'danger' if is_aborted() else 'success'
     else:
-        return progress, 'success'
+        return progress, 'info'
 
 @app.callback(
     Output('alert_box', 'children'),
@@ -705,51 +788,6 @@ def update_alert_box(n):
         return html.Div([
             html.Pre('\n'.join(messages), style={'whiteSpace': 'pre-wrap', 'margin': 0})
         ])
-
-@app.callback(
-    Output('Timelapse', 'value'),
-    Output('Timelapse', 'placeholder'),
-    Output('tau', 'value'),
-    Output('tau', 'placeholder'),
-    Input('segments_upload', 'contents'),
-    Input('parent_id', 'value'),
-    Input('time_formatting', 'value'),
-)
-def update_time_and_tau(contents, id_col, time_col):
-    if contents is None or id_col is None or time_col is None:
-        raise exceptions.PreventUpdate
-    content_type, content_string = contents.split(',')
-    decoded = base64.b64decode(content_string)
-    manual_list = [None, "Enter timelapse interval manually", None, "Enter max. tau manually"]
-    try:
-        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-    except Exception:
-        return (manual_list)
-    if id_col not in df.columns or time_col not in df.columns:
-        return (manual_list)
-    try:
-        df[time_col] = pd.to_numeric(df[time_col], errors='coerce')
-    except Exception:
-        return (manual_list)
-
-    intervals = []
-    for _, group in df.groupby(id_col):
-        times = group[time_col].dropna().sort_values().unique()
-        if len(times) > 1:
-            diffs = pd.Series(times).diff().dropna()
-            intervals.extend(diffs)
-    if not intervals:
-        return (manual_list)
-    rounded_intervals = pd.Series(intervals).round(6)
-    detected_interval = rounded_intervals.mode()
-    if detected_interval.empty:
-        return (manual_list)
-    detected_interval = float(detected_interval.iloc[0])
-    counts = df.groupby(id_col)[time_col].nunique()
-    if len(counts) == 0:
-        return (manual_list)
-    max_tau = int(np.max(counts))
-    return detected_interval, "", max_tau, ""
 
 @app.callback(
     Output('attractor-settings-div', 'style'),
@@ -934,6 +972,89 @@ def run_replicate_analysis(n_clicks, n_intervals, savefile):
         'cursor': 'pointer'
     }
     return "Running replicate analysis...", btn_style, True
+
+app.clientside_callback(
+    """
+    function(isCompleted, fileNames) {
+        if (isCompleted && fileNames && fileNames.length > 0) {
+            return "Please wait, processing file to autodetect column names and values...";
+        }
+        return "";
+    }
+    """,
+    Output('segments_status', 'children'),
+    Input('segments_upload', 'isCompleted'),
+    State('segments_upload', 'fileNames'),
+    prevent_initial_call=True
+)
+
+app.clientside_callback(
+    """
+    function(isCompleted, fileNames) {
+        if (isCompleted && fileNames && fileNames.length > 0) {
+            return "Please wait, processing file to autodetect column names...";
+        }
+        return "";
+    }
+    """,
+    Output('categories_status', 'children'),
+    Input('category_upload', 'isCompleted'),
+    State('category_upload', 'fileNames'),
+    prevent_initial_call=True
+)
+
+app.clientside_callback(
+    """
+    function(n_intervals) {
+        try {
+            // Check segments dropdown
+            var segmentsParentDropdown = document.getElementById('parent_id');
+            var segmentsStatusDiv = document.getElementById('segments_status');
+            
+            if (segmentsParentDropdown && segmentsStatusDiv) {
+                var dropdownDiv = segmentsParentDropdown.querySelector('.Select-value-label') || 
+                                 segmentsParentDropdown.querySelector('.Select-single-value') ||
+                                 segmentsParentDropdown.querySelector('[class*="singleValue"]');
+                
+                var currentText = segmentsStatusDiv.textContent;
+                
+                if (dropdownDiv && currentText.indexOf('Please wait') !== -1) {
+                    var dropdownText = dropdownDiv.textContent || dropdownDiv.innerText || '';
+                    if (dropdownText && dropdownText.indexOf('Select') === -1) {
+                        segmentsStatusDiv.textContent = "";
+                    }
+                }
+            }
+            
+            // Check categories dropdown
+            var categoriesParentDropdown = document.getElementById('parent_id2');
+            var categoriesStatusDiv = document.getElementById('categories_status');
+            
+            if (categoriesParentDropdown && categoriesStatusDiv) {
+                var dropdownDiv = categoriesParentDropdown.querySelector('.Select-value-label') || 
+                                 categoriesParentDropdown.querySelector('.Select-single-value') ||
+                                 categoriesParentDropdown.querySelector('[class*="singleValue"]');
+                
+                var currentText = categoriesStatusDiv.textContent;
+                
+                if (dropdownDiv && currentText.indexOf('Please wait') !== -1) {
+                    var dropdownText = dropdownDiv.textContent || dropdownDiv.innerText || '';
+                    if (dropdownText && dropdownText.indexOf('Select') === -1) {
+                        categoriesStatusDiv.textContent = "";
+                    }
+                }
+            }
+        } catch (e) {
+            // Silently handle any errors to prevent callback failures
+        }
+        
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output('dummy', 'style'),
+    Input('progress-interval', 'n_intervals'),
+    prevent_initial_call=True
+)
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
