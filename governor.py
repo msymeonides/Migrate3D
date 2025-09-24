@@ -21,6 +21,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     with thread_lock:
         messages.append('Starting Migrate3D...')
         messages.append('')
+        messages.append(f'Segments filename: {segments_filename}')
+        messages.append(f'Categories filename: {categories_filename}')
+        messages.append('')
         print()
 
     parameters['savefile'] = savefile
