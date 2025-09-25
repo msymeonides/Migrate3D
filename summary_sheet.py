@@ -49,7 +49,7 @@ def compute_object_summary(obj_data_tuple):
     time_under = valid_disp[valid_disp < parameters['arrest_limit']] if valid_disp.size > 0 else np.array([])
     arrest_coefficient = (time_under.size * time_interval) / duration_val if duration_val != 0 else 0
 
-    if num_timepoints < 4:
+    if num_timepoints < parameters['moving']:
         summary_dict = {
             'Object ID': obj,
             'Duration': duration_val,
@@ -80,7 +80,7 @@ def compute_object_summary(obj_data_tuple):
         return obj, summary_tuple, {}
 
     convex_coords = np.column_stack((x_val, y_val, z_val))
-    if convex_coords.shape[0] >= 4:
+    if convex_coords.shape[0] >= parameters['moving']:
         try:
             convex_hull_volume = ConvexHull(convex_coords).volume
             convex = convex_hull_volume / np.sqrt(duration_val) if duration_val != 0 else 0
@@ -154,7 +154,6 @@ def compute_object_summary(obj_data_tuple):
     single_euclidean = {}
 
     if cols_euclidean:
-        import re
         number_pattern = re.compile(r"\d+")
 
         for col in cols_euclidean:
@@ -238,11 +237,12 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         else:
             with thread_lock:
                 messages.append('Calculating helicity...')
+            tic = tempo.time()
 
             df_helicity = compute_helicity_analysis(arr_segments, arr_cats, parameters)
-
+            toc = tempo.time()
             with thread_lock:
-                msg = ' Done.'
+                msg = " Helicity done in {:.0f} seconds.".format(int(round((toc - tic), 1)))
                 messages[-1] += msg
                 messages.append('')
             complete_progress_step('Helicity')
