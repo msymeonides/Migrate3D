@@ -1,12 +1,12 @@
 import concurrent.futures
+import multiprocessing as mp
 import numpy as np
 import pandas as pd
+from pandas.errors import PerformanceWarning
 import re
-import statistics
+from scipy.spatial import ConvexHull
 import time as tempo
 import warnings
-from pandas.errors import PerformanceWarning
-from scipy.spatial import ConvexHull
 
 from msd_parallel import main as msd_parallel_main
 from msd_loglogfits import main as msd_loglogfits
@@ -14,26 +14,22 @@ from helicity import compute_helicity_analysis
 from machine_learning import ml_analysis, XGBAbortException
 from shared_state import messages, thread_lock, complete_progress_step
 
-def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, parameters, summary_columns):
-    object_data = arr_segments[arr_segments[:, 0] == obj, :]
+def compute_object_summary(obj_data_tuple):
+    obj, object_data, df_obj_calcs, category, parameters, summary_columns = obj_data_tuple
+
+    if object_data.size == 0:
+        nan_values = []
+        for col in summary_columns:
+            if col == 'Object ID':
+                nan_values.append(obj)
+            elif col == 'Category':
+                nan_values.append(category)
+            else:
+                nan_values.append(np.nan)
+        return obj, tuple(nan_values), {}
+
     x_val, y_val, z_val = object_data[:, 2], object_data[:, 3], object_data[:, 4]
-
-    category = ''
-    if arr_tracks.shape[0] > 0:
-        obj_id_val = int(object_data[0, 0])
-        arr_tracks_obj_ids = arr_tracks[:, 0].astype(int)
-        matching_index = np.where(arr_tracks_obj_ids == obj_id_val)[0]
-        if matching_index.size > 0:
-            category = arr_tracks[matching_index[0], 1]
-
-    convex_coords = np.column_stack((x_val, y_val, z_val))
-    convex_hull_volume = 0
-    if convex_coords.shape[0] >= 4:
-        try:
-            convex_hull_volume = ConvexHull(convex_coords).volume
-        except Exception:
-            convex_hull_volume = 0
-
+    num_timepoints = len(object_data)
     path_lengths = df_obj_calcs['Path Length'].values
     max_path = path_lengths.max() if path_lengths.size > 0 else 0
     times = df_obj_calcs['Time'].values
@@ -43,10 +39,55 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
     total_disp = df_obj_calcs['Total Displacement'].values
     final_euclid = total_disp[-1] if total_disp.size > 0 else 0
     max_euclid = total_disp.max() if total_disp.size > 0 else 0
+
     straightness = (final_euclid / max_path if max_path != 0 else 0) * np.sqrt(duration_val)
     displacement_ratio = final_euclid / max_euclid if max_euclid != 0 else 0
-    convex = convex_hull_volume / np.sqrt(duration_val) if duration_val != 0 else 0
     outreach_ratio = max_euclid / max_path if max_path != 0 else 0
+
+    inst_disp = df_obj_calcs['Instantaneous Displacement'].values
+    valid_disp = inst_disp[(~np.isnan(inst_disp)) & (inst_disp != 0)]
+    time_under = valid_disp[valid_disp < parameters['arrest_limit']] if valid_disp.size > 0 else np.array([])
+    arrest_coefficient = (time_under.size * time_interval) / duration_val if duration_val != 0 else 0
+
+    if num_timepoints < 4:
+        summary_dict = {
+            'Object ID': obj,
+            'Duration': duration_val,
+            'Final Euclidean': final_euclid,
+            'Max Euclidean': max_euclid,
+            'Path Length': max_path,
+            'Straightness': straightness,
+            'Displacement Ratio': displacement_ratio,
+            'Outreach Ratio': outreach_ratio,
+            'Arrest Coefficient': arrest_coefficient,
+            'Category': category,
+            'Overall Euclidean Median': np.nan,
+            'Maximum MSD': np.nan,
+            'Median Turning Angle': np.nan,
+            'Mean Velocity': np.nan,
+            'Median Velocity': np.nan,
+            'StDev Velocity': np.nan,
+            'Mean Acceleration': np.nan,
+            'Median Acceleration': np.nan,
+            'StDev Acceleration': np.nan,
+            'Mean Absolute Acceleration': np.nan,
+            'Median Absolute Acceleration': np.nan,
+            'StDev Absolute Acceleration': np.nan,
+            'Convex Hull Volume': np.nan
+        }
+
+        summary_tuple = tuple(summary_dict.get(col, np.nan) for col in summary_columns)
+        return obj, summary_tuple, {}
+
+    convex_coords = np.column_stack((x_val, y_val, z_val))
+    if convex_coords.shape[0] >= 4:
+        try:
+            convex_hull_volume = ConvexHull(convex_coords).volume
+            convex = convex_hull_volume / np.sqrt(duration_val) if duration_val != 0 else 0
+        except Exception:
+            convex = 0
+    else:
+        convex = 0
 
     velocity = df_obj_calcs['Instantaneous Velocity'].values[1:] if 'Instantaneous Velocity' in df_obj_calcs else np.array([])
     valid_velocity = velocity[(~np.isnan(velocity)) & (velocity != 0)] if velocity.size > 0 else np.array([])
@@ -109,28 +150,23 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         abs_acc_median_out = accel_filtered_abs_median
         abs_acc_stdev_out = accel_filtered_abs_stdev
 
-    inst_disp = df_obj_calcs['Instantaneous Displacement'].values if 'Instantaneous Displacement' in df_obj_calcs else np.array([])
-    valid_disp = inst_disp[(~np.isnan(inst_disp)) & (inst_disp != 0)] if inst_disp.size > 0 else np.array([])
-    time_under = valid_disp[valid_disp < parameters['arrest_limit']] if valid_disp.size > 0 else np.array([])
-    arrest_coefficient = (time_under.size * time_interval) / duration_val if duration_val != 0 else 0
-
     cols_euclidean = [col for col in df_obj_calcs.columns if 'Euclid' in col]
-
-    list_of_euclidean_medians = []
     single_euclidean = {}
-    for col in cols_euclidean:
-        tau_num = int(re.search(r"\d+", str(col)).group())
-        euclidean_median = df_obj_calcs.loc[df_obj_calcs['Object ID'] == obj, col]
-        euclidean_median = [x for x in euclidean_median if pd.notnull(x) and x != 0]
-        if len(euclidean_median) > 2:
-            single_euclidean[tau_num] = statistics.median(euclidean_median)
-        else:
-            single_euclidean[tau_num] = np.nan
 
-    if len(list_of_euclidean_medians) >= 1:
-        overall_euclidean_median = statistics.median(list_of_euclidean_medians)
-    else:
-        overall_euclidean_median = None
+    if cols_euclidean:
+        import re
+        number_pattern = re.compile(r"\d+")
+
+        for col in cols_euclidean:
+            match = number_pattern.search(str(col))
+            if match:
+                tau_num = int(match.group())
+                euclidean_values = df_obj_calcs[col].values
+                valid_euclidean = euclidean_values[(~np.isnan(euclidean_values)) & (euclidean_values != 0)]
+                if len(valid_euclidean) > 2:
+                    single_euclidean[tau_num] = np.median(valid_euclidean)
+                else:
+                    single_euclidean[tau_num] = np.nan
 
     summary_dict = {
         'Object ID': obj,
@@ -151,13 +187,12 @@ def compute_object_summary(obj, arr_segments, df_obj_calcs, arr_tracks, paramete
         'Median Absolute Acceleration': abs_acc_median_out,
         'StDev Absolute Acceleration': abs_acc_stdev_out,
         'Arrest Coefficient': arrest_coefficient,
-        'Overall Euclidean Median': overall_euclidean_median,
+        'Overall Euclidean Median': None,
         'Convex Hull Volume': convex,
         'Category': category
     }
 
     summary_tuple = tuple(summary_dict.get(col, None) for col in summary_columns)
-
     return obj, summary_tuple, single_euclidean
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile,
@@ -218,28 +253,88 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         messages.append("Calculating summary features...")
     tic = tempo.time()
 
+    arr_segments_by_obj = {}
+    for obj in unique_objects:
+        arr_segments_by_obj[obj] = arr_segments[arr_segments[:, 0] == obj, :]
+
+    category_dict = {}
+    if arr_cats.shape[0] > 0:
+        arr_cats_int = arr_cats[:, 0].astype(int)
+        for i, obj_id in enumerate(arr_cats_int):
+            category_dict[int(obj_id)] = str(arr_cats[i, 1])
+
+    worker_data = []
+    for obj in unique_objects:
+        object_data = arr_segments_by_obj[obj]
+        df_obj_calcs = df_all_calcs_by_obj.get(obj, pd.DataFrame())
+        if obj in category_dict:
+            category = category_dict[obj]
+        else:
+            category = 'Unknown'
+            print(f"Warning: Object {obj} not found in category data")
+        worker_data.append((obj, object_data, df_obj_calcs, category, parameters, summary_columns))
+
     sum_ = {}
     single_euclid_dict = {}
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {
-            executor.submit(
-                compute_object_summary, obj, arr_segments,
-                df_all_calcs_by_obj.get(obj, pd.DataFrame()), arr_cats, parameters, summary_columns): obj
-            for obj in unique_objects}
-        for future in concurrent.futures.as_completed(futures):
-            obj = futures[future]
-            try:
-                obj, summary_tuple, single_euclid = future.result()
-                sum_[obj] = summary_tuple
-                single_euclid_dict[obj] = single_euclid
-            except Exception:
-                sum_[obj] = (obj,) + (np.nan,) * (n_summary_cols - 1)
-                single_euclid_dict[obj] = {}
+    with concurrent.futures.ProcessPoolExecutor(max_workers=min(mp.cpu_count()-1, len(unique_objects))) as executor:
+        try:
+            futures = {executor.submit(compute_object_summary, data): data[0] for data in worker_data}
+            for future in concurrent.futures.as_completed(futures):
+                obj = futures[future]
+                try:
+                    obj, summary_tuple, single_euclid = future.result()
+                    sum_[obj] = summary_tuple
+                    single_euclid_dict[obj] = single_euclid
+                except Exception:
+                    obj_category = next((data[3] for data in worker_data if data[0] == obj), 'Unknown')
+                    nan_values = []
+                    for i, col in enumerate(summary_columns):
+                        if col == 'Object ID':
+                            nan_values.append(obj)
+                        elif col == 'Category':
+                            nan_values.append(obj_category)
+                        else:
+                            nan_values.append(np.nan)
+
+                    sum_[obj] = tuple(nan_values)
+                    single_euclid_dict[obj] = {}
+        except Exception:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                futures = {executor.submit(compute_object_summary, data): data[0] for data in worker_data}
+                for future in concurrent.futures.as_completed(futures):
+                    obj = futures[future]
+                    try:
+                        obj, summary_tuple, single_euclid = future.result()
+                        sum_[obj] = summary_tuple
+                        single_euclid_dict[obj] = single_euclid
+                    except Exception:
+                        obj_category = next((data[3] for data in worker_data if data[0] == obj), 'Unknown')
+                        nan_values = []
+                        for i, col in enumerate(summary_columns):
+                            if col == 'Object ID':
+                                nan_values.append(obj)
+                            elif col == 'Category':
+                                nan_values.append(obj_category)
+                            else:
+                                nan_values.append(np.nan)
+
+                        sum_[obj] = tuple(nan_values)
+                        single_euclid_dict[obj] = {}
 
     for obj in unique_objects:
         if obj not in sum_:
-            sum_[obj] = (obj,) + (np.nan,) * (n_summary_cols - 1)
+            obj_category = next((data[3] for data in worker_data if data[0] == obj), 'Unknown')
+            nan_values = []
+            for i, col in enumerate(summary_columns):
+                if col == 'Object ID':
+                    nan_values.append(obj)
+                elif col == 'Category':
+                    nan_values.append(obj_category)
+                else:
+                    nan_values.append(np.nan)
+
+            sum_[obj] = tuple(nan_values)
             single_euclid_dict[obj] = {}
 
     summary_rows = [sum_[obj] for obj in unique_objects]
@@ -310,10 +405,19 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
         df_msd = insert_category(df_msd)
         df_msd["Category"] = df_msd["Category"].astype(str)
 
+        if 'Category' in df_msd.columns and df_msd['Category'].nunique() > 1:
+            msd_vals_with_cats = df_msd.set_index("Object ID")[existing_cols + ["Category"]]
+            if len(msd_vals_with_cats) > 0:
+                grouped = msd_vals_with_cats.groupby("Category")
+                df_msd_avg_per_cat = grouped[existing_cols].mean().T
+                df_msd_std_per_cat = grouped[existing_cols].std().T
+                df_msd_avg_per_cat.index.name = "MSD"
+                df_msd_std_per_cat.index.name = "MSD"
+
     max_msd_dict = {}
     msd_cols = [col for col in df_msd.columns if isinstance(col, int)]
     for obj in unique_objects:
-        obj_val = float(obj)
+        obj_val = int(obj)
         msd_row = df_msd[df_msd["Object ID"] == obj_val]
         if not msd_row.empty and msd_cols:
             max_msd = msd_row[msd_cols].max(axis=1, skipna=True).values[0]
@@ -350,14 +454,17 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
             df_single_euclids = df_single_euclids[df_single_euclids['Object ID'].isin(filtered_object_ids)].copy()
             df_single_angles = df_single_angles[df_single_angles['Object ID'].isin(filtered_object_ids)].copy()
             df_msd = df_msd[df_msd['Object ID'].isin(filtered_object_ids)].copy()
-            msd_vals = df_msd.set_index("Object ID")[existing_cols]
+
             if 'Category' in df_msd.columns and df_msd['Category'].nunique() > 1:
-                category_df_filtered = df_msd[['Object ID', 'Category']].copy()
-                msd_vals["Category"] = category_df_filtered.set_index('Object ID')['Category']
-                grouped = msd_vals.groupby("Category")
-                df_msd_avg_per_cat = grouped.mean().T
-                df_msd_std_per_cat = grouped.std().T
-                df_msd_avg_per_cat.index.name = "MSD"
+                msd_vals_with_cats = df_msd.set_index("Object ID")[existing_cols + ["Category"]]
+                if len(msd_vals_with_cats) > 0:
+                    grouped = msd_vals_with_cats.groupby("Category")
+                    df_msd_avg_per_cat = grouped[existing_cols].mean().T
+                    df_msd_std_per_cat = grouped[existing_cols].std().T
+                    df_msd_avg_per_cat.index.name = "MSD"
+                    df_msd_std_per_cat.index.name = "MSD"
+
+            msd_vals = df_msd.set_index("Object ID")[existing_cols]
 
             msd_vals_summary = msd_vals.drop(columns="Category", errors="ignore")
             df_msd_sum_all = pd.DataFrame({

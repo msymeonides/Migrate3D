@@ -240,7 +240,33 @@ def prepare_data_for_analysis(df_selected, min_samples, analysis_type=""):
     features = df_filtered.drop(['Object ID', 'Category'], axis=1)
     return df_filtered, categories, features
 
-def adaptive_hyperparameter_grid(total_samples):
+def adaptive_hyperparameter_grid(total_samples, is_pairwise=False):
+    if is_pairwise:
+        if total_samples < 50:
+            return {
+                'n_estimators': [50, 100],
+                'learning_rate': [0.1, 0.2],
+                'max_depth': [3, 4],
+                'gamma': [0.0, 0.1],
+                'subsample': [0.8, 1.0],
+                'colsample_bytree': [0.8, 1.0],
+                'min_child_weight': [1, 3],
+                'reg_alpha': [0.0, 0.1],
+                'reg_lambda': [0.0, 0.1]
+            }
+        else:
+            return {
+                'n_estimators': [100, 200],
+                'learning_rate': [0.05, 0.1, 0.2],
+                'max_depth': [3, 5, 7],
+                'gamma': [0.0, 0.1],
+                'subsample': [0.8, 1.0],
+                'colsample_bytree': [0.8, 1.0],
+                'min_child_weight': [1, 3],
+                'reg_alpha': [0.0, 0.1],
+                'reg_lambda': [0.0, 0.1]
+            }
+
     if total_samples < 50:
         return {
             'n_estimators': [50, 100, 200],
@@ -266,9 +292,9 @@ def adaptive_hyperparameter_grid(total_samples):
             'reg_lambda': [0.0, 0.1, 0.5]
         }
 
-def optimize_hyperparameters_adaptive(x_train, y_train, use_kfold=False):
+def optimize_hyperparameters_adaptive(x_train, y_train, use_kfold=False, is_pairwise=False):
     total_samples = len(x_train)
-    param_grid = adaptive_hyperparameter_grid(total_samples)
+    param_grid = adaptive_hyperparameter_grid(total_samples, is_pairwise)
 
     model = xgb.XGBClassifier(
         objective='multi:softmax',
@@ -287,10 +313,14 @@ def optimize_hyperparameters_adaptive(x_train, y_train, use_kfold=False):
         else:
             cv_strategy = 3
 
+        n_iter = 25 if is_pairwise and total_samples < 50 else (50 if total_samples < 50 else 100)
+        if is_pairwise and total_samples >= 50:
+            n_iter = 50
+
         random_search = RandomizedSearchCV(
             estimator=model,
             param_distributions=param_grid,
-            n_iter=50 if total_samples < 50 else 100,
+            n_iter=n_iter,
             cv=cv_strategy,
             scoring='accuracy',
             n_jobs=-1,
@@ -532,6 +562,8 @@ def xgboost(df_selected, output_file, features, categories, suffix=""):
         unique_cats = aligned_df_selected['Category'].unique()
         category_pairs = list(itertools.combinations(unique_cats, 2))
 
+        param_cache = {}
+
         for comparison_num, (cat1, cat2) in enumerate(category_pairs, 1):
             try:
                 pair_mask = labels.isin([cat1, cat2])
@@ -545,12 +577,19 @@ def xgboost(df_selected, output_file, features, categories, suffix=""):
 
                 pair_category_counts = pd.Series(pair_labels).value_counts()
                 pair_use_kfold = any(count < min_required_xgb for count in pair_category_counts)
+                total_pair_samples = len(pair_labels)
+
+                cache_key = f"{pair_use_kfold}_{total_pair_samples//10*10}"
 
                 if pair_use_kfold:
                     label_encoder_pair = LabelEncoder()
                     y_encoded = label_encoder_pair.fit_transform(pair_labels)
 
-                    best_params_pair = optimize_hyperparameters_adaptive(pair_data, y_encoded, pair_use_kfold)
+                    if cache_key in param_cache:
+                        best_params_pair = param_cache[cache_key]
+                    else:
+                        best_params_pair = optimize_hyperparameters_adaptive(pair_data, y_encoded, pair_use_kfold, is_pairwise=True)
+                        param_cache[cache_key] = best_params_pair
 
                     model_pair = XGBClassifier(
                         objective='multi:softmax',
@@ -586,7 +625,11 @@ def xgboost(df_selected, output_file, features, categories, suffix=""):
                     x_train_pair, x_test_pair, y_train_pair, y_test_pair, label_encoder_pair, _ = prepare_data_for_training(
                         pair_data, pair_labels, use_kfold=pair_use_kfold)
 
-                    best_params_pair = optimize_hyperparameters_adaptive(x_train_pair, y_train_pair, False)
+                    if cache_key in param_cache:
+                        best_params_pair = param_cache[cache_key]
+                    else:
+                        best_params_pair = optimize_hyperparameters_adaptive(x_train_pair, y_train_pair, False, is_pairwise=True)
+                        param_cache[cache_key] = best_params_pair
 
                     model_pair = XGBClassifier(
                         objective='multi:softmax',

@@ -1,16 +1,16 @@
-import pandas as pd
 import numpy as np
-import time as tempo
-import statistics
+import pandas as pd
 import re
+import statistics
+import time as tempo
 
 from formatting import multi_tracking, interpolate_lazy, remove_tracks_with_gaps
-from calculations import calculations
 from summary_sheet import summary_sheet
 from generate_figures import save_all_figures
 from attractors import attract
 import contacts_parallel
 from shared_state import messages, thread_lock, set_abort_state, complete_progress_step
+from calculations import calculations_parallel
 pd.set_option('future.no_silent_downcasting', True)
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
@@ -132,18 +132,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
     with thread_lock:
         messages.append('Calculating migration parameters...')
 
-    all_calcs = []
-    all_angle_steps = None
-    all_angle_medians = {}
-
-    for obj in unique_objects:
-        object_data = arr_segments[arr_segments[:, 0] == obj, :]
-        object_id = object_data[0, 0]
-        df_calcs, angle_steps, angle_medians_dict = calculations(object_data, tau, object_id, parameters)
-        all_calcs.append(df_calcs)
-        all_angle_medians[object_id] = angle_medians_dict
-        if all_angle_steps is None:
-            all_angle_steps = angle_steps
+    all_calcs, all_angle_steps, all_angle_medians = calculations_parallel(
+        arr_segments, unique_objects, tau, parameters
+    )
 
     df_all_calcs = pd.concat(all_calcs)
 
