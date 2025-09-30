@@ -1,6 +1,35 @@
+from datetime import datetime
 import threading
 
-messages = []
+class TimestampedMessageList(list):
+    def __init__(self):
+        super().__init__()
+        self.runtime_log = []
+
+    def append(self, message):
+        super().append(message)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.runtime_log.append({"Timestamp": timestamp, "Message": message})
+
+    def __setitem__(self, index, value):
+        super().__setitem__(index, value)
+        if -len(self) <= index < len(self):
+            if index < 0:
+                index = len(self) + index
+            while len(self.runtime_log) <= index:
+                self.runtime_log.append({"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Message": ""})
+
+            if 0 <= index < len(self.runtime_log):
+                self.runtime_log[index]["Message"] = value
+                self.runtime_log[index]["Timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def get_runtime_log(self):
+        return self.runtime_log.copy()
+
+    def clear_runtime_log(self):
+        self.runtime_log.clear()
+
+messages = TimestampedMessageList()
 thread_lock = threading.RLock()
 progress_value = 0
 _progress_steps = {}

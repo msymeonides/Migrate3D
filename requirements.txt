@@ -10,5 +10,6 @@ plotly>=6.3.0
 scikit-learn>=1.7.2
 scikit-posthocs>=0.11.4
 scipy>=1.16.0
+wakepy>=0.10.2.post1
 xgboost>=3.0.5
 xlsxwriter>=3.2.3
