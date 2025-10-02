@@ -201,6 +201,7 @@ def preprocess_features_with_variance_filter(df, writer=None, analysis_type=""):
         with thread_lock:
             messages.append(
                 f"Removed {len(removed_features)} near-zero variance feature(s) from {analysis_type}: {format_feature_list(removed_features)}")
+            messages.append('')
 
     feature_groups = detect_correlated_features(scaled_df_filtered, threshold=correlation_threshold)
     aggregated_features, feature_mapping = aggregate_correlated_features(scaled_df_filtered, feature_groups)
