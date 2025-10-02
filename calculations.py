@@ -1,3 +1,4 @@
+import gc
 import multiprocessing as mp
 from multiprocessing import shared_memory
 import numpy as np
@@ -5,7 +6,6 @@ import pandas as pd
 import os
 import pickle
 import shutil
-import tempfile
 
 def calculate_euclidean(coords, tau):
     num_rows = len(coords)
@@ -179,17 +179,17 @@ def process_object_chunk_to_file_regular(chunk_info):
 
 
 def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_workers=None):
-    max_processes = max(1, min(61, mp.cpu_count() - 1))
+    max_processes = max(1, min(61, mp.cpu_count() - 2))
     num_workers = n_workers if n_workers is not None else max_processes
 
     total_objects = len(unique_objects)
 
     if total_objects <= num_workers:
         chunk_size = 1
-    elif total_objects <= num_workers * 5:
-        chunk_size = max(1, total_objects // num_workers)
     else:
-        chunk_size = max(10, min(100, total_objects // (num_workers * 2)))
+        chunk_size = max(50, total_objects // num_workers)
+
+    gc.collect()
 
     object_chunks = []
     for i in range(0, total_objects, chunk_size):

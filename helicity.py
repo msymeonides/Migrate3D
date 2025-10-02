@@ -1,10 +1,8 @@
+import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from scipy.interpolate import splprep, splev
 import warnings
-import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed
-
 
 def compute_spline(object_data):
     x = object_data[:, 2].astype(float)
@@ -25,8 +23,8 @@ def compute_spline(object_data):
     pos_spline = np.array(splev(u_fine, tck)).T
     total_time = time_raw[-1] - time_raw[0]
     dt = total_time / (num_points - 1)
-    return pos_spline, dt
 
+    return pos_spline, dt
 
 def compute_metrics_single_object(args):
     object_id, object_data, category, min_timepoints = args
@@ -43,6 +41,7 @@ def compute_metrics_single_object(args):
 
     try:
         pos, dt = compute_spline(object_data)
+
         r_dot = np.gradient(pos, dt, axis=0)
         r_ddot = np.gradient(r_dot, dt, axis=0)
 
@@ -65,7 +64,7 @@ def compute_metrics_single_object(args):
             'Mean Curvature': mean_curvature,
             'Median Curvature': median_curvature
         }
-    except Exception:
+    except Exception as e:
         return {
             'Object ID': int(object_id),
             'Category': category,
@@ -75,14 +74,12 @@ def compute_metrics_single_object(args):
             'Median Curvature': np.nan
         }
 
-
 def compute_metrics_batch(batch_args):
     results = []
     for args in batch_args:
         result = compute_metrics_single_object(args)
         results.append(result)
     return results
-
 
 def compute_helicity_analysis(arr_segments, arr_cats, parameters):
     min_timepoints = parameters['moving']
@@ -93,13 +90,23 @@ def compute_helicity_analysis(arr_segments, arr_cats, parameters):
     else:
         cat_dict = {}
 
+    sorted_indices = np.argsort(arr_segments[:, 0])
+    sorted_segments = arr_segments[sorted_indices]
+
+    object_ids = sorted_segments[:, 0].astype(int)
+    split_indices = np.where(np.diff(object_ids))[0] + 1
+    split_indices = np.concatenate(([0], split_indices, [len(object_ids)]))
+
     object_args = []
-    for obj_id in unique_objects:
-        object_data = arr_segments[arr_segments[:, 0] == obj_id, :]
+    for i in range(len(split_indices) - 1):
+        start_idx = split_indices[i]
+        end_idx = split_indices[i + 1]
+        obj_id = object_ids[start_idx]
+        object_data = sorted_segments[start_idx:end_idx]
         category = cat_dict.get(obj_id, '0')
         object_args.append((obj_id, object_data, category, min_timepoints))
 
-    max_workers = max(1, min(61, mp.cpu_count() - 1))
+    max_workers = max(1, min(61, mp.cpu_count() - 2))
     batch_size = max(10, len(object_args) // (max_workers * 2))
 
     batches = []
@@ -109,24 +116,11 @@ def compute_helicity_analysis(arr_segments, arr_cats, parameters):
 
     results = []
 
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_to_batch = {executor.submit(compute_metrics_batch, batch): batch for batch in batches}
+    with mp.Pool(processes=max_workers) as pool:
+        batch_results = pool.map(compute_metrics_batch, batches)
 
-        for future in as_completed(future_to_batch):
-            try:
-                batch_results = future.result()
-                results.extend(batch_results)
-            except Exception:
-                batch = future_to_batch[future]
-                for obj_id, _, category, _ in batch:
-                    results.append({
-                        'Object ID': int(obj_id),
-                        'Category': category,
-                        'Mean Helicity': np.nan,
-                        'Median Helicity': np.nan,
-                        'Mean Curvature': np.nan,
-                        'Median Curvature': np.nan
-                    })
+        for batch_result in batch_results:
+            results.extend(batch_result)
 
     if not results:
         return pd.DataFrame()
@@ -138,6 +132,5 @@ def compute_helicity_analysis(arr_segments, arr_cats, parameters):
 
     return results_df
 
-
 if __name__ == '__main__':
-    mp.set_start_method("spawn", force=True)
+    mp.set_start_method("spawn")
