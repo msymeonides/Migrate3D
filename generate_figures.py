@@ -1,10 +1,12 @@
 import math
+import multiprocessing as mp
 import numpy as np
 import pandas as pd
 import plotly.colors
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from itertools import combinations
+import concurrent.futures
 
 colors = plotly.colors.qualitative.Plotly
 
@@ -13,13 +15,60 @@ def get_category_color_map(cats_or_objs):
     cats_or_objs = sorted(set(cats_or_objs))
     return {cat: colors[i % len(colors)] for i, cat in enumerate(cats_or_objs)}
 
+def process_object_track_batch(batch_args):
+    results = []
+    df_batch, df_sum_batch, twodim_mode = batch_args
+
+    for obj_id in df_batch['Object ID'].unique():
+        obj_data = df_batch[df_batch['Object ID'] == obj_id]
+        cat_row = df_sum_batch[df_sum_batch['Object ID'] == obj_id]
+
+        if cat_row.empty:
+            continue
+
+        cat = cat_row.iloc[0]['Category']
+
+        time_data = [f'Time point {x} Category {cat}' for x in obj_data['Time']]
+        x_data = list(obj_data.iloc[:, 2])
+        y_data = list(obj_data.iloc[:, 3])
+
+        if not x_data or not y_data:
+            continue
+
+        x_start, y_start = x_data[0], y_data[0]
+        x_zeroed = [x - x_start for x in x_data]
+        y_zeroed = [y - y_start for y in y_data]
+
+        if not twodim_mode:
+            z_data = list(obj_data.iloc[:, 4])
+            if not z_data:
+                continue
+            z_start = z_data[0]
+            z_zeroed = [z - z_start for z in z_data]
+        else:
+            z_data = None
+            z_zeroed = None
+
+        results.append({
+            'object_id': obj_id,
+            'category': cat,
+            'time_data': time_data,
+            'x_data': x_data,
+            'y_data': y_data,
+            'z_data': z_data,
+            'x_zeroed': x_zeroed,
+            'y_zeroed': y_zeroed,
+            'z_zeroed': z_zeroed
+        })
+
+    return results
+
 def summary_figures(df, fit_stats, color_map=None):
     columns = [col for col in df.columns if col not in ('Object ID', 'Category')]
     categories = sorted(df['Category'].dropna().unique())
     if color_map is None:
         color_map = get_category_color_map(categories)
 
-    # Insert MSD log-log fit slope after Outreach Ratio if fit_stats is provided
     if fit_stats is not None and 'Outreach Ratio' in columns:
         outreach_idx = columns.index('Outreach Ratio')
         columns.insert(outreach_idx + 1, 'MSD log-log fit slope')
@@ -39,7 +88,6 @@ def summary_figures(df, fit_stats, color_map=None):
         row, col_idx = divmod(i, n_cols)
 
         if col == 'MSD log-log fit slope' and fit_stats is not None:
-            # Handle MSD log-log fit slope plot
             y_error_tops = []
 
             for cat in categories:
@@ -97,7 +145,6 @@ def summary_figures(df, fit_stats, color_map=None):
                 row=row + 1, col=col_idx + 1
             )
         else:
-            # Handle regular violin plots
             for cat in categories:
                 df_cat = df[df['Category'] == cat]
                 fig.add_trace(
@@ -197,7 +244,15 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     row=1, col=1
                 )
 
-    def add_track_trace(fig, x_data, y_data, z_data=None, obj_name=None, category=None, zeroed=False, obj_figure=False, color_by_object=False):
+    def add_track_trace(fig, track_data, zeroed=False, obj_figure=False, color_by_object=False):
+        x_data = track_data['x_zeroed'] if zeroed else track_data['x_data']
+        y_data = track_data['y_zeroed'] if zeroed else track_data['y_data']
+        z_data = track_data['z_zeroed'] if zeroed else track_data['z_data']
+
+        obj_name = str(track_data['object_id'])
+        category = str(track_data['category'])
+        time_data = track_data['time_data']
+
         color_key = obj_name if color_by_object else category
         col = 1 if zeroed else 2
         common_args = {
@@ -258,7 +313,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
             (z_center - max_range / 2, z_center + max_range / 2)
         )
 
-    def setup_axes(fig):
+    def setup_axes(fig, all_track_data):
         if twodim_mode:
             for col in [1, 2]:
                 fig.update_xaxes(
@@ -274,9 +329,25 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     showgrid=False, zeroline=False
                 )
         else:
-            if data['x_all'] and data['y_all'] and data['z_all']:
+            x_all = []
+            y_all = []
+            z_all = []
+            x_zeroed_all = []
+            y_zeroed_all = []
+            z_zeroed_all = []
+
+            for track in all_track_data:
+                if track['x_data'] and track['y_data'] and track['z_data']:
+                    x_all.extend(track['x_data'])
+                    y_all.extend(track['y_data'])
+                    z_all.extend(track['z_data'])
+                    x_zeroed_all.extend(track['x_zeroed'])
+                    y_zeroed_all.extend(track['y_zeroed'])
+                    z_zeroed_all.extend(track['z_zeroed'])
+
+            if x_all and y_all and z_all:
                 (x_min, x_max), (y_min, y_max), (z_min, z_max) = calculate_3d_axis_range(
-                    data['x_all'], data['y_all'], data['z_all']
+                    x_all, y_all, z_all
                 )
 
                 fig.update_layout(
@@ -288,10 +359,10 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                     )
                 )
 
-            if data['x_zeroed_all'] and data['y_zeroed_all'] and data['z_zeroed_all']:
+            if x_zeroed_all and y_zeroed_all and z_zeroed_all:
                 (x_zeroed_min, x_zeroed_max), (y_zeroed_min, y_zeroed_max), (z_zeroed_min,
                                                                              z_zeroed_max) = calculate_3d_axis_range(
-                    data['x_zeroed_all'], data['y_zeroed_all'], data['z_zeroed_all']
+                    x_zeroed_all, y_zeroed_all, z_zeroed_all
                 )
 
                 fig.update_layout(
@@ -335,27 +406,43 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
 
     add_category_legend(fig_category, all_categories)
 
+    unique_objects = df['Object ID'].unique()
+    max_workers = max(1, min(61, mp.cpu_count() - 2))
+    batch_size = max(50, len(unique_objects) // (max_workers * 2))
+
+    object_batches = []
+    for i in range(0, len(unique_objects), batch_size):
+        batch_objects = unique_objects[i:i + batch_size]
+        df_batch = df[df['Object ID'].isin(batch_objects)]
+        df_sum_batch = df_sum[df_sum['Object ID'].isin(batch_objects)]
+        object_batches.append((df_batch, df_sum_batch, twodim_mode))
+
+    all_track_data = []
+
+    try:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            batch_futures = [executor.submit(process_object_track_batch, batch) for batch in object_batches]
+
+            for future in concurrent.futures.as_completed(batch_futures):
+                try:
+                    batch_results = future.result()
+                    all_track_data.extend(batch_results)
+                except Exception:
+                    continue
+    except Exception:
+        for batch in object_batches:
+            try:
+                batch_results = process_object_track_batch(batch)
+                all_track_data.extend(batch_results)
+            except Exception:
+                continue
+
     if twodim_mode:
-        for object_ in data['unique_ids']:
-            cat_row = df_sum.loc[df_sum['Object ID'] == object_, 'Category']
-            if cat_row.empty:
-                continue
-
-            df_object = df.loc[df['Object ID'] == object_]
-            x_data = list(df_object.iloc[:, 2])
-            y_data = list(df_object.iloc[:, 3])
-
-            if not x_data or not y_data:
-                continue
-
-            x_start, y_start = x_data[0], y_data[0]
-            x_zeroed = [x - x_start for x in x_data]
-            y_zeroed = [y - y_start for y in y_data]
-
-            data['zeroed_x_data'].extend(x_zeroed)
-            data['zeroed_y_data'].extend(y_zeroed)
-            data['raw_x_data'].extend(x_data)
-            data['raw_y_data'].extend(y_data)
+        for track in all_track_data:
+            data['zeroed_x_data'].extend(track['x_zeroed'])
+            data['zeroed_y_data'].extend(track['y_zeroed'])
+            data['raw_x_data'].extend(track['x_data'])
+            data['raw_y_data'].extend(track['y_data'])
 
         if data['zeroed_x_data'] and data['zeroed_y_data']:
             x_min, x_max = min(data['zeroed_x_data']), max(data['zeroed_x_data'])
@@ -375,54 +462,13 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
             for fig in [fig_category, fig_objects]:
                 add_origin_lines(fig, x_min, x_max, y_min, y_max, col=2)
 
-    for object_ in data['unique_ids']:
-        cat_row = df_sum.loc[df_sum['Object ID'] == object_, 'Category']
-        if cat_row.empty:
-            continue
-        cat = cat_row.iloc[0]
-
-        df_object = df.loc[df['Object ID'] == object_]
-        time_data = [f'Time point {x} Category {cat}' for x in df_object.loc[:, 'Time']]
-
-        x_data = list(df_object.iloc[:, 2])
-        y_data = list(df_object.iloc[:, 3])
-
-        if not x_data or not y_data:
-            continue
-
-        x_start, y_start = x_data[0], y_data[0]
-        x_zeroed = [x - x_start for x in x_data]
-        y_zeroed = [y - y_start for y in y_data]
-
-        if not twodim_mode:
-            z_data = list(df_object.iloc[:, 4])
-            if not z_data:
-                continue
-
-            z_start = z_data[0]
-            z_zeroed = [z - z_start for z in z_data]
-
-            data['x_all'].extend(x_data)
-            data['y_all'].extend(y_data)
-            data['z_all'].extend(z_data)
-            data['x_zeroed_all'].extend(x_zeroed)
-            data['y_zeroed_all'].extend(y_zeroed)
-            data['z_zeroed_all'].extend(z_zeroed)
-
+    for track_data in all_track_data:
         for fig, is_obj_figure in [(fig_category, False), (fig_objects, True)]:
-            add_track_trace(
-                fig, x_zeroed, y_zeroed,
-                z_zeroed if not twodim_mode else None,
-                object_, cat, zeroed=True, obj_figure=is_obj_figure, color_by_object=color_by_object
-            )
-            add_track_trace(
-                fig, x_data, y_data,
-                z_data if not twodim_mode else None,
-                object_, cat, zeroed=False, obj_figure=is_obj_figure, color_by_object=color_by_object
-            )
+            add_track_trace(fig, track_data, zeroed=True, obj_figure=is_obj_figure, color_by_object=color_by_object)
+            add_track_trace(fig, track_data, zeroed=False, obj_figure=is_obj_figure, color_by_object=color_by_object)
 
-    setup_axes(fig_category)
-    setup_axes(fig_objects)
+    setup_axes(fig_category, all_track_data)
+    setup_axes(fig_objects, all_track_data)
 
     fig_category.update_layout(
         title=f'{save_file} Tracks (Filter by Category)',
