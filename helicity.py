@@ -13,10 +13,22 @@ def compute_spline(object_data):
     pos_raw = np.stack([x, y, z], axis=1)
     num_points = len(time_raw)
     u_raw = np.linspace(0, 1, len(time_raw))
-    smoothing = len(time_raw) * 0.1
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="A theoretically impossible result")
+    data_variance = np.var(pos_raw, axis=0).mean()
+    smoothing_factors = [0.1, 0.5, 1.0, 2.0, 5.0]
+
+    for factor in smoothing_factors:
+        smoothing = len(time_raw) * factor * (1 + data_variance)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            try:
+                tck, u = splprep(pos_raw.T, u=u_raw, s=smoothing, quiet=1)
+                break
+            except Exception:
+                continue
+    else:
+        smoothing = len(time_raw) * 10.0
         tck, u = splprep(pos_raw.T, u=u_raw, s=smoothing, quiet=1)
 
     u_fine = np.linspace(0, 1, num_points)
