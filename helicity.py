@@ -17,7 +17,7 @@ def compute_spline(object_data):
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="A theoretically impossible result")
-        tck, u = splprep(pos_raw.T, u=u_raw, s=smoothing)
+        tck, u = splprep(pos_raw.T, u=u_raw, s=smoothing, quiet=1)
 
     u_fine = np.linspace(0, 1, num_points)
     pos_spline = np.array(splev(u_fine, tck)).T
