@@ -1,3 +1,4 @@
+import logging
 from dash import Dash, dcc, html, Input, Output, State, exceptions, callback_context
 import dash_bootstrap_components as dbc
 import dash_uploader as du
@@ -58,6 +59,24 @@ UPLOAD_FOLDER_ROOT = os.path.join(os.getcwd(), 'uploads')
 os.makedirs(UPLOAD_FOLDER_ROOT, exist_ok=True)
 app = Dash(__name__, assets_folder='assets', assets_url_path='/assets/', external_stylesheets=[dbc.themes.BOOTSTRAP])
 du.configure_upload(app, UPLOAD_FOLDER_ROOT)
+
+class DebugFilter(logging.Filter):
+    def filter(self, record):
+        if record.levelno == logging.DEBUG:
+            message = record.getMessage()
+            if 'File saved to:' in message and 'httprequesthandler' in record.name:
+                return False
+        return True
+
+werkzeug_logger = logging.getLogger('werkzeug')
+for handler in werkzeug_logger.handlers:
+    handler.addFilter(DebugFilter())
+
+app.server.logger.addFilter(DebugFilter())
+
+root_logger = logging.getLogger()
+for handler in root_logger.handlers:
+    handler.addFilter(DebugFilter())
 
 with thread_lock:
     messages.append('Waiting for user input. Load data, adjust parameters and options, and click "Run Migrate3D" to start the analysis.')
@@ -766,6 +785,55 @@ def get_category_file(isCompleted, fileNames, upload_id):
     options = list(df.columns)
 
     return options, id_guess, options, category_guess
+
+@app.callback(
+    Output('Timelapse', 'value', allow_duplicate=True),
+    Output('tau', 'value', allow_duplicate=True),
+    Input('time_formatting', 'value'),
+    State('parent_id', 'value'),
+    State('Timelapse', 'value'),
+    State('tau', 'value'),
+    prevent_initial_call=True
+)
+def update_timelapse_tau_on_time_column_change(time_column, id_column, current_timelapse, current_tau):
+    if not time_column or not id_column:
+        raise exceptions.PreventUpdate
+
+    if current_timelapse is not None or current_tau is not None:
+        raise exceptions.PreventUpdate
+
+    segments_df = file_storing.get('segments_dataframe', None)
+    if segments_df is None:
+        raise exceptions.PreventUpdate
+
+    detected_timelapse = None
+    detected_tau = None
+
+    try:
+        df_copy = segments_df.copy()
+        df_copy[time_column] = pd.to_numeric(df_copy[time_column], errors='coerce')
+
+        intervals = []
+        for _, group in df_copy.groupby(id_column):
+            times = group[time_column].dropna().sort_values().unique()
+            if len(times) > 1:
+                diffs = pd.Series(times).diff().dropna()
+                intervals.extend(diffs)
+
+        if intervals:
+            rounded_intervals = pd.Series(intervals).round(6)
+            detected_interval = rounded_intervals.mode()
+            if not detected_interval.empty:
+                detected_timelapse = float(detected_interval.iloc[0])
+
+        counts = df_copy.groupby(id_column)[time_column].nunique()
+        if len(counts) > 0:
+            detected_tau = int(np.max(counts))
+
+    except Exception:
+        pass
+
+    return detected_timelapse, detected_tau
 
 @app.callback(
     Output('progress-bar', 'value'),
