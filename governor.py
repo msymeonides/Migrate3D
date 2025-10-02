@@ -1,4 +1,6 @@
 import numpy as np
+import openpyxl
+from openpyxl.utils.dataframe import dataframe_to_rows
 import pandas as pd
 import re
 import statistics
@@ -431,6 +433,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
         total_time_sec = (int(round((bigtoc - bigtic), 1)))
         total_time_min = round((total_time_sec / 60), 1)
+
         if total_time_sec < 180:
             with thread_lock:
                 messages.append('------------------------------------------------')
@@ -441,5 +444,22 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 messages.append('------------------------------------------------')
                 messages.append('Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min))
                 messages.append('------------------------------------------------')
+
+        updated_runtime_log_data = messages.get_runtime_log()
+        df_updated_runtime_log = pd.DataFrame(updated_runtime_log_data)
+        workbook = openpyxl.load_workbook(savepath)
+
+        original_position = 1
+        if 'Runtime Log' in workbook.sheetnames:
+            original_position = workbook.sheetnames.index('Runtime Log')
+            del workbook['Runtime Log']
+
+        ws = workbook.create_sheet('Runtime Log', original_position)
+
+        for r in dataframe_to_rows(df_updated_runtime_log, index=False, header=True):
+            ws.append(r)
+
+        workbook.save(savepath)
+        workbook.close()
 
         return df_segments, df_sum, df_pca
