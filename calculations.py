@@ -7,6 +7,7 @@ import os
 import pickle
 import shutil
 
+
 def calculate_euclidean(coords, tau):
     num_rows = len(coords)
     euclid_data = {}
@@ -109,73 +110,128 @@ def calculations(object_data, tau, object_id, parameters):
     return df_object_calcs, angle_steps, angle_medians_dict
 
 
-def process_object_chunk_to_file(chunk_info):
-    object_chunk, shm_name, arr_shape, arr_dtype, tau, parameters, output_dir, chunk_id = chunk_info
+def process_object_chunk_with_sorting(chunk_info):
+    """
+    Memory-safe version using shared memory for both data and sorting indices.
+    Uses searchsorted to find objects without creating boolean arrays.
+    Writes results IMMEDIATELY to disk instead of accumulating in memory.
+    """
+    (object_chunk, shm_data_name, data_shape, data_dtype,
+     shm_sorted_idx_name, sorted_idx_shape, sorted_idx_dtype,
+     shm_sorted_obj_name, sorted_obj_shape, sorted_obj_dtype,
+     tau, parameters, output_dir, chunk_id) = chunk_info
 
-    shm = shared_memory.SharedMemory(name=shm_name)
-    arr_segments = np.ndarray(arr_shape, dtype=arr_dtype, buffer=shm.buf)
+    # Access shared memory for data
+    shm_data = shared_memory.SharedMemory(name=shm_data_name)
+    arr_segments = np.ndarray(data_shape, dtype=data_dtype, buffer=shm_data.buf)
 
-    chunk_dataframes = []
+    # Access shared memory for sorted indices
+    shm_sorted_idx = shared_memory.SharedMemory(name=shm_sorted_idx_name)
+    sorted_indices = np.ndarray(sorted_idx_shape, dtype=sorted_idx_dtype, buffer=shm_sorted_idx.buf)
+
+    # Access shared memory for sorted object IDs
+    shm_sorted_obj = shared_memory.SharedMemory(name=shm_sorted_obj_name)
+    sorted_obj_ids = np.ndarray(sorted_obj_shape, dtype=sorted_obj_dtype, buffer=shm_sorted_obj.buf)
+
+    # Prepare output files
+    output_file = os.path.join(output_dir, f"chunk_{chunk_id}_data.parquet")
+    angle_file = os.path.join(output_dir, f"chunk_{chunk_id}_angles.pkl")
+
     chunk_angle_medians = {}
     angle_steps = None
+    first_write = True
 
     for obj in object_chunk:
-        object_data = arr_segments[arr_segments[:, 0] == obj, :]
-        if len(object_data) > 0:
+        # Use searchsorted to find boundaries - NO boolean array allocation!
+        start_idx = np.searchsorted(sorted_obj_ids, obj, side='left')
+        end_idx = np.searchsorted(sorted_obj_ids, obj, side='right')
+
+        if start_idx < end_idx:
+            # Get the original indices for this object
+            indices = sorted_indices[start_idx:end_idx]
+            object_data = arr_segments[indices]
             object_id = object_data[0, 0]
             df_calcs, angle_steps_temp, angle_medians_dict = calculations(object_data, tau, object_id, parameters)
 
-            chunk_dataframes.append(df_calcs)
+            # Write to disk IMMEDIATELY - don't accumulate in memory!
+            if first_write:
+                df_calcs.to_parquet(output_file, engine='pyarrow', compression='snappy')
+                first_write = False
+            else:
+                # Append to existing parquet file
+                existing_df = pd.read_parquet(output_file)
+                combined_df = pd.concat([existing_df, df_calcs], ignore_index=True)
+                combined_df.to_parquet(output_file, engine='pyarrow', compression='snappy')
+                del existing_df, combined_df  # Free memory immediately
+
+            del df_calcs  # Free memory immediately
+
             chunk_angle_medians[object_id] = angle_medians_dict
             if angle_steps is None:
                 angle_steps = angle_steps_temp
 
-    shm.close()
+    shm_data.close()
+    shm_sorted_idx.close()
+    shm_sorted_obj.close()
 
-    if chunk_dataframes:
-        combined_df = pd.concat(chunk_dataframes, ignore_index=True)
-        output_file = os.path.join(output_dir, f"chunk_{chunk_id}_data.parquet")
-        combined_df.to_parquet(output_file, engine='pyarrow', compression='snappy')
-    else:
-        output_file = None
-
-    angle_file = os.path.join(output_dir, f"chunk_{chunk_id}_angles.pkl")
+    # Write angle data
     with open(angle_file, 'wb') as f:
         pickle.dump((chunk_angle_medians, angle_steps), f)
 
-    return output_file, angle_file
+    return output_file if not first_write else None, angle_file
 
 
-def process_object_chunk_to_file_regular(chunk_info):
-    object_chunk, arr_segments, tau, parameters, output_dir, chunk_id = chunk_info
+def process_object_chunk_regular_with_sorting(chunk_info):
+    """
+    Memory-safe version for regular memory (no shared memory).
+    Uses searchsorted with pre-sorted data to avoid boolean arrays.
+    Writes results IMMEDIATELY to disk instead of accumulating in memory.
+    """
+    (object_chunk, arr_segments, sorted_indices, sorted_obj_ids,
+     tau, parameters, output_dir, chunk_id) = chunk_info
 
-    chunk_dataframes = []
+    # Prepare output files
+    output_file = os.path.join(output_dir, f"chunk_{chunk_id}_data.parquet")
+    angle_file = os.path.join(output_dir, f"chunk_{chunk_id}_angles.pkl")
+
     chunk_angle_medians = {}
     angle_steps = None
+    first_write = True
 
     for obj in object_chunk:
-        object_data = arr_segments[arr_segments[:, 0] == obj, :]
-        if len(object_data) > 0:
+        # Use searchsorted to find boundaries - NO boolean array allocation!
+        start_idx = np.searchsorted(sorted_obj_ids, obj, side='left')
+        end_idx = np.searchsorted(sorted_obj_ids, obj, side='right')
+
+        if start_idx < end_idx:
+            # Get the original indices for this object
+            indices = sorted_indices[start_idx:end_idx]
+            object_data = arr_segments[indices]
             object_id = object_data[0, 0]
             df_calcs, angle_steps_temp, angle_medians_dict = calculations(object_data, tau, object_id, parameters)
 
-            chunk_dataframes.append(df_calcs)
+            # Write to disk IMMEDIATELY - don't accumulate in memory!
+            if first_write:
+                df_calcs.to_parquet(output_file, engine='pyarrow', compression='snappy')
+                first_write = False
+            else:
+                # Append to existing parquet file
+                existing_df = pd.read_parquet(output_file)
+                combined_df = pd.concat([existing_df, df_calcs], ignore_index=True)
+                combined_df.to_parquet(output_file, engine='pyarrow', compression='snappy')
+                del existing_df, combined_df  # Free memory immediately
+
+            del df_calcs  # Free memory immediately
+
             chunk_angle_medians[object_id] = angle_medians_dict
             if angle_steps is None:
                 angle_steps = angle_steps_temp
 
-    if chunk_dataframes:
-        combined_df = pd.concat(chunk_dataframes, ignore_index=True)
-        output_file = os.path.join(output_dir, f"chunk_{chunk_id}_data.parquet")
-        combined_df.to_parquet(output_file, engine='pyarrow', compression='snappy')
-    else:
-        output_file = None
-
-    angle_file = os.path.join(output_dir, f"chunk_{chunk_id}_angles.pkl")
+    # Write angle data
     with open(angle_file, 'wb') as f:
         pickle.dump((chunk_angle_medians, angle_steps), f)
 
-    return output_file, angle_file
+    return output_file if not first_write else None, angle_file
 
 
 def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_workers=None):
@@ -196,7 +252,9 @@ def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_worke
         chunk = unique_objects[i:i + chunk_size]
         object_chunks.append(chunk)
 
+    dataset_mb = arr_segments.nbytes / (1024 * 1024)
     print(f"Processing {total_objects} objects in {len(object_chunks)} chunks of size ~{chunk_size}")
+    print(f"Dataset size: {dataset_mb:.1f} MB")
 
     project_dir = os.path.dirname(os.path.abspath(__file__))
     temp_dir = os.path.join(project_dir, "temp_calculations")
@@ -207,39 +265,73 @@ def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_worke
 
     print(f"Using temporary directory: {temp_dir}")
 
+    # Pre-compute sorting arrays ONCE - these will be shared with all workers via shared memory
+    # This avoids creating boolean arrays AND avoids pickling huge dictionaries
+    print("Pre-computing sort indices for memory-safe object lookup...")
+    obj_ids = arr_segments[:, 0]
+    sorted_indices = np.argsort(obj_ids)
+    sorted_obj_ids = obj_ids[sorted_indices]
+    print("Sort computation complete")
+
     try:
         use_shared_memory = arr_segments.nbytes > 20 * 1024 * 1024
 
         if use_shared_memory:
+            print(f"Using shared memory for large dataset ({dataset_mb:.1f} MB)")
 
-            print(f"Using shared memory for large dataset ({arr_segments.nbytes / (1024*1024):.1f} MB)")
-
-            shm = shared_memory.SharedMemory(create=True, size=arr_segments.nbytes)
-            shared_array = np.ndarray(arr_segments.shape, dtype=arr_segments.dtype, buffer=shm.buf)
+            # Create shared memory for main data
+            shm_data = shared_memory.SharedMemory(create=True, size=arr_segments.nbytes)
+            shared_array = np.ndarray(arr_segments.shape, dtype=arr_segments.dtype, buffer=shm_data.buf)
             shared_array[:] = arr_segments[:]
+
+            # Create shared memory for sorted indices
+            shm_sorted_idx = shared_memory.SharedMemory(create=True, size=sorted_indices.nbytes)
+            shared_sorted_idx = np.ndarray(sorted_indices.shape, dtype=sorted_indices.dtype, buffer=shm_sorted_idx.buf)
+            shared_sorted_idx[:] = sorted_indices[:]
+
+            # Create shared memory for sorted object IDs
+            shm_sorted_obj = shared_memory.SharedMemory(create=True, size=sorted_obj_ids.nbytes)
+            shared_sorted_obj = np.ndarray(sorted_obj_ids.shape, dtype=sorted_obj_ids.dtype, buffer=shm_sorted_obj.buf)
+            shared_sorted_obj[:] = sorted_obj_ids[:]
 
             try:
                 chunk_infos = []
                 for i, chunk in enumerate(object_chunks):
-                    chunk_info = (chunk, shm.name, arr_segments.shape, arr_segments.dtype,
-                                tau, parameters, temp_dir, i)
+                    chunk_info = (
+                        chunk,
+                        shm_data.name, arr_segments.shape, arr_segments.dtype,
+                        shm_sorted_idx.name, sorted_indices.shape, sorted_indices.dtype,
+                        shm_sorted_obj.name, sorted_obj_ids.shape, sorted_obj_ids.dtype,
+                        tau, parameters, temp_dir, i
+                    )
                     chunk_infos.append(chunk_info)
 
-                with mp.Pool(processes=num_workers) as pool:
-                    chunk_results = pool.map(process_object_chunk_to_file, chunk_infos)
+                actual_workers = min(num_workers, len(object_chunks))
+                print(f"Starting pool with {actual_workers} workers...")
+
+                with mp.Pool(processes=actual_workers) as pool:
+                    chunk_results = pool.map(process_object_chunk_with_sorting, chunk_infos)
             finally:
-                shm.close()
-                shm.unlink()
+                shm_data.close()
+                shm_data.unlink()
+                shm_sorted_idx.close()
+                shm_sorted_idx.unlink()
+                shm_sorted_obj.close()
+                shm_sorted_obj.unlink()
         else:
-            print(f"Using regular memory for dataset ({arr_segments.nbytes / (1024*1024):.1f} MB)")
+            print(f"Using regular memory for dataset ({dataset_mb:.1f} MB)")
 
             chunk_infos = []
             for i, chunk in enumerate(object_chunks):
-                chunk_info = (chunk, arr_segments, tau, parameters, temp_dir, i)
+                chunk_info = (chunk, arr_segments, sorted_indices, sorted_obj_ids,
+                            tau, parameters, temp_dir, i)
                 chunk_infos.append(chunk_info)
 
-            with mp.Pool(processes=num_workers) as pool:
-                chunk_results = pool.map(process_object_chunk_to_file_regular, chunk_infos)
+            actual_workers = min(num_workers, len(object_chunks))
+            print(f"Starting pool with {actual_workers} workers...")
+
+            with mp.Pool(processes=actual_workers) as pool:
+                chunk_results = pool.map(process_object_chunk_regular_with_sorting, chunk_infos)
 
         all_calcs = []
         all_angle_medians = {}

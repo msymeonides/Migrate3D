@@ -53,12 +53,14 @@ attract_params = {
                 }
 
 file_storing = {}
+autodetection_in_progress = {'detecting': False}
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 UPLOAD_FOLDER_ROOT = os.path.join(os.getcwd(), 'uploads')
 os.makedirs(UPLOAD_FOLDER_ROOT, exist_ok=True)
 app = Dash(__name__, assets_folder='assets', assets_url_path='/assets/', external_stylesheets=[dbc.themes.BOOTSTRAP])
-du.configure_upload(app, UPLOAD_FOLDER_ROOT)
+
+du.configure_upload(app, UPLOAD_FOLDER_ROOT, use_upload_id=True)
 
 class DebugFilter(logging.Filter):
     def filter(self, record):
@@ -181,7 +183,7 @@ app.layout = dbc.Container(
                         cancel_button=False,
                         pause_button=False,
                         filetypes=['csv'],
-                        max_file_size=5120,
+                        chunk_size=50,
                         default_style={
                             'width': '50%',
                             'minWidth': '250px',
@@ -648,6 +650,16 @@ def run_migrate(*vals):
     segments_filename = file_storing.get('segments_filename', None)
     categories_filename = file_storing.get('categories_filename', None)
 
+    if segments_input is None and 'segments_filepath' in file_storing:
+        segments_filepath = file_storing['segments_filepath']
+        segments_input = pd.read_csv(segments_filepath)
+        file_storing['segments_dataframe'] = segments_input
+
+    if categories_input is None and 'categories_filepath' in file_storing:
+        categories_filepath = file_storing['categories_filepath']
+        categories_input = pd.read_csv(categories_filepath)
+        file_storing['categories_dataframe'] = categories_input
+
     args = [
         parent_id, time_for, x_for, y_for, z_for,
         float(timelapse), float(arrest_limit), int(moving),
@@ -687,12 +699,15 @@ def get_segments_file(isCompleted, fileNames, upload_id):
         return [], None, [], None, [], None, [], None, [], None, None, None
 
     try:
-        df = pd.read_csv(file_path)
+        df_header = pd.read_csv(file_path, nrows=0)
+        options = list(df_header.columns)
+
+        file_storing['segments_dataframe'] = None
+        file_storing['segments_filename'] = filename
+        file_storing['segments_filepath'] = file_path
+
     except Exception as e:
         return [], None, [], None, [], None, [], None, [], None, None, None
-
-    file_storing['segments_dataframe'] = df
-    file_storing['segments_filename'] = filename
 
     def guess_column(df, keywords):
         for col in df.columns:
@@ -701,41 +716,15 @@ def get_segments_file(isCompleted, fileNames, upload_id):
                 return col
         return None
 
-    id_guess = guess_column(df, ['id', 'track', 'track id', 'trackid', 'cell', 'cell id', 'cellid', 'object',
+    id_guess = guess_column(df_header, ['id', 'track', 'track id', 'trackid', 'cell', 'cell id', 'cellid', 'object',
                                  'object id', 'objectid','parent', 'parent id', 'parentid'])
-    time_guess = guess_column(df, ['t', 'time', 'frame'])
-    x_guess = guess_column(df, ['x', 'x coordinate', 'x position', 'coordinate x', 'position x'])
-    y_guess = guess_column(df, ['y', 'y coordinate', 'y position', 'coordinate y', 'position y'])
-    z_guess = guess_column(df, ['z', 'z coordinate', 'z position', 'coordinate z', 'position z'])
-    options = list(df.columns)
+    time_guess = guess_column(df_header, ['t', 'time', 'frame'])
+    x_guess = guess_column(df_header, ['x', 'x coordinate', 'x position', 'coordinate x', 'position x'])
+    y_guess = guess_column(df_header, ['y', 'y coordinate', 'y position', 'coordinate y', 'position y'])
+    z_guess = guess_column(df_header, ['z', 'z coordinate', 'z position', 'coordinate z', 'position z'])
 
     detected_timelapse = None
     detected_tau = None
-
-    if id_guess and time_guess and id_guess in df.columns and time_guess in df.columns:
-        try:
-            df_copy = df.copy()
-            df_copy[time_guess] = pd.to_numeric(df_copy[time_guess], errors='coerce')
-
-            intervals = []
-            for _, group in df_copy.groupby(id_guess):
-                times = group[time_guess].dropna().sort_values().unique()
-                if len(times) > 1:
-                    diffs = pd.Series(times).diff().dropna()
-                    intervals.extend(diffs)
-
-            if intervals:
-                rounded_intervals = pd.Series(intervals).round(6)
-                detected_interval = rounded_intervals.mode()
-                if not detected_interval.empty:
-                    detected_timelapse = float(detected_interval.iloc[0])
-
-            counts = df_copy.groupby(id_guess)[time_guess].nunique()
-            if len(counts) > 0:
-                detected_tau = int(np.max(counts))
-
-        except Exception:
-            pass
 
     return (
         options, id_guess,
@@ -765,12 +754,14 @@ def get_category_file(isCompleted, fileNames, upload_id):
         return [], None, [], None
 
     try:
-        df = pd.read_csv(file_path)
+        df_header = pd.read_csv(file_path, nrows=0)
+        options = list(df_header.columns)
+
+        file_storing['categories_dataframe'] = None
+        file_storing['categories_filename'] = filename
+        file_storing['categories_filepath'] = file_path
     except Exception as e:
         return [], None, [], None
-
-    file_storing['categories_dataframe'] = df
-    file_storing['categories_filename'] = filename
 
     def guess_column(df, keywords):
         for col in df.columns:
@@ -779,12 +770,94 @@ def get_category_file(isCompleted, fileNames, upload_id):
                 return col
         return None
 
-    id_guess = guess_column(df, ['id', 'track', 'track id', 'trackid', 'cell', 'cell id', 'cellid', 'object',
+    id_guess = guess_column(df_header, ['id', 'track', 'track id', 'trackid', 'cell', 'cell id', 'cellid', 'object',
                                  'object id', 'objectid','parent', 'parent id', 'parentid'])
-    category_guess = guess_column(df, ['category', 'label', 'type', 'code'])
-    options = list(df.columns)
+    category_guess = guess_column(df_header, ['category', 'label', 'type', 'code'])
 
     return options, id_guess, options, category_guess
+
+@app.callback(
+    Output('Timelapse', 'value', allow_duplicate=True),
+    Output('tau', 'value', allow_duplicate=True),
+    Input('parent_id', 'value'),
+    Input('time_formatting', 'value'),
+    State('Timelapse', 'value'),
+    State('tau', 'value'),
+    prevent_initial_call=True
+)
+def auto_detect_timelapse_tau(id_column, time_column, current_timelapse, current_tau):
+    if not id_column or not time_column:
+        raise exceptions.PreventUpdate
+
+    if current_timelapse is not None and current_tau is not None:
+        raise exceptions.PreventUpdate
+
+    segments_filepath = file_storing.get('segments_filepath', None)
+    if not segments_filepath or not os.path.exists(segments_filepath):
+        raise exceptions.PreventUpdate
+
+    detected_timelapse = current_timelapse
+    detected_tau = current_tau
+
+    try:
+        with open(segments_filepath, 'r') as f:
+            total_rows = sum(1 for _ in f) - 1
+
+        if total_rows == 0:
+            return detected_timelapse, detected_tau
+
+        sample_size = min(50000, total_rows)
+        np.random.seed(42)
+        sampled_row_indices = sorted(np.random.choice(total_rows, size=sample_size, replace=False))
+        rows_to_skip = set(range(total_rows)) - set(sampled_row_indices)
+
+        df_sample = pd.read_csv(
+            segments_filepath,
+            usecols=[id_column, time_column],
+            skiprows=lambda x: x > 0 and (x-1) in rows_to_skip
+        )
+
+        unique_object_ids = df_sample[id_column].unique()
+        np.random.shuffle(unique_object_ids)
+        selected_objects = set(unique_object_ids[:500])
+
+        all_intervals = []
+        object_timepoint_counts = {}
+
+        chunk_size = 100000
+        for chunk in pd.read_csv(segments_filepath, usecols=[id_column, time_column], chunksize=chunk_size):
+            chunk_filtered = chunk[chunk[id_column].isin(selected_objects)].copy()
+
+            if len(chunk_filtered) == 0:
+                continue
+
+            chunk_filtered.loc[:, time_column] = pd.to_numeric(chunk_filtered[time_column], errors='coerce')
+
+            for obj_id, group in chunk_filtered.groupby(id_column):
+                times = group[time_column].dropna().sort_values().unique()
+
+                if obj_id not in object_timepoint_counts:
+                    object_timepoint_counts[obj_id] = set()
+                object_timepoint_counts[obj_id].update(times)
+
+                if len(times) > 1:
+                    diffs = pd.Series(times).diff().dropna()
+                    all_intervals.extend(diffs.tolist())
+
+        if detected_timelapse is None and len(all_intervals) > 0:
+            rounded_intervals = pd.Series(all_intervals).round(6)
+            detected_interval = rounded_intervals.mode()
+            if not detected_interval.empty:
+                detected_timelapse = float(detected_interval.iloc[0])
+
+        if detected_tau is None and len(object_timepoint_counts) > 0:
+            max_timepoints = max(len(timepoints) for timepoints in object_timepoint_counts.values())
+            detected_tau = int(max_timepoints)
+
+    except Exception as e:
+        pass
+
+    return detected_timelapse, detected_tau
 
 @app.callback(
     Output('Timelapse', 'value', allow_duplicate=True),
@@ -900,10 +973,13 @@ def toggle_attractor_settings(n_clicks):
         Output('allowed_attracted', 'disabled'),
         Output('options', 'style'),
     ],
-    [Input('Run_migrate', 'n_clicks'), Input('progress-bar', 'value')],
-    prevent_initial_call=False
+    [Input('Run_migrate', 'n_clicks'), Input('progress-bar', 'value'), Input('Timelapse', 'value'), Input('tau', 'value')],
+    [State('parent_id', 'value'), State('time_formatting', 'value')],
+    prevent_initial_call=True
 )
-def update_run_and_freeze(n_clicks, progress):
+def update_run_and_freeze(n_clicks, progress, timelapse_value, tau_value, id_col, time_col):
+    detecting = id_col and time_col and (timelapse_value is None or tau_value is None)
+
     if progress == 100 and n_clicks and n_clicks > 0:
         if is_aborted():
             btn_text = "Aborted"
@@ -950,6 +1026,22 @@ def update_run_and_freeze(n_clicks, progress):
             'borderRadius': '5px',
             'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
             'cursor': 'pointer'
+        }
+        btn_disabled = True
+    elif detecting:
+        btn_text = "Run Migrate3D"
+        btn_style = {
+            'fontSize': '2rem',
+            'padding': '20px 40px',
+            'width': '40%',
+            'alignSelf': 'center',
+            'marginTop': '50px',
+            'backgroundColor': '#cccccc',
+            'color': '#888888',
+            'border': 'none',
+            'borderRadius': '5px',
+            'boxShadow': '0 4px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)',
+            'cursor': 'not-allowed'
         }
         btn_disabled = True
     else:
@@ -1045,7 +1137,7 @@ app.clientside_callback(
     """
     function(isCompleted, fileNames) {
         if (isCompleted && fileNames && fileNames.length > 0) {
-            return "Please wait, processing file to autodetect column names and values...";
+            return "";
         }
         return "";
     }
@@ -1060,7 +1152,7 @@ app.clientside_callback(
     """
     function(isCompleted, fileNames) {
         if (isCompleted && fileNames && fileNames.length > 0) {
-            return "Please wait, processing file to autodetect column names...";
+            return "";
         }
         return "";
     }
@@ -1073,54 +1165,44 @@ app.clientside_callback(
 
 app.clientside_callback(
     """
-    function(n_intervals) {
+    function(n_intervals, timelapseValue, tauValue) {
         try {
-            // Check segments dropdown
             var segmentsParentDropdown = document.getElementById('parent_id');
+            var segmentsTimeDropdown = document.getElementById('time_formatting');
             var segmentsStatusDiv = document.getElementById('segments_status');
             
-            if (segmentsParentDropdown && segmentsStatusDiv) {
-                var dropdownDiv = segmentsParentDropdown.querySelector('.Select-value-label') || 
+            if (segmentsParentDropdown && segmentsTimeDropdown && segmentsStatusDiv) {
+                var parentDiv = segmentsParentDropdown.querySelector('.Select-value-label') || 
                                  segmentsParentDropdown.querySelector('.Select-single-value') ||
                                  segmentsParentDropdown.querySelector('[class*="singleValue"]');
                 
-                var currentText = segmentsStatusDiv.textContent;
+                var timeDiv = segmentsTimeDropdown.querySelector('.Select-value-label') || 
+                                 segmentsTimeDropdown.querySelector('.Select-single-value') ||
+                                 segmentsTimeDropdown.querySelector('[class*="singleValue"]');
                 
-                if (dropdownDiv && currentText.indexOf('Please wait') !== -1) {
-                    var dropdownText = dropdownDiv.textContent || dropdownDiv.innerText || '';
-                    if (dropdownText && dropdownText.indexOf('Select') === -1) {
-                        segmentsStatusDiv.textContent = "";
-                    }
-                }
-            }
-            
-            // Check categories dropdown
-            var categoriesParentDropdown = document.getElementById('parent_id2');
-            var categoriesStatusDiv = document.getElementById('categories_status');
-            
-            if (categoriesParentDropdown && categoriesStatusDiv) {
-                var dropdownDiv = categoriesParentDropdown.querySelector('.Select-value-label') || 
-                                 categoriesParentDropdown.querySelector('.Select-single-value') ||
-                                 categoriesParentDropdown.querySelector('[class*="singleValue"]');
+                var parentText = parentDiv ? (parentDiv.textContent || parentDiv.innerText || '') : '';
+                var timeText = timeDiv ? (timeDiv.textContent || timeDiv.innerText || '') : '';
                 
-                var currentText = categoriesStatusDiv.textContent;
-                
-                if (dropdownDiv && currentText.indexOf('Please wait') !== -1) {
-                    var dropdownText = dropdownDiv.textContent || dropdownDiv.innerText || '';
-                    if (dropdownText && dropdownText.indexOf('Select') === -1) {
-                        categoriesStatusDiv.textContent = "";
-                    }
+                // If both columns are selected and either value is missing, show message
+                if (parentText && timeText && 
+                    parentText.indexOf('Select') === -1 && 
+                    timeText.indexOf('Select') === -1 &&
+                    (timelapseValue === null || timelapseValue === undefined || timelapseValue === '' ||
+                     tauValue === null || tauValue === undefined || tauValue === '')) {
+                    segmentsStatusDiv.textContent = "Autodetecting timelapse interval and tau value...";
+                } else {
+                    segmentsStatusDiv.textContent = "";
                 }
             }
         } catch (e) {
-            // Silently handle any errors to prevent callback failures
+            // Silently handle errors
         }
         
         return window.dash_clientside.no_update;
     }
     """,
     Output('dummy', 'style'),
-    Input('progress-interval', 'n_intervals'),
+    [Input('progress-interval', 'n_intervals'), Input('Timelapse', 'value'), Input('tau', 'value')],
     prevent_initial_call=True
 )
 
