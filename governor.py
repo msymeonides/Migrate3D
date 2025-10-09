@@ -13,7 +13,7 @@ from generate_figures import save_all_figures
 from attractors import attract
 import contacts_parallel
 from shared_state import messages, thread_lock, set_abort_state, complete_progress_step
-from calculations import calculations_parallel
+from calculations import calculations_parallel, concatenate_dataframes_memory_safe
 pd.set_option('future.no_silent_downcasting', True)
 
 def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arrest_limit, moving, contact_length,
@@ -143,7 +143,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             arr_segments, unique_objects, tau, parameters
         )
 
-        df_all_calcs = pd.concat(all_calcs)
+        df_all_calcs = concatenate_dataframes_memory_safe(all_calcs)
 
         cols_to_check = [col for col in df_all_calcs.columns
                              if re.match(r'(Euclid|Turning Angle) \d+', str(col))]

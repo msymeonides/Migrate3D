@@ -5,12 +5,11 @@ import numpy as np
 import pandas as pd
 import os
 import pickle
+import psutil
 import shutil
 
-# Configuration: Threshold for switching between file-per-object and file-per-worker modes
-# If total objects < OBJECT_COUNT_THRESHOLD: Write one file per object (faster for small datasets)
-# If total objects >= OBJECT_COUNT_THRESHOLD: Write one file per worker (reduces file I/O overhead for large datasets)
-OBJECT_COUNT_THRESHOLD = 10000
+OBJECT_COUNT_THRESHOLD = 200
+MEMORY_SAFETY_THRESHOLD = 0.75
 
 def calculate_euclidean(coords, tau):
     num_rows = len(coords)
@@ -159,15 +158,14 @@ def process_object_chunk_to_file(chunk_info):
 
 
 def process_object_chunk_per_object_file(chunk_info):
-    """File-per-object mode: Write one parquet file per object (used for small datasets < threshold)"""
     object_chunk, shm_name, arr_shape, arr_dtype, tau, parameters, output_dir, chunk_id = chunk_info
 
     shm = shared_memory.SharedMemory(name=shm_name)
     arr_segments = np.ndarray(arr_shape, dtype=arr_dtype, buffer=shm.buf)
 
-    output_files = []
     chunk_angle_medians = {}
     angle_steps = None
+    chunk_dfs = []
 
     try:
         for obj_idx, obj in enumerate(object_chunk):
@@ -176,20 +174,29 @@ def process_object_chunk_per_object_file(chunk_info):
                 object_id = object_data[0, 0]
                 df_calcs, angle_steps_temp, angle_medians_dict = calculations(object_data, tau, object_id, parameters)
 
-                # Write each object to its own file
-                output_file = os.path.join(output_dir, f"chunk_{chunk_id}_obj_{obj_idx}.parquet")
-                df_calcs.to_parquet(output_file, engine='pyarrow', compression='snappy', index=False)
-                output_files.append(output_file)
+                chunk_dfs.append(df_calcs)
 
                 chunk_angle_medians[object_id] = angle_medians_dict
                 if angle_steps is None:
                     angle_steps = angle_steps_temp
 
-                # Free memory immediately
                 del df_calcs
-                gc.collect()
+
+                if (obj_idx + 1) % 100 == 0:
+                    gc.collect()
     finally:
         shm.close()
+
+    if chunk_dfs:
+        output_file = os.path.join(output_dir, f"chunk_{chunk_id}_data.parquet")
+        chunk_combined = pd.concat(chunk_dfs, ignore_index=True, copy=False)
+        del chunk_dfs
+        gc.collect()
+
+        chunk_combined.to_parquet(output_file, engine='pyarrow', compression='snappy', index=False)
+        output_files = output_file
+    else:
+        output_files = None
 
     angle_file = os.path.join(output_dir, f"chunk_{chunk_id}_angles.pkl")
     with open(angle_file, 'wb') as f:
@@ -237,12 +244,11 @@ def process_object_chunk_to_file_regular(chunk_info):
 
 
 def process_object_chunk_per_object_file_regular(chunk_info):
-    """File-per-object mode: Write one parquet file per object (used for small datasets < threshold)"""
     object_chunk, arr_segments, tau, parameters, output_dir, chunk_id = chunk_info
 
-    output_files = []
     chunk_angle_medians = {}
     angle_steps = None
+    chunk_dfs = []
 
     for obj_idx, obj in enumerate(object_chunk):
         object_data = arr_segments[arr_segments[:, 0] == obj, :]
@@ -250,18 +256,27 @@ def process_object_chunk_per_object_file_regular(chunk_info):
             object_id = object_data[0, 0]
             df_calcs, angle_steps_temp, angle_medians_dict = calculations(object_data, tau, object_id, parameters)
 
-            # Write each object to its own file
-            output_file = os.path.join(output_dir, f"chunk_{chunk_id}_obj_{obj_idx}.parquet")
-            df_calcs.to_parquet(output_file, engine='pyarrow', compression='snappy', index=False)
-            output_files.append(output_file)
+            chunk_dfs.append(df_calcs)
 
             chunk_angle_medians[object_id] = angle_medians_dict
             if angle_steps is None:
                 angle_steps = angle_steps_temp
 
-            # Free memory immediately
             del df_calcs
-            gc.collect()
+
+            if (obj_idx + 1) % 100 == 0:
+                gc.collect()
+
+    if chunk_dfs:
+        output_file = os.path.join(output_dir, f"chunk_{chunk_id}_data.parquet")
+        chunk_combined = pd.concat(chunk_dfs, ignore_index=True, copy=False)
+        del chunk_dfs
+        gc.collect()
+
+        chunk_combined.to_parquet(output_file, engine='pyarrow', compression='snappy', index=False)
+        output_files = output_file
+    else:
+        output_files = None
 
     angle_file = os.path.join(output_dir, f"chunk_{chunk_id}_angles.pkl")
     with open(angle_file, 'wb') as f:
@@ -270,11 +285,74 @@ def process_object_chunk_per_object_file_regular(chunk_info):
     return output_files, angle_file
 
 
+def process_object_chunk_in_memory(chunk_info):
+    object_chunk, shm_name, arr_shape, arr_dtype, tau, parameters, chunk_id = chunk_info
+
+    shm = shared_memory.SharedMemory(name=shm_name)
+    arr_segments = np.ndarray(arr_shape, dtype=arr_dtype, buffer=shm.buf)
+
+    chunk_angle_medians = {}
+    angle_steps = None
+    chunk_dfs = []
+
+    try:
+        for obj in object_chunk:
+            object_data = arr_segments[arr_segments[:, 0] == obj, :]
+            if len(object_data) > 0:
+                object_id = object_data[0, 0]
+                df_calcs, angle_steps_temp, angle_medians_dict = calculations(object_data, tau, object_id, parameters)
+
+                chunk_dfs.append(df_calcs)
+                chunk_angle_medians[object_id] = angle_medians_dict
+                if angle_steps is None:
+                    angle_steps = angle_steps_temp
+    finally:
+        shm.close()
+
+    if chunk_dfs:
+        chunk_combined = pd.concat(chunk_dfs, ignore_index=True, copy=False)
+        del chunk_dfs
+        gc.collect()
+        return chunk_combined, chunk_angle_medians, angle_steps
+    else:
+        return None, chunk_angle_medians, angle_steps
+
+
+def process_object_chunk_in_memory_regular(chunk_info):
+    object_chunk, arr_segments, tau, parameters, chunk_id = chunk_info
+
+    chunk_angle_medians = {}
+    angle_steps = None
+    chunk_dfs = []
+
+    for obj in object_chunk:
+        object_data = arr_segments[arr_segments[:, 0] == obj, :]
+        if len(object_data) > 0:
+            object_id = object_data[0, 0]
+            df_calcs, angle_steps_temp, angle_medians_dict = calculations(object_data, tau, object_id, parameters)
+
+            chunk_dfs.append(df_calcs)
+            chunk_angle_medians[object_id] = angle_medians_dict
+            if angle_steps is None:
+                angle_steps = angle_steps_temp
+
+    if chunk_dfs:
+        chunk_combined = pd.concat(chunk_dfs, ignore_index=True, copy=False)
+        del chunk_dfs
+        gc.collect()
+        return chunk_combined, chunk_angle_medians, angle_steps
+    else:
+        return None, chunk_angle_medians, angle_steps
+
+
 def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_workers=None):
     max_processes = max(1, min(61, mp.cpu_count() - 2))
     num_workers = n_workers if n_workers is not None else max_processes
-
     total_objects = len(unique_objects)
+
+    mem_est = estimate_memory_requirements(arr_segments, unique_objects, tau)
+
+    use_parquet = mem_est['use_parquet']
 
     if total_objects <= num_workers:
         chunk_size = 1
@@ -288,95 +366,304 @@ def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_worke
         chunk = unique_objects[i:i + chunk_size]
         object_chunks.append(chunk)
 
-    use_file_per_object = total_objects < OBJECT_COUNT_THRESHOLD
+    use_shared_memory = arr_segments.nbytes > 20 * 1024 * 1024
 
-    if use_file_per_object:
-        print(f"Processing {total_objects} objects in {len(object_chunks)} chunks of size ~{chunk_size}")
-        print(f"Using file-per-object mode (total objects < {OBJECT_COUNT_THRESHOLD})")
-    else:
-        print(f"Processing {total_objects} objects in {len(object_chunks)} chunks of size ~{chunk_size}")
-        print(f"Using file-per-worker mode (total objects >= {OBJECT_COUNT_THRESHOLD})")
-
-    project_dir = os.path.dirname(os.path.abspath(__file__))
-    temp_dir = os.path.join(project_dir, "temp_calculations")
-
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    os.makedirs(temp_dir)
-
-    print(f"Using temporary directory: {temp_dir}")
-
-    try:
-        use_shared_memory = arr_segments.nbytes > 20 * 1024 * 1024
+    if not use_parquet:
+        all_angle_medians = {}
+        all_angle_steps = None
+        all_calcs = []
 
         if use_shared_memory:
-            print(f"Using shared memory for large dataset ({arr_segments.nbytes / (1024*1024):.1f} MB)")
-
             shm = shared_memory.SharedMemory(create=True, size=arr_segments.nbytes)
             shared_array = np.ndarray(arr_segments.shape, dtype=arr_segments.dtype, buffer=shm.buf)
             shared_array[:] = arr_segments[:]
 
             try:
-                chunk_infos = []
-                for i, chunk in enumerate(object_chunks):
-                    chunk_info = (chunk, shm.name, arr_segments.shape, arr_segments.dtype,
-                                tau, parameters, temp_dir, i)
-                    chunk_infos.append(chunk_info)
-
-                if use_file_per_object:
-                    worker_func = process_object_chunk_per_object_file
-                else:
-                    worker_func = process_object_chunk_to_file
+                chunk_infos = [
+                    (chunk, shm.name, arr_segments.shape, arr_segments.dtype, tau, parameters, i)
+                    for i, chunk in enumerate(object_chunks)
+                ]
 
                 with mp.Pool(processes=num_workers) as pool:
-                    chunk_results = pool.map(worker_func, chunk_infos)
+                    for i, (df_chunk, angle_medians, angle_steps) in enumerate(pool.imap_unordered(process_object_chunk_in_memory, chunk_infos)):
+                        if df_chunk is not None:
+                            all_calcs.append(df_chunk)
+                        all_angle_medians.update(angle_medians)
+                        if all_angle_steps is None:
+                            all_angle_steps = angle_steps
             finally:
                 shm.close()
                 shm.unlink()
         else:
-            print(f"Using regular memory for dataset ({arr_segments.nbytes / (1024*1024):.1f} MB)")
-
-            chunk_infos = []
-            for i, chunk in enumerate(object_chunks):
-                chunk_info = (chunk, arr_segments, tau, parameters, temp_dir, i)
-                chunk_infos.append(chunk_info)
-
-            if use_file_per_object:
-                worker_func = process_object_chunk_per_object_file_regular
-            else:
-                worker_func = process_object_chunk_to_file_regular
+            chunk_infos = [
+                (chunk, arr_segments, tau, parameters, i)
+                for i, chunk in enumerate(object_chunks)
+            ]
 
             with mp.Pool(processes=num_workers) as pool:
-                chunk_results = pool.map(worker_func, chunk_infos)
+                for i, (df_chunk, angle_medians, angle_steps) in enumerate(pool.imap_unordered(process_object_chunk_in_memory_regular, chunk_infos)):
+                    if df_chunk is not None:
+                        all_calcs.append(df_chunk)
+                    all_angle_medians.update(angle_medians)
+                    if all_angle_steps is None:
+                        all_angle_steps = angle_steps
+
+        return all_calcs, all_angle_steps, all_angle_medians
+
+    else:
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        temp_dir = os.path.join(project_dir, "temp_calculations")
+
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+        os.makedirs(temp_dir)
 
         all_calcs = []
         all_angle_medians = {}
         all_angle_steps = None
 
-        print("Reading results from temporary files...")
-        for data_files, angle_file in chunk_results:
-            with open(angle_file, 'rb') as f:
-                chunk_angle_medians, angle_steps = pickle.load(f)
-            all_angle_medians.update(chunk_angle_medians)
-            if all_angle_steps is None:
-                all_angle_steps = angle_steps
+        try:
+            if use_shared_memory:
+                shm = shared_memory.SharedMemory(create=True, size=arr_segments.nbytes)
+                shared_array = np.ndarray(arr_segments.shape, dtype=arr_segments.dtype, buffer=shm.buf)
+                shared_array[:] = arr_segments[:]
 
-            if data_files is not None:
-                if isinstance(data_files, list):
-                    for data_file in data_files:
-                        df_chunk = pd.read_parquet(data_file)
-                        all_calcs.append(df_chunk)
-                else:
+                try:
+                    chunk_infos = [
+                        (chunk, shm.name, arr_segments.shape, arr_segments.dtype, tau, parameters, temp_dir, i)
+                        for i, chunk in enumerate(object_chunks)
+                    ]
+
+                    with mp.Pool(processes=num_workers) as pool:
+                        chunk_results = pool.map(process_object_chunk_per_object_file, chunk_infos)
+                finally:
+                    shm.close()
+                    shm.unlink()
+            else:
+                chunk_infos = [
+                    (chunk, arr_segments, tau, parameters, temp_dir, i)
+                    for i, chunk in enumerate(object_chunks)
+                ]
+
+                with mp.Pool(processes=num_workers) as pool:
+                    chunk_results = pool.map(process_object_chunk_per_object_file_regular, chunk_infos)
+
+            for data_files, angle_file in chunk_results:
+                with open(angle_file, 'rb') as f:
+                    chunk_angle_medians, angle_steps = pickle.load(f)
+                all_angle_medians.update(chunk_angle_medians)
+                if all_angle_steps is None:
+                    all_angle_steps = angle_steps
+
+                if data_files is not None:
                     df_chunk = pd.read_parquet(data_files)
                     all_calcs.append(df_chunk)
 
-        return all_calcs, all_angle_steps, all_angle_medians
+            return all_calcs, all_angle_steps, all_angle_medians
+
+        finally:
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as e:
+                print(f"Warning: Could not clean up temporary directory {temp_dir}: {e}")
+
+
+def estimate_memory_requirements(arr_segments, unique_objects, tau):
+    mem_info = psutil.virtual_memory()
+    available_gb = mem_info.available / (1024**3)
+    input_size_gb = arr_segments.nbytes / (1024**3)
+
+    total_rows = len(arr_segments)
+    output_columns = 9 + (2 * tau)
+
+    bytes_per_cell = 8.5
+    estimated_output_bytes = total_rows * output_columns * bytes_per_cell
+    estimated_output_gb = estimated_output_bytes / (1024**3)
+
+    peak_multiplier = 2.3 if estimated_output_gb < 0.1 else 2.1
+    estimated_peak_gb = estimated_output_gb * peak_multiplier
+
+    use_parquet = estimated_peak_gb > (available_gb * MEMORY_SAFETY_THRESHOLD)
+
+    return {
+        'input_size_gb': input_size_gb,
+        'estimated_output_size_gb': estimated_output_gb,
+        'estimated_peak_gb': estimated_peak_gb,
+        'available_gb': available_gb,
+        'total_gb': mem_info.total / (1024**3),
+        'use_parquet': use_parquet,
+        'num_objects': len(unique_objects),
+        'total_rows': total_rows
+    }
+
+
+def concatenate_dataframes_memory_safe(df_list, output_file=None, batch_size=50):
+    if not df_list:
+        return pd.DataFrame()
+
+    if len(df_list) == 1:
+        return df_list[0]
+
+    mem_info = psutil.virtual_memory()
+    available_memory_gb = mem_info.available / (1024**3)
+
+    sample_df = df_list[0]
+    avg_memory_per_row = sample_df.memory_usage(deep=True).sum() / len(sample_df)
+    total_rows = sum(len(df) for df in df_list)
+    estimated_memory_gb = (total_rows * avg_memory_per_row) / (1024**3)
+    estimated_peak_memory_gb = estimated_memory_gb * 2.5
+
+    memory_threshold = 0.5
+
+    if estimated_peak_memory_gb < available_memory_gb * memory_threshold:
+        return _concatenate_direct(df_list)
+    elif estimated_peak_memory_gb < available_memory_gb * 0.85:
+        return _concatenate_incremental_smart(df_list, available_memory_gb, avg_memory_per_row)
+    else:
+        return _concatenate_chunked_minimal_memory(df_list, available_memory_gb, avg_memory_per_row)
+
+
+def _concatenate_direct(df_list):
+    result = pd.concat(df_list, ignore_index=True, copy=False)
+    return result
+
+
+def _concatenate_incremental_smart(df_list, available_memory_gb, avg_memory_per_row):
+    target_batch_memory_gb = available_memory_gb * 0.2
+    rows_per_batch = int((target_batch_memory_gb * (1024**3)) / avg_memory_per_row)
+
+    batch_sizes = []
+    current_batch_size = 0
+    current_batch_rows = 0
+
+    for i, df in enumerate(df_list):
+        if current_batch_rows + len(df) > rows_per_batch and current_batch_size > 0:
+            batch_sizes.append(current_batch_size)
+            current_batch_size = 0
+            current_batch_rows = 0
+        current_batch_size += 1
+        current_batch_rows += len(df)
+
+    if current_batch_size > 0:
+        batch_sizes.append(current_batch_size)
+
+    if len(batch_sizes) <= 3:
+        return _concatenate_direct(df_list)
+
+    result_dfs = []
+    df_idx = 0
+
+    for batch_num, batch_size in enumerate(batch_sizes, 1):
+        batch = df_list[df_idx:df_idx + batch_size]
+        batch_df = pd.concat(batch, ignore_index=True, copy=False)
+        result_dfs.append(batch_df)
+        del batch
+        df_idx += batch_size
+        if batch_num % 3 == 0:
+            gc.collect()
+
+    final_df = pd.concat(result_dfs, ignore_index=True, copy=False)
+    del result_dfs
+    gc.collect()
+    return final_df
+
+
+def _concatenate_chunked_minimal_memory(df_list, available_memory_gb, avg_memory_per_row):
+    result = df_list[0].copy()
+    batch_size = max(5, int(len(df_list) / 20))
+
+    for i in range(1, len(df_list), batch_size):
+        batch = df_list[i:i + batch_size]
+        if len(batch) == 1:
+            batch_df = batch[0]
+        else:
+            batch_df = pd.concat(batch, ignore_index=True, copy=False)
+        result = pd.concat([result, batch_df], ignore_index=True, copy=False)
+        del batch, batch_df
+        if (i // batch_size) % 2 == 0:
+            gc.collect()
+
+    gc.collect()
+    return result
+
+
+def _concatenate_in_batches(df_list, batch_size):
+    print(f"Using legacy batch concatenation with batch_size={batch_size}")
+    result_dfs = []
+
+    for i in range(0, len(df_list), batch_size):
+        batch = df_list[i:i + batch_size]
+        print(f"Concatenating batch {i//batch_size + 1}/{(len(df_list) + batch_size - 1)//batch_size}...")
+
+        batch_df = pd.concat(batch, ignore_index=True, copy=False)
+        result_dfs.append(batch_df)
+
+        del batch
+        if (i // batch_size) % 3 == 0:
+            gc.collect()
+
+    if len(result_dfs) == 1:
+        return result_dfs[0]
+    else:
+        print("Performing final concatenation...")
+        final_df = pd.concat(result_dfs, ignore_index=True, copy=False)
+        del result_dfs
+        gc.collect()
+        return final_df
+
+
+def _concatenate_via_disk(df_list, output_file, batch_size):
+    print("WARNING: Using slow disk-based concatenation. This should only happen for extreme memory constraints.")
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    temp_concat_dir = os.path.join(project_dir, "temp_concatenation")
+
+    if os.path.exists(temp_concat_dir):
+        shutil.rmtree(temp_concat_dir)
+    os.makedirs(temp_concat_dir)
+
+    try:
+        batch_files = []
+        for i in range(0, len(df_list), batch_size):
+            batch = df_list[i:i + batch_size]
+            print(f"Writing batch {i//batch_size + 1}/{(len(df_list) + batch_size - 1)//batch_size} to disk...")
+
+            batch_df = pd.concat(batch, ignore_index=True, copy=False)
+            batch_file = os.path.join(temp_concat_dir, f"batch_{i}.parquet")
+            batch_df.to_parquet(batch_file, engine='pyarrow', compression='snappy', index=False)
+            batch_files.append(batch_file)
+
+            del batch, batch_df
+            gc.collect()
+
+        print("Reading and combining batches from disk...")
+        result_dfs = []
+
+        read_batch_size = max(3, len(batch_files) // 10)
+
+        for i in range(0, len(batch_files), read_batch_size):
+            read_batch = batch_files[i:i + read_batch_size]
+            print(f"  Reading group {i//read_batch_size + 1}/{(len(batch_files) + read_batch_size - 1)//read_batch_size}...")
+
+            dfs_to_concat = [pd.read_parquet(f) for f in read_batch]
+            combined = pd.concat(dfs_to_concat, ignore_index=True, copy=False)
+            result_dfs.append(combined)
+
+            del dfs_to_concat
+            gc.collect()
+
+        print("Final merge...")
+        result_df = pd.concat(result_dfs, ignore_index=True, copy=False)
+
+        del result_dfs
+        gc.collect()
+
+        return result_df
 
     finally:
         try:
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(temp_concat_dir)
         except Exception as e:
-            print(f"Warning: Could not clean up temporary directory {temp_dir}: {e}")
+            print(f"Warning: Could not clean up temporary directory {temp_concat_dir}: {e}")
 
 
 if __name__ == '__main__':
