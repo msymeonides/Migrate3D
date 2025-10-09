@@ -6,7 +6,6 @@ import plotly.colors
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from itertools import combinations
-import concurrent.futures
 
 colors = plotly.colors.qualitative.Plotly
 
@@ -407,8 +406,7 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
     add_category_legend(fig_category, all_categories)
 
     unique_objects = df['Object ID'].unique()
-    max_workers = max(1, min(61, mp.cpu_count() - 2))
-    batch_size = max(50, len(unique_objects) // (max_workers * 2))
+    batch_size = max(50, len(unique_objects) // (max(1, min(61, mp.cpu_count() - 2)) * 2))
 
     object_batches = []
     for i in range(0, len(unique_objects), batch_size):
@@ -419,17 +417,15 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
 
     all_track_data = []
 
+    # Use mp.Pool for better performance with large datasets
+    num_workers = max(1, min(61, mp.cpu_count() - 2, len(object_batches)))
     try:
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            batch_futures = [executor.submit(process_object_track_batch, batch) for batch in object_batches]
-
-            for future in concurrent.futures.as_completed(batch_futures):
-                try:
-                    batch_results = future.result()
-                    all_track_data.extend(batch_results)
-                except Exception:
-                    continue
+        with mp.Pool(processes=num_workers) as pool:
+            batch_results = pool.map(process_object_track_batch, object_batches)
+            for results in batch_results:
+                all_track_data.extend(results)
     except Exception:
+        # Fallback to sequential processing if multiprocessing fails
         for batch in object_batches:
             try:
                 batch_results = process_object_track_batch(batch)
@@ -657,69 +653,28 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
     x_min, x_max = df_long['log_tau'].min(), df_long['log_tau'].max()
     y_min, y_max = df_long['log_msd'].min(), df_long['log_msd'].max()
     categories = sorted([str(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
+
+    # Use multiprocessing to create category figures in parallel
     msd_figure_categories = {}
+    if len(categories) > 1:
+        num_workers = max(1, min(mp.cpu_count() - 1, len(categories)))
+        try:
+            with mp.Pool(processes=num_workers) as pool:
+                args_list = [(category, df_long, fit_stats, x_min, x_max, y_min, y_max)
+                             for category in categories]
+                results = pool.map(_create_msd_category_figure, args_list)
+                msd_figure_categories = dict(results)
+        except Exception:
+            # Fallback to sequential processing
+            for category in categories:
+                fig = _create_msd_category_figure((category, df_long, fit_stats, x_min, x_max, y_min, y_max))
+                msd_figure_categories[fig[0]] = fig[1]
+    else:
+        for category in categories:
+            fig = _create_msd_category_figure((category, df_long, fit_stats, x_min, x_max, y_min, y_max))
+            msd_figure_categories[fig[0]] = fig[1]
 
-    for category in categories:
-        cat_df = df_long[df_long['Category'] == category]
-        fig = go.Figure()
-        for obj_id, group in cat_df.groupby('Object ID'):
-            fig.add_trace(go.Scatter(
-                x=group['log_tau'],
-                y=group['log_msd'],
-                mode='lines',
-                line=dict(color='lightgrey', width=1),
-                showlegend=False
-            ))
-        mean_log = cat_df.groupby('log_tau')['log_msd'].mean().reset_index()
-        x = mean_log['log_tau'].values
-        y = mean_log['log_msd'].values
-
-        stats = fit_stats.get(category, {})
-        slope = stats.get('slope', np.nan)
-        intercept = y[0] - slope * x[0] if not np.isnan(slope) else np.nan
-        x_fit_start = x[0]
-        x_fit_end = x[-1]
-        x_fit = [x_fit_start, x_fit_end]
-        y_fit_line = [slope * xi + intercept for xi in x_fit]
-
-        annotation_text = (
-            f"Slope: {slope:.3f}<br>"
-            f"95% CI: {stats.get('ci_low', np.nan):.3f}, {stats.get('ci_high', np.nan):.3f}<br>"
-            f"R2: {stats.get('r2', np.nan):.3f}"
-        )
-
-        fig.add_trace(go.Scatter(
-            x=x, y=y,
-            mode='lines',
-            line=dict(color='black', width=3),
-            name='Mean log(MSD)'
-        ))
-        fig.add_trace(go.Scatter(
-            x=x_fit,
-            y=y_fit_line,
-            mode='lines',
-            line=dict(color='red', width=2, dash='dash'),
-            name=f'Linear fit (tau {int(round(10**x_fit_start))}–{int(round(stats.get("max_tau", x[-1])))} )',
-        ))
-        fig.add_annotation(
-            xref='paper', yref='paper',
-            x=0.05, y=0.95,
-            text=annotation_text,
-            showarrow=False,
-            align='left',
-            font=dict(size=14, color='red'),
-            bgcolor='white'
-        )
-        fig.update_layout(
-            title=f'Category {category}',
-            xaxis_title='log10(Tau)',
-            yaxis_title='log10(MSD)',
-            template='simple_white',
-            xaxis=dict(range=[x_min, x_max]),
-            yaxis=dict(range=[y_min, y_max])
-        )
-        msd_figure_categories[category] = fig
-
+    # ...existing code for msd_figure_all...
     msd_figure_all = go.Figure()
     for category in categories:
         cat_df = df_long[df_long['Category'] == category]
@@ -758,6 +713,74 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
     )
 
     return msd_figure_all, msd_figure_categories, fit_stats
+
+
+def _create_msd_category_figure(args):
+    """Helper function to create MSD figure for a single category (for multiprocessing)"""
+    category, df_long, fit_stats, x_min, x_max, y_min, y_max = args
+
+    cat_df = df_long[df_long['Category'] == category]
+    fig = go.Figure()
+
+    for obj_id, group in cat_df.groupby('Object ID'):
+        fig.add_trace(go.Scatter(
+            x=group['log_tau'],
+            y=group['log_msd'],
+            mode='lines',
+            line=dict(color='lightgrey', width=1),
+            showlegend=False
+        ))
+
+    mean_log = cat_df.groupby('log_tau')['log_msd'].mean().reset_index()
+    x = mean_log['log_tau'].values
+    y = mean_log['log_msd'].values
+
+    stats = fit_stats.get(category, {})
+    slope = stats.get('slope', np.nan)
+    intercept = y[0] - slope * x[0] if not np.isnan(slope) else np.nan
+    x_fit_start = x[0]
+    x_fit_end = x[-1]
+    x_fit = [x_fit_start, x_fit_end]
+    y_fit_line = [slope * xi + intercept for xi in x_fit]
+
+    annotation_text = (
+        f"Slope: {slope:.3f}<br>"
+        f"95% CI: {stats.get('ci_low', np.nan):.3f}, {stats.get('ci_high', np.nan):.3f}<br>"
+        f"R2: {stats.get('r2', np.nan):.3f}"
+    )
+
+    fig.add_trace(go.Scatter(
+        x=x, y=y,
+        mode='lines',
+        line=dict(color='black', width=3),
+        name='Mean log(MSD)'
+    ))
+    fig.add_trace(go.Scatter(
+        x=x_fit,
+        y=y_fit_line,
+        mode='lines',
+        line=dict(color='red', width=2, dash='dash'),
+        name=f'Linear fit (tau {int(round(10**x_fit_start))}–{int(round(stats.get("max_tau", x[-1])))} )',
+    ))
+    fig.add_annotation(
+        xref='paper', yref='paper',
+        x=0.05, y=0.95,
+        text=annotation_text,
+        showarrow=False,
+        align='left',
+        font=dict(size=14, color='red'),
+        bgcolor='white'
+    )
+    fig.update_layout(
+        title=f'Category {category}',
+        xaxis_title='log10(Tau)',
+        yaxis_title='log10(MSD)',
+        template='simple_white',
+        xaxis=dict(range=[x_min, x_max]),
+        yaxis=dict(range=[y_min, y_max])
+    )
+
+    return (category, fig)
 
 def contacts_figures(df_contacts, df_contpercat, color_map=None):
     violin_metrics = [
@@ -855,6 +878,8 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
             if 'Category' in df.columns:
                 df['Category'] = df['Category'].astype(str)
 
+    # Initialize to avoid reference before assignment
+    df_msd_loglogfits_long = None
     if df_msd_loglogfits is not None:
         if df_msd_loglogfits.index.name is None:
             df_msd_loglogfits.index.name = 'Statistic'
@@ -898,16 +923,20 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
     else:
         pass
 
-    msd_fig_all, msd_category_figs, fit_stats = msd_graphs(df_msd, df_msd_loglogfits_long, color_map)
-    if cat_provided:
-        with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
-            f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn'))
-            for cat, fig in msd_category_figs.items():
-                f.write(fig.to_html(full_html=False, include_plotlyjs=False))
+    if df_msd_loglogfits_long is not None:
+        msd_fig_all, msd_category_figs, fit_stats = msd_graphs(df_msd, df_msd_loglogfits_long, color_map)
+        if cat_provided:
+            with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
+                f.write(msd_fig_all.to_html(full_html=True, include_plotlyjs='cdn'))
+                for cat, fig in msd_category_figs.items():
+                    f.write(fig.to_html(full_html=False, include_plotlyjs=False))
+        else:
+            single_fig = next(iter(msd_category_figs.values()), msd_fig_all)
+            with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
+                f.write(single_fig.to_html(full_html=True, include_plotlyjs='cdn'))
+        fit_stats_for_summary = fit_stats
     else:
-        single_fig = next(iter(msd_category_figs.values()), msd_fig_all)
-        with open(f'{savefile}_Figures_MSD.html', 'w', encoding='utf-8') as f:
-            f.write(single_fig.to_html(full_html=True, include_plotlyjs='cdn'))
+        fit_stats_for_summary = None
 
     if df_contacts is not None and df_contpercat is not None and not df_contacts.empty and not df_contpercat.empty:
         contacts_figs = contacts_figures(df_contacts, df_contpercat, color_map=color_map)
@@ -915,7 +944,7 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
             for fig in contacts_figs:
                 f.write(fig.to_html(full_html=True, include_plotlyjs='cdn', config={'responsive': True}))
 
-    sumstat_figs = summary_figures(df_sum, fit_stats, color_map=color_map)
+    sumstat_figs = summary_figures(df_sum, fit_stats_for_summary, color_map=color_map)
     with open(f'{savefile}_Figures_Summary-Features.html', 'w', encoding='utf-8') as f:
         for fig in sumstat_figs:
             fig_html = fig.to_html(full_html=False, include_plotlyjs='cdn', config={'responsive': True})
