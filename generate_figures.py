@@ -1,5 +1,7 @@
 import math
 import multiprocessing as mp
+import gc
+import psutil
 import numpy as np
 import pandas as pd
 import plotly.colors
@@ -9,10 +11,88 @@ from itertools import combinations
 
 colors = plotly.colors.qualitative.Plotly
 
+MEMORY_SAFETY_THRESHOLD = 0.75
+
 def get_category_color_map(cats_or_objs):
     cats_or_objs = [str(cat) for cat in cats_or_objs if pd.notnull(cat)]
     cats_or_objs = sorted(set(cats_or_objs))
     return {cat: colors[i % len(colors)] for i, cat in enumerate(cats_or_objs)}
+
+def estimate_track_processing_memory(df, df_sum, num_batches):
+    """
+    Estimate memory requirements for track processing with multiprocessing.
+
+    Returns dict with memory estimates and whether to use multiprocessing.
+    """
+    mem_info = psutil.virtual_memory()
+    available_gb = mem_info.available / (1024**3)
+
+    # Estimate input data size
+    df_size_gb = df.memory_usage(deep=True).sum() / (1024**3)
+    df_sum_size_gb = df_sum.memory_usage(deep=True).sum() / (1024**3)
+    input_size_gb = df_size_gb + df_sum_size_gb
+
+    # Estimate output size: each track produces a dict with lists
+    # Rough estimate: 100-200 bytes per timepoint per object
+    total_rows = len(df)
+    num_objects = df['Object ID'].nunique()
+    avg_points_per_object = total_rows / num_objects if num_objects > 0 else 0
+
+    # Each track_data dict contains ~9 lists/values, avg 150 bytes per timepoint
+    bytes_per_track = avg_points_per_object * 150
+    estimated_output_bytes = num_objects * bytes_per_track
+    estimated_output_gb = estimated_output_bytes / (1024**3)
+
+    # Peak multiplier accounts for:
+    # - Multiple worker processes each holding batches
+    # - Temporary data structures during processing
+    # - Peak is higher for smaller datasets due to overhead
+    if estimated_output_gb < 0.1:
+        peak_multiplier = 2.5
+    elif estimated_output_gb < 1.0:
+        peak_multiplier = 2.2
+    else:
+        peak_multiplier = 2.0
+
+    estimated_peak_gb = (input_size_gb + estimated_output_gb) * peak_multiplier
+
+    # Use sequential processing if peak memory exceeds safety threshold
+    use_multiprocessing = estimated_peak_gb <= (available_gb * MEMORY_SAFETY_THRESHOLD)
+
+    return {
+        'input_size_gb': input_size_gb,
+        'estimated_output_gb': estimated_output_gb,
+        'estimated_peak_gb': estimated_peak_gb,
+        'available_gb': available_gb,
+        'total_gb': mem_info.total / (1024**3),
+        'use_multiprocessing': use_multiprocessing,
+        'num_objects': num_objects,
+        'num_batches': num_batches,
+        'total_rows': total_rows
+    }
+
+def estimate_pca_processing_memory(df_pca):
+    """
+    Estimate memory requirements for PCA figure processing.
+    """
+    mem_info = psutil.virtual_memory()
+    available_gb = mem_info.available / (1024**3)
+
+    # Estimate input data size
+    df_size_gb = df_pca.memory_usage(deep=True).sum() / (1024**3)
+
+    # PCA figures are relatively lightweight compared to tracks
+    # Estimate ~3x multiplier for temporary figure objects
+    estimated_peak_gb = df_size_gb * 3.0
+
+    use_multiprocessing = estimated_peak_gb <= (available_gb * MEMORY_SAFETY_THRESHOLD)
+
+    return {
+        'input_size_gb': df_size_gb,
+        'estimated_peak_gb': estimated_peak_gb,
+        'available_gb': available_gb,
+        'use_multiprocessing': use_multiprocessing
+    }
 
 def process_object_track_batch(batch_args):
     results = []
@@ -415,23 +495,42 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
         df_sum_batch = df_sum[df_sum['Object ID'].isin(batch_objects)]
         object_batches.append((df_batch, df_sum_batch, twodim_mode))
 
+    # Estimate memory requirements before deciding on multiprocessing
+    mem_est = estimate_track_processing_memory(df, df_sum, len(object_batches))
+    use_multiprocessing = mem_est['use_multiprocessing']
+
     all_track_data = []
 
-    # Use mp.Pool for better performance with large datasets
-    num_workers = max(1, min(61, mp.cpu_count() - 2, len(object_batches)))
-    try:
-        with mp.Pool(processes=num_workers) as pool:
-            batch_results = pool.map(process_object_track_batch, object_batches)
-            for results in batch_results:
-                all_track_data.extend(results)
-    except Exception:
-        # Fallback to sequential processing if multiprocessing fails
-        for batch in object_batches:
+    # Decide between multiprocessing and sequential processing based on memory
+    if use_multiprocessing:
+        num_workers = max(1, min(61, mp.cpu_count() - 2, len(object_batches)))
+        try:
+            with mp.Pool(processes=num_workers) as pool:
+                batch_results = pool.map(process_object_track_batch, object_batches)
+                for results in batch_results:
+                    all_track_data.extend(results)
+                gc.collect()
+        except Exception:
+            # Fallback to sequential processing if multiprocessing fails
+            for batch in object_batches:
+                try:
+                    batch_results = process_object_track_batch(batch)
+                    all_track_data.extend(batch_results)
+                except Exception:
+                    continue
+            gc.collect()
+    else:
+        # Sequential processing to avoid memory issues
+        for i, batch in enumerate(object_batches):
             try:
                 batch_results = process_object_track_batch(batch)
                 all_track_data.extend(batch_results)
+                # Periodic garbage collection during sequential processing
+                if (i + 1) % 10 == 0:
+                    gc.collect()
             except Exception:
                 continue
+        gc.collect()
 
     if twodim_mode:
         for track in all_track_data:
@@ -537,6 +636,34 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
     )
 
     return fig_category, html_category, html_objects
+
+def _create_pca_3d_subplot(args):
+    """Helper function to create a single 3D PCA subplot (for multiprocessing)"""
+    i, pc_triple, df_pca, color_map = args
+    x, y, z = pc_triple
+    categories = sorted(df_pca['Category'].dropna().unique(), key=lambda x: str(x))
+
+    traces = []
+    for cat in categories:
+        df_cat = df_pca[df_pca['Category'] == cat]
+        trace = go.Scatter3d(
+            x=df_cat[x], y=df_cat[y], z=df_cat[z],
+            mode='markers',
+            marker=dict(color=color_map[cat], size=6),
+            name=f'Cat {cat}',
+            legendgroup=f'cat{cat}',
+            showlegend=(i == 0)
+        )
+        traces.append(trace)
+
+    scene_config = dict(
+        xaxis_title=x,
+        yaxis_title=y,
+        zaxis_title=z,
+        aspectmode='cube'
+    )
+
+    return (i, traces, scene_config, f'{x}, {y}, {z}')
 
 def pca_figures(df_pca, color_map=None):
     pcs = ['PC1', 'PC2', 'PC3', 'PC4']
@@ -654,9 +781,13 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
     y_min, y_max = df_long['log_msd'].min(), df_long['log_msd'].max()
     categories = sorted([str(cat) for cat in df_long['Category'].unique() if pd.notnull(cat)])
 
-    # Use multiprocessing to create category figures in parallel
+    # Estimate memory requirements before deciding on multiprocessing
+    mem_est = estimate_msd_processing_memory(df_long, len(categories))
+    use_multiprocessing = mem_est['use_multiprocessing']
+
+    # Use multiprocessing to create category figures in parallel (with memory safety)
     msd_figure_categories = {}
-    if len(categories) > 1:
+    if len(categories) > 1 and use_multiprocessing:
         num_workers = max(1, min(mp.cpu_count() - 1, len(categories)))
         try:
             with mp.Pool(processes=num_workers) as pool:
@@ -664,17 +795,24 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
                              for category in categories]
                 results = pool.map(_create_msd_category_figure, args_list)
                 msd_figure_categories = dict(results)
+                gc.collect()
         except Exception:
             # Fallback to sequential processing
             for category in categories:
                 fig = _create_msd_category_figure((category, df_long, fit_stats, x_min, x_max, y_min, y_max))
                 msd_figure_categories[fig[0]] = fig[1]
+            gc.collect()
     else:
-        for category in categories:
+        # Sequential processing for single category or memory-constrained scenarios
+        for i, category in enumerate(categories):
             fig = _create_msd_category_figure((category, df_long, fit_stats, x_min, x_max, y_min, y_max))
             msd_figure_categories[fig[0]] = fig[1]
+            # Periodic garbage collection
+            if (i + 1) % 3 == 0:
+                gc.collect()
+        gc.collect()
 
-    # ...existing code for msd_figure_all...
+    # Create combined figure for all categories
     msd_figure_all = go.Figure()
     for category in categories:
         cat_df = df_long[df_long['Category'] == category]
@@ -722,6 +860,7 @@ def _create_msd_category_figure(args):
     cat_df = df_long[df_long['Category'] == category]
     fig = go.Figure()
 
+    # Add all individual object traces
     for obj_id, group in cat_df.groupby('Object ID'):
         fig.add_trace(go.Scatter(
             x=group['log_tau'],
@@ -781,6 +920,46 @@ def _create_msd_category_figure(args):
     )
 
     return (category, fig)
+
+def estimate_msd_processing_memory(df_long, num_categories):
+    """
+    Estimate memory requirements for MSD figure processing.
+    """
+    mem_info = psutil.virtual_memory()
+    available_gb = mem_info.available / (1024**3)
+
+    # Estimate input data size
+    df_size_gb = df_long.memory_usage(deep=True).sum() / (1024**3)
+
+    # MSD figures can be memory-intensive with many objects
+    # Each category figure includes all individual object traces
+    num_objects = df_long['Object ID'].nunique()
+
+    # Estimate ~500 bytes per object per category for figure traces
+    estimated_output_bytes = num_objects * num_categories * 500
+    estimated_output_gb = estimated_output_bytes / (1024**3)
+
+    # Peak multiplier: accounts for multiple worker processes
+    if num_objects > 1000:
+        peak_multiplier = 2.5
+    elif num_objects > 500:
+        peak_multiplier = 2.2
+    else:
+        peak_multiplier = 2.0
+
+    estimated_peak_gb = (df_size_gb + estimated_output_gb) * peak_multiplier
+
+    use_multiprocessing = estimated_peak_gb <= (available_gb * MEMORY_SAFETY_THRESHOLD)
+
+    return {
+        'input_size_gb': df_size_gb,
+        'estimated_output_gb': estimated_output_gb,
+        'estimated_peak_gb': estimated_peak_gb,
+        'available_gb': available_gb,
+        'use_multiprocessing': use_multiprocessing,
+        'num_objects': num_objects,
+        'num_categories': num_categories
+    }
 
 def contacts_figures(df_contacts, df_contpercat, color_map=None):
     violin_metrics = [
@@ -951,3 +1130,6 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
             f.write(f"<div style='width:95vw;'>{fig_html}</div>")
 
     return
+
+if __name__ == '__main__':
+    mp.set_start_method("spawn")
