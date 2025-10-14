@@ -143,14 +143,20 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             arr_segments, unique_objects, tau, parameters
         )
 
-        df_all_calcs = concatenate_dataframes_memory_safe(all_calcs)
+        parquet_manifest = parameters.get('calcs_manifest', [])
+        if parquet_manifest:
+            df_all_calcs = pd.DataFrame()
+        else:
+            df_all_calcs = concatenate_dataframes_memory_safe(all_calcs)
 
-        cols_to_check = [col for col in df_all_calcs.columns
-                             if re.match(r'(Euclid|Turning Angle) \d+', str(col))]
+        if not df_all_calcs.empty:
+            cols_to_check = [col for col in df_all_calcs.columns
+                                 if re.match(r'(Euclid|Turning Angle) \d+', str(col))]
 
-        for col in cols_to_check:
-            if df_all_calcs[col].isna().all() or (df_all_calcs[col].fillna(0) == 0).all():
-                df_all_calcs = df_all_calcs.drop(columns=col)
+            for col in cols_to_check:
+                col_series = df_all_calcs[col]
+                if col_series.isna().all() or (col_series.fillna(0) == 0).all():
+                    df_all_calcs = df_all_calcs.drop(columns=col)
 
         mapping = {0: None}
         toc = tempo.time()
@@ -346,7 +352,11 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             with thread_lock:
                 messages.append('Detecting attractors...')
             cell_types = dict(zip(cat_df['Object ID'], cat_df['Category']))
-            attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, parameters['attract_params'])
+
+            attract_params_with_time = dict(parameters['attract_params']) if parameters.get('attract_params') else {}
+            attract_params_with_time['timelapse'] = parameters.get('timelapse')
+            attract_params_with_time['calcs_manifest'] = parameters.get('calcs_manifest')
+            attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, attract_params_with_time)
             toc = tempo.time()
             with thread_lock:
                 msg = ' Attractors done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
@@ -398,7 +408,7 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 messages.append('Saving main output to ' + savepath + '...')
                 messages.append('')
 
-        df_all_calcs = df_all_calcs.replace(mapping)
+        df_all_calcs = df_all_calcs.replace(mapping) if not df_all_calcs.empty else df_all_calcs
         cols_to_replace = [col for col in df_sum.columns if col != 'Category']
         df_sum[cols_to_replace] = df_sum[cols_to_replace].replace(mapping)
         if parameters['arrest_limit'] != 0:
@@ -424,9 +434,21 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
         if parameters['verbose']:
             calc_savepath = savefile + '_Calculations.xlsx'
-            with pd.ExcelWriter(calc_savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as calc_workbook:
-                df_segments.to_excel(calc_workbook, sheet_name='Object Data', index=False)
-                df_all_calcs.to_excel(calc_workbook, sheet_name='Calculations', index=False)
+            manifest = parameters.get('calcs_manifest', [])
+            if manifest:
+                with pd.ExcelWriter(calc_savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as calc_workbook:
+                    df_segments.to_excel(calc_workbook, sheet_name='Object Data', index=False)
+                    df_manifest = pd.DataFrame({'Parquet Files': manifest})
+                    df_manifest.to_excel(calc_workbook, sheet_name='Manifest', index=False)
+                    try:
+                        first_cols = pd.read_parquet(manifest[0]).head(0)
+                        pd.DataFrame({'Columns': list(first_cols.columns)}).to_excel(calc_workbook, sheet_name='Columns', index=False)
+                    except Exception:
+                        pass
+            else:
+                with pd.ExcelWriter(calc_savepath, engine='xlsxwriter', engine_kwargs={'options': {'zip64': True}}) as calc_workbook:
+                    df_segments.to_excel(calc_workbook, sheet_name='Object Data', index=False)
+                    df_all_calcs.to_excel(calc_workbook, sheet_name='Calculations', index=False)
 
         complete_progress_step("Final results save")
         bigtoc = tempo.time()
@@ -461,5 +483,15 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
 
         workbook.save(savepath)
         workbook.close()
+
+        calcs_dir = parameters.get('calcs_dir')
+        if calcs_dir:
+            import shutil
+            try:
+                shutil.rmtree(calcs_dir)
+            except Exception:
+                pass
+            parameters.pop('calcs_dir', None)
+            parameters.pop('calcs_manifest', None)
 
         return df_segments, df_sum, df_pca
