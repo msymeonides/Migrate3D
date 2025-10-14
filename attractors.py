@@ -1,6 +1,62 @@
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
+from typing import Optional, List
+
+class CalculationReader:
+    def __init__(self, df_all_calcs: Optional[pd.DataFrame], manifest: Optional[List[str]]):
+        self.df = df_all_calcs if (df_all_calcs is not None and not df_all_calcs.empty) else None
+        self.manifest = manifest or []
+        self.object_to_file = None
+        self.current_file_path = None
+        self.current_file_df = None
+        self.obj_cache = {}
+
+    def _build_index(self):
+        mapping = {}
+        for fp in self.manifest:
+            try:
+                obj_ids = pd.read_parquet(fp, columns=['Object ID'])['Object ID'].unique()
+            except Exception:
+                continue
+            for oid in obj_ids:
+                try:
+                    mapping[int(oid)] = fp
+                except Exception:
+                    continue
+        self.object_to_file = mapping
+
+    def get_velocity(self, object_id: int, time):
+        if self.df is not None:
+            cache = self.obj_cache.get(object_id)
+            if cache is None:
+                sub = self.df[self.df['Object ID'] == object_id][['Time', 'Instantaneous Velocity']]
+                cache = dict(zip(sub['Time'].values, sub['Instantaneous Velocity'].values))
+                self.obj_cache[object_id] = cache
+            return cache.get(time)
+
+        if not self.manifest:
+            return None
+        if self.object_to_file is None:
+            self._build_index()
+        fp = self.object_to_file.get(int(object_id))
+        if fp is None:
+            return None
+        if self.current_file_path != fp or self.current_file_df is None:
+            try:
+                self.current_file_df = pd.read_parquet(fp, columns=['Object ID', 'Time', 'Instantaneous Velocity'])
+                self.current_file_path = fp
+            except Exception:
+                self.current_file_df = None
+                self.current_file_path = None
+                return None
+        cache = self.obj_cache.get(object_id)
+        if cache is None:
+            sub = self.current_file_df[self.current_file_df['Object ID'] == object_id][['Time', 'Instantaneous Velocity']]
+            cache = dict(zip(sub['Time'].values, sub['Instantaneous Velocity'].values))
+            self.obj_cache[object_id] = cache
+        return cache.get(time)
+
 
 def detect_attractors(arr_segments, unique_objects, cell_types, params):
     distance_threshold = params['distance_threshold']
@@ -93,6 +149,7 @@ def detect_attractors(arr_segments, unique_objects, cell_types, params):
 
     return attractor_events
 
+
 def evaluate_and_clear(chain, attractor_events, attractor_id, other_id, params):
     approach_ratio = params['approach_ratio']
     min_proximity = params['min_proximity']
@@ -108,7 +165,9 @@ def evaluate_and_clear(chain, attractor_events, attractor_id, other_id, params):
                 attractor_events.append((attractor_id, other_id, chain.copy()))
     chain.clear()
 
-def save_results(attractor_events, output_file, cell_types, df_all_calcs):
+
+def save_results(attractor_events, output_file, cell_types, df_all_calcs, manifest=None):
+    reader = CalculationReader(df_all_calcs, manifest)
     rows = []
     for attractor_id, attracted_id, events in attractor_events:
         attractor_type = cell_types.get(attractor_id)
@@ -116,14 +175,8 @@ def save_results(attractor_events, output_file, cell_types, df_all_calcs):
 
         for event in events:
             time, _, _, _, distance, t_idx = event[:6]
-            attractor_velocity = df_all_calcs.loc[
-                (df_all_calcs['Object ID'] == attractor_id) & (df_all_calcs['Time'] == time),
-                'Instantaneous Velocity'
-            ].values[0]
-            attracted_velocity = df_all_calcs.loc[
-                (df_all_calcs['Object ID'] == attracted_id) & (df_all_calcs['Time'] == time),
-                'Instantaneous Velocity'
-            ].values[0]
+            attractor_velocity = reader.get_velocity(int(attractor_id), time)
+            attracted_velocity = reader.get_velocity(int(attracted_id), time)
             diff_velocity = None
             if attracted_velocity is not None and attractor_velocity is not None:
                 diff_velocity = attracted_velocity - attractor_velocity
@@ -154,6 +207,8 @@ def save_results(attractor_events, output_file, cell_types, df_all_calcs):
         for col_num, value in enumerate(df.columns.values):
             worksheet.write(0, col_num, value, wrap_format)
 
+
 def attract(unique_objects, arr_segments, cell_types, df_all_calcs, savefile, params):
     events = detect_attractors(arr_segments, unique_objects, cell_types, params)
-    save_results(events, savefile + '_Attractors.xlsx', cell_types, df_all_calcs)
+    manifest = params.get('calcs_manifest')
+    save_results(events, savefile + '_Attractors.xlsx', cell_types, df_all_calcs, manifest)

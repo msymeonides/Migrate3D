@@ -263,86 +263,121 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     split_indices = np.where(np.diff(object_ids))[0] + 1
     split_indices = np.concatenate(([0], split_indices, [len(object_ids)]))
 
-    df_all_calcs_by_obj = dict(tuple(df_all_calcs.groupby("Object ID")))
+    object_slice_map = {}
+    for i in range(len(split_indices) - 1):
+        start_idx = split_indices[i]
+        end_idx = split_indices[i + 1]
+        obj_id = int(object_ids[start_idx])
+        object_slice_map[obj_id] = (start_idx, end_idx)
+
+    use_manifest_stream = False
+    parquet_manifest = parameters.get('calcs_manifest', [])
+    if (df_all_calcs is None) or (isinstance(df_all_calcs, pd.DataFrame) and df_all_calcs.empty):
+        if parquet_manifest:
+            use_manifest_stream = True
 
     category_dict = {}
     if arr_cats.shape[0] > 0:
         for i in range(len(arr_cats)):
             category_dict[int(arr_cats[i, 0])] = str(arr_cats[i, 1])
 
-    worker_data = []
-    for i in range(len(split_indices) - 1):
-        start_idx = split_indices[i]
-        end_idx = split_indices[i + 1]
-        obj_id = object_ids[start_idx]
-        object_data = sorted_segments[start_idx:end_idx]
-        df_obj_calcs = df_all_calcs_by_obj.get(obj_id, pd.DataFrame())
-        category = category_dict.get(obj_id, 'Unknown')
-        worker_data.append((obj_id, object_data, df_obj_calcs, category, parameters, summary_columns))
-
-    max_workers = max(1, min(61, mp.cpu_count() - 2))
-    batch_size = max(10, len(worker_data) // (max_workers * 2))
-
-    batches = []
-    for i in range(0, len(worker_data), batch_size):
-        batch = worker_data[i:i + batch_size]
-        batches.append(batch)
-
     sum_ = {}
     single_euclid_dict = {}
 
-    try:
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            batch_futures = {executor.submit(compute_object_summary_batch, batch): batch for batch in batches}
+    if not use_manifest_stream:
+        df_all_calcs_by_obj = {int(k): v for k, v in df_all_calcs.groupby("Object ID")}
 
-            for future in concurrent.futures.as_completed(batch_futures):
-                try:
-                    batch_results = future.result()
-                    for obj, summary_tuple, single_euclid in batch_results:
-                        sum_[obj] = summary_tuple
-                        single_euclid_dict[obj] = single_euclid
-                except Exception:
-                    batch = batch_futures[future]
-                    for obj_data in batch:
-                        obj = obj_data[0]
-                        category = obj_data[3]
-                        nan_values = []
-                        for col in summary_columns:
-                            if col == 'Object ID':
-                                nan_values.append(obj)
-                            elif col == 'Category':
-                                nan_values.append(category)
-                            else:
-                                nan_values.append(np.nan)
-                        sum_[obj] = tuple(nan_values)
-                        single_euclid_dict[obj] = {}
-    except Exception:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            batch_futures = {executor.submit(compute_object_summary_batch, batch): batch for batch in batches}
+        worker_data = []
+        for obj_id, (start_idx, end_idx) in object_slice_map.items():
+            object_data = sorted_segments[start_idx:end_idx]
+            df_obj_calcs = df_all_calcs_by_obj.get(obj_id, pd.DataFrame())
+            category = category_dict.get(obj_id, 'Unknown')
+            worker_data.append((obj_id, object_data, df_obj_calcs, category, parameters, summary_columns))
 
-            for future in concurrent.futures.as_completed(batch_futures):
-                try:
-                    batch_results = future.result()
-                    for obj, summary_tuple, single_euclid in batch_results:
-                        sum_[obj] = summary_tuple
-                        single_euclid_dict[obj] = single_euclid
-                except Exception:
-                    batch = batch_futures[future]
-                    for obj_data in batch:
-                        obj = obj_data[0]
-                        category = obj_data[3]
-                        nan_values = []
-                        for col in summary_columns:
-                            if col == 'Object ID':
-                                nan_values.append(obj)
-                            elif col == 'Category':
-                                nan_values.append(category)
-                            else:
-                                nan_values.append(np.nan)
-                        sum_[obj] = tuple(nan_values)
-                        single_euclid_dict[obj] = {}
+        max_workers = max(1, min(61, mp.cpu_count() - 2))
+        batch_size = max(10, len(worker_data) // (max_workers * 2))
+
+        batches = []
+        for i in range(0, len(worker_data), batch_size):
+            batch = worker_data[i:i + batch_size]
+            batches.append(batch)
+
+        try:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+                batch_futures = {executor.submit(compute_object_summary_batch, batch): batch for batch in batches}
+
+                for future in concurrent.futures.as_completed(batch_futures):
+                    try:
+                        batch_results = future.result()
+                        for obj, summary_tuple, single_euclid in batch_results:
+                            sum_[obj] = summary_tuple
+                            single_euclid_dict[obj] = single_euclid
+                    except Exception:
+                        batch = batch_futures[future]
+                        for obj_data in batch:
+                            obj = obj_data[0]
+                            category = obj_data[3]
+                            nan_values = []
+                            for col in summary_columns:
+                                if col == 'Object ID':
+                                    nan_values.append(obj)
+                                elif col == 'Category':
+                                    nan_values.append(category)
+                                else:
+                                    nan_values.append(np.nan)
+                            sum_[obj] = tuple(nan_values)
+                            single_euclid_dict[obj] = {}
+        except Exception:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                batch_futures = {executor.submit(compute_object_summary_batch, batch): batch for batch in batches}
+
+                for future in concurrent.futures.as_completed(batch_futures):
+                    try:
+                        batch_results = future.result()
+                        for obj, summary_tuple, single_euclid in batch_results:
+                            sum_[obj] = summary_tuple
+                            single_euclid_dict[obj] = single_euclid
+                    except Exception:
+                        batch = batch_futures[future]
+                        for obj_data in batch:
+                            obj = obj_data[0]
+                            category = obj_data[3]
+                            nan_values = []
+                            for col in summary_columns:
+                                if col == 'Object ID':
+                                    nan_values.append(obj)
+                                elif col == 'Category':
+                                    nan_values.append(category)
+                                else:
+                                    nan_values.append(np.nan)
+                            sum_[obj] = tuple(nan_values)
+                            single_euclid_dict[obj] = {}
+    else:
+        for file_path in parquet_manifest:
+            try:
+                df_file = pd.read_parquet(file_path)
+            except Exception:
+                continue
+
+            for obj_id, df_obj_calcs in df_file.groupby('Object ID'):
+                obj_id = int(obj_id)
+                slice_tuple = object_slice_map.get(obj_id)
+                if slice_tuple is None:
+                    object_data = np.empty((0, sorted_segments.shape[1]))
+                else:
+                    start_idx, end_idx = slice_tuple
+                    object_data = sorted_segments[start_idx:end_idx]
+                category = category_dict.get(obj_id, 'Unknown')
+                _, summary_tuple, single_euclid = compute_object_summary(
+                    (obj_id, object_data, df_obj_calcs, category, parameters, summary_columns)
+                )
+                sum_[obj_id] = summary_tuple
+                single_euclid_dict[obj_id] = single_euclid
+
+            del df_file
 
     for obj in unique_objects:
+        obj = int(obj)
         if obj not in sum_:
             category = category_dict.get(obj, 'Unknown')
             nan_values = []
@@ -356,7 +391,7 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
             sum_[obj] = tuple(nan_values)
             single_euclid_dict[obj] = {}
 
-    summary_rows = [sum_[obj] for obj in unique_objects]
+    summary_rows = [sum_[int(obj)] for obj in unique_objects]
     df_sum = pd.DataFrame(summary_rows, columns=summary_columns)
     df_sum["Object ID"] = df_sum["Object ID"].astype(int)
 

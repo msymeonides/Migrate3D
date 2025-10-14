@@ -357,7 +357,7 @@ def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_worke
     if total_objects <= num_workers:
         chunk_size = 1
     else:
-        chunk_size = max(50, total_objects // num_workers)
+        chunk_size = 50
 
     gc.collect()
 
@@ -411,16 +411,24 @@ def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_worke
         return all_calcs, all_angle_steps, all_angle_medians
 
     else:
-        project_dir = os.path.dirname(os.path.abspath(__file__))
-        temp_dir = os.path.join(project_dir, "temp_calculations")
+        base_savefile = parameters.get('savefile', None)
+        if base_savefile:
+            calcs_dir = base_savefile + "_calcs"
+        else:
+            project_dir = os.path.dirname(os.path.abspath(__file__))
+            calcs_dir = os.path.join(project_dir, "temp_calculations")
 
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
-        os.makedirs(temp_dir)
+        if os.path.exists(calcs_dir):
+            try:
+                shutil.rmtree(calcs_dir)
+            except Exception:
+                pass
+        os.makedirs(calcs_dir, exist_ok=True)
 
         all_calcs = []
         all_angle_medians = {}
         all_angle_steps = None
+        parquet_manifest = []
 
         try:
             if use_shared_memory:
@@ -430,7 +438,7 @@ def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_worke
 
                 try:
                     chunk_infos = [
-                        (chunk, shm.name, arr_segments.shape, arr_segments.dtype, tau, parameters, temp_dir, i)
+                        (chunk, shm.name, arr_segments.shape, arr_segments.dtype, tau, parameters, calcs_dir, i)
                         for i, chunk in enumerate(object_chunks)
                     ]
 
@@ -441,7 +449,7 @@ def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_worke
                     shm.unlink()
             else:
                 chunk_infos = [
-                    (chunk, arr_segments, tau, parameters, temp_dir, i)
+                    (chunk, arr_segments, tau, parameters, calcs_dir, i)
                     for i, chunk in enumerate(object_chunks)
                 ]
 
@@ -456,16 +464,19 @@ def calculations_parallel(arr_segments, unique_objects, tau, parameters, n_worke
                     all_angle_steps = angle_steps
 
                 if data_files is not None:
-                    df_chunk = pd.read_parquet(data_files)
-                    all_calcs.append(df_chunk)
+                    parquet_manifest.append(data_files)
+
+            parameters['calcs_manifest'] = parquet_manifest
+            parameters['calcs_dir'] = calcs_dir
 
             return all_calcs, all_angle_steps, all_angle_medians
 
-        finally:
+        except Exception:
             try:
-                shutil.rmtree(temp_dir)
-            except Exception as e:
-                print(f"Warning: Could not clean up temporary directory {temp_dir}: {e}")
+                shutil.rmtree(calcs_dir)
+            except Exception:
+                pass
+            raise
 
 
 def estimate_memory_requirements(arr_segments, unique_objects, tau):
