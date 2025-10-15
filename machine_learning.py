@@ -477,6 +477,26 @@ def xgb_output(writer, results_data):
                                                        {'type': 'no_errors', 'format': border_format})
                 current_comparison = comparison_key
 
+    try:
+        all_keys = set()
+        for run_name, data in results_data.items():
+            hp = data.get('hyperparams', {})
+            if isinstance(hp, dict):
+                all_keys.update(hp.keys())
+        if all_keys:
+            columns = ['Run', 'Method'] + sorted(all_keys)
+            rows = []
+            for run_name, data in results_data.items():
+                hp = data.get('hyperparams', {})
+                row = {'Run': run_name, 'Method': data.get('method', '')}
+                for k in all_keys:
+                    row[k] = hp.get(k, '')
+                rows.append(row)
+            df_hparams = pd.DataFrame(rows, columns=columns)
+            df_hparams.to_excel(writer, sheet_name='Optimized Hyperparams', index=False)
+    except Exception:
+        pass
+
 def xgboost(df_selected, output_file, features, categories, suffix=""):
     save_xgb = output_file + f'_XGB{suffix}.xlsx'
     results_data = {}
@@ -549,7 +569,8 @@ def xgboost(df_selected, output_file, features, categories, suffix=""):
         'features': feature_importance_with_info,
         'report': report_with_info,
         'accuracy': accuracy_value,
-        'method': 'K-fold CV' if is_kfold else 'Train-Test Split'
+        'method': 'K-fold CV' if is_kfold else 'Train-Test Split',
+        'hyperparams': best_params,
     }
 
     aligned_df_selected = df_selected.loc[features.index]
@@ -685,7 +706,8 @@ def xgboost(df_selected, output_file, features, categories, suffix=""):
                     'features': feature_importance_with_info_pair,
                     'report': report_with_info_pair,
                     'accuracy': accuracy_value_pair,
-                    'method': 'K-fold CV' if pair_use_kfold else 'Train-Test Split'
+                    'method': 'K-fold CV' if pair_use_kfold else 'Train-Test Split',
+                    'hyperparams': best_params_pair,
                 }
 
             except Exception:
