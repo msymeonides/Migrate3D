@@ -56,7 +56,7 @@ def drop_symmetric_duplicates(df):
     return df_copy.drop_duplicates(subset=["Object ID", "Object Compare", "Time of Contact"])
 
 def main(timepoints, arr_segments, contact_length, df_sum, arrested, divfilter):
-    max_processes = max(1, min(61, mp.cpu_count() - 1))
+    max_processes = max(1, min(61, mp.cpu_count() - 2))
     num_workers = max_processes
 
     unique_timepoints = np.unique(timepoints)

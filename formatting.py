@@ -1,75 +1,126 @@
 import numpy as np
 
+
 def multi_tracking(arr_segments):
-    instances = {}
-    for row in arr_segments:
-        object_id, timepoint, x, y, z = row
-        key = (object_id, timepoint)
-        if key not in instances:
-            instances[key] = [x, y, z, 1]
-        else:
-            instances[key][0] += x
-            instances[key][1] += y
-            instances[key][2] += z
-            instances[key][3] += 1
+    """
+    Combine multiple detections at the same (object_id, timepoint) by averaging X,Y,Z.
+    Vectorized implementation for large arrays.
+    Input: arr_segments shape (N,5) with columns [object_id, time, x, y, z]
+    Output: array (M,5) aggregated by (object_id,time)
+    """
+    if arr_segments.size == 0:
+        return arr_segments
 
-    result_data = []
-    for key, value in instances.items():
-        object_id, timepoint = key
-        x_avg = value[0] / value[3]
-        y_avg = value[1] / value[3]
-        z_avg = value[2] / value[3]
-        result_data.append([object_id, timepoint, x_avg, y_avg, z_avg])
+    obj = arr_segments[:, 0].astype(int)
+    t = arr_segments[:, 1].astype(float)
+    coords = arr_segments[:, 2:5].astype(float)
+    keys = np.stack((obj, t), axis=1)
+    uniq_keys, inv, counts = np.unique(keys, axis=0, return_inverse=True, return_counts=True)
+    sums = np.zeros((uniq_keys.shape[0], 3), dtype=float)
+    np.add.at(sums, inv, coords)
+    avgs = sums / counts[:, None]
 
-    arr_segments_multi = np.array(result_data)
-    return arr_segments_multi
+    out = np.concatenate((uniq_keys.astype(object), avgs.astype(float)), axis=1)
+    return out
+
+
+def _interpolate_single_track(times, coords, dt):
+    """Helper: given 1D times (sorted) and coords Nx3, build uniform grid and interpolate.
+    - Duplicates in times are resolved by taking the last occurrence (to mirror original behavior).
+    Returns array of shape (K, 5): [object_id placeholder to be filled outside, time, x, y, z].
+    """
+    order = np.argsort(times, kind='mergesort')
+    ts = times[order]
+    xyz = coords[order]
+
+    uniq, idx_first, counts = np.unique(ts, return_index=True, return_counts=True)
+    idx_last = idx_first + counts - 1
+    ts_u = ts[idx_last]
+    xyz_u = xyz[idx_last]
+
+    if ts_u.size == 0:
+        return np.empty((0, 4), dtype=float)
+
+    t_min = float(ts_u[0])
+    t_max = float(ts_u[-1])
+
+    grid = np.arange(t_min, t_max + dt * 0.5, dt)
+    if grid.size == 0:
+        return np.empty((0, 4), dtype=float)
+
+    xg = np.interp(grid, ts_u, xyz_u[:, 0])
+    yg = np.interp(grid, ts_u, xyz_u[:, 1])
+    zg = np.interp(grid, ts_u, xyz_u[:, 2])
+
+    return np.column_stack((grid, xg, yg, zg))
+
 
 def interpolate_lazy(arr_segments, timelapse_interval):
-    object_data_dict = {}
-    for row in arr_segments:
-        object_id, timepoint, x, y, z = row
-        if object_id not in object_data_dict:
-            object_data_dict[object_id] = []
-        object_data_dict[object_id].append([float(timepoint), float(x), float(y), float(z)])
+    """
+    Linearly interpolate per object onto a uniform grid [min_t, max_t] with step timelapse_interval.
+    Keeps original semantics at exact observation times (np.interp handles exact matches).
+    More efficient grouping and vectorization reduce Python overhead.
+    """
+    if arr_segments.size == 0:
+        return arr_segments
 
-    interpolated_data = []
-    for object_id in object_data_dict:
-        timepoint_data = sorted(object_data_dict[object_id], key=lambda r: r[0])
-        times = [tp[0] for tp in timepoint_data]
-        min_time, max_time = min(times), max(times)
-        expected_times = np.arange(min_time, max_time + timelapse_interval/2, timelapse_interval)
-        time_to_row = {tp[0]: tp for tp in timepoint_data}
-        for t in expected_times:
-            if any(abs(t - existing_t) < 1e-9 for existing_t in times):
-                closest_t = min(times, key=lambda x: abs(x - t))
-                interpolated_data.append([object_id, t, *time_to_row[closest_t][1:]])
-            else:
-                prev_times = [tp for tp in times if tp < t]
-                next_times = [tp for tp in times if tp > t]
-                if not prev_times or not next_times:
-                    continue
-                t0 = max(prev_times)
-                t1 = min(next_times)
-                x0, y0, z0 = time_to_row[t0][1:]
-                x1, y1, z1 = time_to_row[t1][1:]
-                alpha = (t - t0) / (t1 - t0)
-                x = x0 + alpha * (x1 - x0)
-                y = y0 + alpha * (y1 - y0)
-                z = z0 + alpha * (z1 - z0)
-                interpolated_data.append([object_id, t, x, y, z])
-    arr_segments_interpolated = np.array(interpolated_data)
-    return arr_segments_interpolated
+    obj = arr_segments[:, 0].astype(int)
+    t = arr_segments[:, 1].astype(float)
+    coords = arr_segments[:, 2:5].astype(float)
+    order = np.lexsort((t, obj))
+    obj_s = obj[order]
+    t_s = t[order]
+    xyz_s = coords[order]
+    uniq_obj, idx_start, counts = np.unique(obj_s, return_index=True, return_counts=True)
+
+    pieces = []
+    for i, start in enumerate(idx_start):
+        cnt = counts[i]
+        o = uniq_obj[i]
+        times_i = t_s[start:start + cnt]
+        xyz_i = xyz_s[start:start + cnt]
+
+        interp_track = _interpolate_single_track(times_i, xyz_i, float(timelapse_interval))
+        if interp_track.size == 0:
+            continue
+        obj_col = np.full((interp_track.shape[0], 1), o, dtype=object)
+        pieces.append(np.concatenate((obj_col, interp_track.astype(float)), axis=1))
+
+    if not pieces:
+        return np.empty((0, arr_segments.shape[1]))
+
+    out = np.vstack(pieces)
+    return out
+
 
 def remove_tracks_with_gaps(arr_segments, unique_objects, timelapse_interval):
-    filtered_segments = []
-    for obj in unique_objects:
-        obj_rows = arr_segments[arr_segments[:, 0] == obj]
-        times = np.array(obj_rows[:, 1], dtype=float)
-        times_sorted = np.sort(times)
-        diffs = np.diff(times_sorted)
-        if np.allclose(diffs, timelapse_interval):
-            filtered_segments.append(obj_rows)
-    if filtered_segments:
-        return np.vstack(filtered_segments)
+    """
+    Keep only tracks whose timepoints are contiguous with fixed interval (within np.allclose tolerance).
+    Optimized to avoid repeated boolean scans by grouping contiguous slices per object.
+    """
+    if arr_segments.size == 0:
+        return np.empty((0, arr_segments.shape[1]))
+
+    obj = arr_segments[:, 0].astype(int)
+    t = arr_segments[:, 1].astype(float)
+
+    order = np.lexsort((t, obj))
+    arr_sorted = arr_segments[order]
+    obj_s = obj[order]
+
+    uniq_obj, idx_start, counts = np.unique(obj_s, return_index=True, return_counts=True)
+
+    keep_slices = []
+    dt = float(timelapse_interval)
+    for i, start in enumerate(idx_start):
+        cnt = counts[i]
+        seg = arr_sorted[start:start + cnt]
+        times = np.array(seg[:, 1], dtype=float)
+        diffs = np.diff(times)
+        if diffs.size == 0 or np.allclose(diffs, dt):
+            keep_slices.append(seg)
+
+    if keep_slices:
+        return np.vstack(keep_slices)
     else:
         return np.empty((0, arr_segments.shape[1]))

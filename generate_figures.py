@@ -122,6 +122,237 @@ def process_object_track_batch(batch_args):
 
     return results
 
+def tracks_webgl_3d_html(df_segments, df_sum, save_file, twodim_mode, color_map=None, zeroed=False):
+    """
+    Build a single-scene 3D WebGL viewer of all tracks with category filtering.
+    - One Scatter3d trace per category, lines-only, hover disabled.
+    - Includes simple checkbox UI to toggle categories, plus Select All/None/Invert controls.
+    - Always includes ALL objects (no downsampling), even if >10,000.
+    - Robust: includes an offline fallback to embed Plotly JS if CDN isn't reachable.
+    - When zeroed=True, each object's track is translated so its first point is at (0,0,0).
+    """
+    if df_segments is None or df_segments.empty:
+        return None
+
+    df_segments = df_segments.copy()
+    df_sum = df_sum.copy() if df_sum is not None else None
+    if 'Object ID' not in df_segments.columns:
+        return None
+    if 'Category' not in df_sum.columns:
+        df_sum = pd.DataFrame({
+            'Object ID': df_segments['Object ID'].astype(int).unique(),
+            'Category': ['0'] * df_segments['Object ID'].nunique()
+        })
+
+    df_segments['Object ID'] = df_segments['Object ID'].astype(int)
+    df_sum['Object ID'] = df_sum['Object ID'].astype(int)
+    df_sum['Category'] = df_sum['Category'].astype(str)
+
+    df = df_segments.merge(df_sum[['Object ID', 'Category']], on='Object ID', how='inner')
+
+    coord_cols = df.columns.tolist()
+    x_col = coord_cols[2] if len(coord_cols) > 2 else None
+    y_col = coord_cols[3] if len(coord_cols) > 3 else None
+    z_col = coord_cols[4] if (not twodim_mode and len(coord_cols) > 4) else None
+
+    if x_col is None or y_col is None:
+        return None
+
+    time_col = df.columns[1] if len(coord_cols) > 1 else None
+    sort_cols = ['Category', 'Object ID'] + ([time_col] if time_col in df.columns else [])
+    df = df.sort_values(sort_cols)
+
+    categories = sorted(df['Category'].dropna().unique(), key=lambda x: str(x))
+    if color_map is None:
+        color_map = get_category_color_map(categories)
+
+    traces = []
+    x_all, y_all, z_all = [], [], []
+
+    for cat in categories:
+        sub = df[df['Category'] == cat]
+        if sub.empty:
+            continue
+        xs, ys, zs = [], [], []
+        for _, g in sub.groupby('Object ID', sort=False):
+            gx = g[x_col].astype(float).tolist()
+            gy = g[y_col].astype(float).tolist()
+            if twodim_mode or z_col is None or z_col not in g.columns:
+                gz = [0.0] * len(gx)
+            else:
+                gz = g[z_col].astype(float).tolist()
+
+            if zeroed and len(gx) > 0:
+                x0, y0, z0 = gx[0], gy[0], (gz[0] if (not twodim_mode and z_col is not None and z_col in g.columns) else 0.0)
+                gx = [v - x0 for v in gx]
+                gy = [v - y0 for v in gy]
+                gz = [v - z0 for v in gz]
+
+            if len(gx) >= 2:
+                xs.extend(gx + [None])
+                ys.extend(gy + [None])
+                zs.extend(gz + [None])
+        if not xs:
+            continue
+        x_all.extend([v for v in xs if v is not None])
+        y_all.extend([v for v in ys if v is not None])
+        z_all.extend([v for v in zs if v is not None])
+        traces.append(dict(
+            type='scatter3d', mode='lines', x=xs, y=ys, z=zs,
+            line=dict(color=color_map.get(str(cat), 'black'), width=2),
+            name=f'Cat {cat}', legendgroup=f'cat{cat}', showlegend=True,
+            hoverinfo='skip', visible=True
+        ))
+
+    if not x_all or not y_all or not z_all:
+        return None
+
+    x_min, x_max = float(np.min(x_all)), float(np.max(x_all))
+    y_min, y_max = float(np.min(y_all)), float(np.max(y_all))
+    z_min, z_max = float(np.min(z_all)), float(np.max(z_all))
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+    z_range = z_max - z_min
+    max_range = max(x_range, y_range, z_range) or 1.0
+    x_center = (x_max + x_min) / 2.0
+    y_center = (y_max + y_min) / 2.0
+    z_center = (z_max + z_min) / 2.0
+    xr = [x_center - max_range / 2.0, x_center + max_range / 2.0]
+    yr = [y_center - max_range / 2.0, y_center + max_range / 2.0]
+    zr = [z_center - max_range / 2.0, z_center + max_range / 2.0]
+
+    title_suffix = 'Zeroed ' if zeroed else ''
+    layout = dict(
+        title=f'{save_file} Tracks 3D WebGL ({title_suffix}Filter by Category)',
+        showlegend=True,
+        legend=dict(orientation='h', yanchor='top', y=0.95, xanchor='left', x=0),
+        margin=dict(l=0, r=0, t=50, b=0),
+        scene=dict(
+            xaxis=dict(title='X', range=xr),
+            yaxis=dict(title='Y', range=yr),
+            zaxis=dict(title='Z', range=zr),
+            aspectmode='cube'
+        ),
+        paper_bgcolor='white', plot_bgcolor='white', uirevision='keep'
+    )
+
+    data_json = json_dumps_safe(traces)
+    layout_json = json_dumps_safe(layout)
+    cats_html = ''.join([f'<label class="cat-item"><input type="checkbox" class="catbox" data-trace-index="{i}" checked /> Cat {cat}</label>' for i, cat in enumerate(categories)])
+
+    try:
+        import plotly.io as _pio
+        inline_js = _pio.get_plotlyjs()
+    except Exception:
+        inline_js = None
+    inline_js_json = json_dumps_safe(inline_js) if inline_js else 'null'
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset=\"utf-8\" />
+      <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+      <title>{save_file} Tracks 3D WebGL</title>
+      <script src=\"https://cdn.plot.ly/plotly-2.30.1.min.js\"></script>
+      <style>
+        body {{ margin: 0; padding: 0; background: white; }}
+        #controls {{ position: sticky; top: 0; z-index: 10; background: #fafafa; border-bottom: 1px solid #ddd; padding: 10px 12px; font-family: sans-serif; }}
+        #plot {{ width: 100vw; height: calc(100vh - 70px); }}
+        .btn {{ margin-right: 8px; padding: 6px 10px; border: 1px solid #bbb; border-radius: 4px; background: #eee; cursor: pointer; }}
+        .cats {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }}
+        .cat-item {{ padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; }}
+      </style>
+    </head>
+    <body>
+      <div id=\"controls\">
+        <div>
+          <button id=\"selectAll\" class=\"btn\">Select all</button>
+          <button id=\"selectNone\" class=\"btn\">Select none</button>
+          <button id=\"invertSel\" class=\"btn\">Invert</button>
+        </div>
+        <div class=\"cats\">{cats_html}</div>
+      </div>
+      <div id=\"plot\"></div>
+      <script id=\"plotly-inline-js\" type=\"application/json\">{inline_js_json}</script>
+      <script>
+        const data = {data_json};
+        const layout = {layout_json};
+        const config = {{responsive: true, displaylogo: false, modeBarButtonsToRemove: ['hoverClosest3d', 'hoverCompareCartesian']}};
+
+        function ensurePlotlyAndRender() {{
+          function render() {{
+            try {{ Plotly.newPlot('plot', data, layout, config); }}
+            catch (e) {{
+              console.error('Plotly render error:', e);
+              const el = document.getElementById('plot');
+              if (el) {{ el.innerHTML = '<div style=\"padding:12px;color:#900\">Render error: ' + (e && e.message ? e.message : e) + '</div>'; }}
+            }}
+          }}
+          if (window.Plotly) return render();
+          // Wait briefly for CDN
+          let waited = 0; const step = 50; const maxWait = 1500;
+          const intv = setInterval(() => {{
+            waited += step;
+            if (window.Plotly) {{ clearInterval(intv); render(); }}
+            else if (waited >= maxWait) {{
+              clearInterval(intv);
+              // Fallback to inline JS
+              try {{
+                const jsNode = document.getElementById('plotly-inline-js');
+                if (jsNode && jsNode.textContent && jsNode.textContent !== 'null') {{
+                  const inline = JSON.parse(jsNode.textContent);
+                  const s = document.createElement('script');
+                  s.type = 'text/javascript'; s.text = inline; document.head.appendChild(s);
+                  const intv2 = setInterval(() => {{ if (window.Plotly) {{ clearInterval(intv2); render(); }} }}, 50);
+                  setTimeout(() => {{ if (!window.Plotly) console.error('Plotly failed to load from inline fallback'); }}, 3000);
+                }} else {{
+                  console.error('Plotly CDN not available and no inline fallback provided.');
+                }}
+              }} catch (e) {{ console.error('Error applying inline Plotly fallback:', e); }}
+            }}
+          }}, step);
+        }}
+
+        if (document.readyState !== 'loading') ensurePlotlyAndRender();
+        else document.addEventListener('DOMContentLoaded', ensurePlotlyAndRender);
+
+        function updateVisibility() {{
+          const boxes = document.querySelectorAll('.catbox');
+          const vis = []; const idxs = [];
+          boxes.forEach(b => {{ idxs.push(parseInt(b.getAttribute('data-trace-index'))); vis.push(b.checked); }});
+          Plotly.restyle('plot', {{visible: vis}}, idxs);
+        }}
+        document.addEventListener('change', function(e) {{ if (e.target && e.target.classList.contains('catbox')) updateVisibility(); }});
+        document.getElementById('selectAll').addEventListener('click', () => {{ document.querySelectorAll('.catbox').forEach(b => b.checked = true); updateVisibility(); }});
+        document.getElementById('selectNone').addEventListener('click', () => {{ document.querySelectorAll('.catbox').forEach(b => b.checked = false); updateVisibility(); }});
+        document.getElementById('invertSel').addEventListener('click', () => {{ document.querySelectorAll('.catbox').forEach(b => b.checked = !b.checked); updateVisibility(); }});
+      </script>
+    </body>
+    </html>
+    """
+
+    return html
+
+
+def json_dumps_safe(obj):
+    """Lightweight JSON serializer safe for large numeric arrays."""
+    import json
+    class NpEncoder(json.JSONEncoder):
+        def default(self, o):
+            try:
+                import numpy as _np
+                if isinstance(o, (_np.integer,)):
+                    return int(o)
+                if isinstance(o, (_np.floating,)):
+                    return float(o)
+                if isinstance(o, (_np.ndarray,)):
+                    return o.tolist()
+            except Exception:
+                pass
+            return super().default(o)
+    return json.dumps(obj, cls=NpEncoder, separators=(',', ':'))
+
 def summary_figures(df, fit_stats, color_map=None):
     columns = [col for col in df.columns if col not in ('Object ID', 'Category')]
     categories = sorted(df['Category'].dropna().unique())
@@ -434,7 +665,6 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
                 )
 
     axis_padding = 0.1
-    all_ids = list(df.loc[:, 'Object ID'])
 
     if cat_provided:
         if color_map is None:
@@ -446,6 +676,54 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
         all_categories = [0]
 
     specs = [[{"type": "xy"}, {"type": "xy"}]] if twodim_mode else [[{"type": "scene"}, {"type": "scene"}]]
+
+    limit = 5000
+    objs_in_segments = df['Object ID'].unique()
+    df_sum_in = df_sum[df_sum['Object ID'].isin(objs_in_segments)].copy()
+    total_objects = len(np.unique(objs_in_segments))
+
+    if total_objects > limit:
+        counts_series = df_sum_in.groupby('Category')['Object ID'].nunique()
+        counts = counts_series.to_dict()
+        cats = list(counts.keys())
+        counts_arr = np.array([counts[c] for c in cats], dtype=float)
+        proportions = counts_arr / counts_arr.sum()
+        ideal = proportions * limit
+        initial = np.floor(ideal)
+        capped_initial = np.minimum(initial, counts_arr)
+        current_sum = int(capped_initial.sum())
+        remainder = limit - current_sum
+        residuals = ideal - capped_initial
+        for i, c in enumerate(cats):
+            if capped_initial[i] >= counts_arr[i]:
+                residuals[i] = -np.inf
+        if remainder > 0:
+            order = np.argsort(-residuals)
+            idx = 0
+            while remainder > 0 and idx < len(order):
+                j = order[idx]
+                if capped_initial[j] < counts_arr[j]:
+                    capped_initial[j] += 1
+                    remainder -= 1
+                idx += 1
+                if idx == len(order) and remainder > 0:
+                    idx = 0
+        targets = {cats[i]: int(capped_initial[i]) for i in range(len(cats))}
+        selected_ids = []
+        for cat in cats:
+            n_keep = targets.get(cat, 0)
+            if n_keep <= 0:
+                continue
+            ids_cat = df_sum_in.loc[df_sum_in['Category'] == cat, 'Object ID'].unique()
+            ids_cat_sorted = np.sort(ids_cat)
+            selected_ids.extend(ids_cat_sorted[:n_keep].tolist())
+        selected_ids = np.array(selected_ids, dtype=int)
+        df = df[df['Object ID'].isin(selected_ids)].copy()
+        df_sum = df_sum[df_sum['Object ID'].isin(selected_ids)].copy()
+        objs_in_segments = np.unique(selected_ids)
+        total_objects = len(objs_in_segments)
+
+    all_ids = list(objs_in_segments)
 
     data = prepare_data()
 
@@ -465,12 +743,15 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
 
     add_category_legend(fig_category, all_categories)
 
-    unique_objects = df['Object ID'].unique()
-    batch_size = max(50, len(unique_objects) // (max(1, min(61, mp.cpu_count() - 2)) * 2))
+    unique_objects = np.array(all_ids, dtype=int)
+
+    max_processes = max(1, min(61, mp.cpu_count() - 2))
+    temp_workers = max_processes
+    chunk_size = max(10, max(1, len(unique_objects)) // (temp_workers * 3) if len(unique_objects) > 0 else 10)
 
     object_batches = []
-    for i in range(0, len(unique_objects), batch_size):
-        batch_objects = unique_objects[i:i + batch_size]
+    for i in range(0, len(unique_objects), chunk_size):
+        batch_objects = unique_objects[i:i + chunk_size]
         df_batch = df[df['Object ID'].isin(batch_objects)]
         df_sum_batch = df_sum[df_sum['Object ID'].isin(batch_objects)]
         object_batches.append((df_batch, df_sum_batch, twodim_mode))
@@ -480,8 +761,8 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
 
     all_track_data = []
 
-    if use_multiprocessing:
-        num_workers = max(1, min(61, mp.cpu_count() - 2, len(object_batches)))
+    if use_multiprocessing and len(object_batches) > 0:
+        num_workers = min(max_processes, len(object_batches))
         try:
             with mp.Pool(processes=num_workers) as pool:
                 batch_results = pool.map(process_object_track_batch, object_batches)
@@ -491,16 +772,16 @@ def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=No
         except Exception:
             for batch in object_batches:
                 try:
-                    batch_results = process_object_track_batch(batch)
-                    all_track_data.extend(batch_results)
+                    results = process_object_track_batch(batch)
+                    all_track_data.extend(results)
                 except Exception:
                     continue
             gc.collect()
     else:
         for i, batch in enumerate(object_batches):
             try:
-                batch_results = process_object_track_batch(batch)
-                all_track_data.extend(batch_results)
+                results = process_object_track_batch(batch)
+                all_track_data.extend(results)
                 if (i + 1) % 10 == 0:
                     gc.collect()
             except Exception:
@@ -1046,6 +1327,18 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
 
     with open(f'{savefile}_Figures_Tracks_byObjectID.html', 'w', encoding='utf-8') as f:
         f.write(tracks_html_objects)
+
+    try:
+        html3d_raw = tracks_webgl_3d_html(df_segments, df_sum, savefile, twodim_mode, color_map=get_category_color_map(categories), zeroed=False)
+        if html3d_raw:
+            with open(f'{savefile}_Figures_Tracks3D_WebGL.html', 'w', encoding='utf-8') as f:
+                f.write(html3d_raw)
+        html3d_zeroed = tracks_webgl_3d_html(df_segments, df_sum, savefile, twodim_mode, color_map=get_category_color_map(categories), zeroed=True)
+        if html3d_zeroed:
+            with open(f'{savefile}_Figures_Tracks3D_WebGL_Zeroed.html', 'w', encoding='utf-8') as f:
+                f.write(html3d_zeroed)
+    except Exception:
+        pass
 
     if cat_provided and df_pca is not None and not df_pca.empty:
         pca_figs = pca_figures(df_pca, color_map=color_map)
