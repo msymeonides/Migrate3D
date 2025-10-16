@@ -1,6 +1,4 @@
 import numpy as np
-import openpyxl
-from openpyxl.utils.dataframe import dataframe_to_rows
 import pandas as pd
 import re
 import statistics
@@ -400,6 +398,25 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                 messages.append(f"Removed object ID(s) recorded in 'Removed Objects' sheet in the main results file.")
                 messages.append('')
 
+        df_all_calcs = df_all_calcs.replace(mapping) if not df_all_calcs.empty else df_all_calcs
+        cols_to_replace = [col for col in df_sum.columns if col != 'Category']
+        df_sum[cols_to_replace] = df_sum[cols_to_replace].replace(mapping)
+        if parameters['arrest_limit'] != 0:
+            df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
+
+        bigtoc = tempo.time()
+        total_time_sec = (int(round((bigtoc - bigtic), 1)))
+        total_time_min = round((total_time_sec / 60), 1)
+
+        if total_time_sec < 180:
+            completion_message = 'Migrate3D done! Total time taken = {:.0f} seconds.'.format(total_time_sec)
+        else:
+            completion_message = 'Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min)
+
+        with thread_lock:
+            messages.append('------------------------------------------------')
+            messages.append(completion_message)
+            messages.append('------------------------------------------------')
             if parameters['verbose']:
                 messages.append('Saving main output to ' + savepath + '...')
                 messages.append('Please wait patiently. Save times are significantly longer when verbose mode is enabled...')
@@ -407,12 +424,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             else:
                 messages.append('Saving main output to ' + savepath + '...')
                 messages.append('')
-
-        df_all_calcs = df_all_calcs.replace(mapping) if not df_all_calcs.empty else df_all_calcs
-        cols_to_replace = [col for col in df_sum.columns if col != 'Category']
-        df_sum[cols_to_replace] = df_sum[cols_to_replace].replace(mapping)
-        if parameters['arrest_limit'] != 0:
-            df_sum['Arrest Coefficient'] = df_sum.loc[:, 'Arrest Coefficient'].replace((np.nan, ' '), (0, 0))
 
         runtime_log_data = messages.get_runtime_log()
         df_runtime_log = pd.DataFrame(runtime_log_data)
@@ -460,36 +471,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters.pop('calcs_dir', None)
             parameters.pop('calcs_manifest', None)
 
-        bigtoc = tempo.time()
-        total_time_sec = (int(round((bigtoc - bigtic), 1)))
-        total_time_min = round((total_time_sec / 60), 1)
-
-        if total_time_sec < 180:
-            completion_message = 'Migrate3D done! Total time taken = {:.0f} seconds.'.format(total_time_sec)
-        else:
-            completion_message = 'Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min)
-
-        updated_runtime_log_data = messages.get_runtime_log()
-        df_updated_runtime_log = pd.DataFrame(updated_runtime_log_data)
-        workbook = openpyxl.load_workbook(savepath)
-
-        original_position = 1
-        if 'Runtime Log' in workbook.sheetnames:
-            original_position = workbook.sheetnames.index('Runtime Log')
-            del workbook['Runtime Log']
-
-        ws = workbook.create_sheet('Runtime Log', original_position)
-
-        for r in dataframe_to_rows(df_updated_runtime_log, index=False, header=True):
-            ws.append(r)
-
-        workbook.save(savepath)
-        workbook.close()
-
         complete_progress_step("Final results save")
-        with thread_lock:
-            messages.append('------------------------------------------------')
-            messages.append(completion_message)
-            messages.append('------------------------------------------------')
 
         return df_segments, df_sum, df_pca
