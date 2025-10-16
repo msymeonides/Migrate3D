@@ -450,22 +450,24 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
                     df_segments.to_excel(calc_workbook, sheet_name='Object Data', index=False)
                     df_all_calcs.to_excel(calc_workbook, sheet_name='Calculations', index=False)
 
-        complete_progress_step("Final results save")
-        bigtoc = tempo.time()
+        calcs_dir = parameters.get('calcs_dir')
+        if calcs_dir:
+            import shutil
+            try:
+                shutil.rmtree(calcs_dir)
+            except Exception:
+                pass
+            parameters.pop('calcs_dir', None)
+            parameters.pop('calcs_manifest', None)
 
+        bigtoc = tempo.time()
         total_time_sec = (int(round((bigtoc - bigtic), 1)))
         total_time_min = round((total_time_sec / 60), 1)
 
         if total_time_sec < 180:
-            with thread_lock:
-                messages.append('------------------------------------------------')
-                messages.append('Migrate3D done! Total time taken = {:.0f} seconds.'.format(total_time_sec))
-                messages.append('------------------------------------------------')
+            completion_message = 'Migrate3D done! Total time taken = {:.0f} seconds.'.format(total_time_sec)
         else:
-            with thread_lock:
-                messages.append('------------------------------------------------')
-                messages.append('Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min))
-                messages.append('------------------------------------------------')
+            completion_message = 'Migrate3D done! Total time taken = {:.1f} minutes.'.format(total_time_min)
 
         updated_runtime_log_data = messages.get_runtime_log()
         df_updated_runtime_log = pd.DataFrame(updated_runtime_log_data)
@@ -484,14 +486,10 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
         workbook.save(savepath)
         workbook.close()
 
-        calcs_dir = parameters.get('calcs_dir')
-        if calcs_dir:
-            import shutil
-            try:
-                shutil.rmtree(calcs_dir)
-            except Exception:
-                pass
-            parameters.pop('calcs_dir', None)
-            parameters.pop('calcs_manifest', None)
+        complete_progress_step("Final results save")
+        with thread_lock:
+            messages.append('------------------------------------------------')
+            messages.append(completion_message)
+            messages.append('------------------------------------------------')
 
         return df_segments, df_sum, df_pca
