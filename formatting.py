@@ -1,13 +1,6 @@
 import numpy as np
 
-
 def multi_tracking(arr_segments):
-    """
-    Combine multiple detections at the same (object_id, timepoint) by averaging X,Y,Z.
-    Vectorized implementation for large arrays.
-    Input: arr_segments shape (N,5) with columns [object_id, time, x, y, z]
-    Output: array (M,5) aggregated by (object_id,time)
-    """
     if arr_segments.size == 0:
         return arr_segments
 
@@ -20,15 +13,11 @@ def multi_tracking(arr_segments):
     np.add.at(sums, inv, coords)
     avgs = sums / counts[:, None]
 
-    out = np.concatenate((uniq_keys.astype(object), avgs.astype(float)), axis=1)
+    out = np.concatenate((uniq_keys, avgs), axis=1)
     return out
 
 
 def _interpolate_single_track(times, coords, dt):
-    """Helper: given 1D times (sorted) and coords Nx3, build uniform grid and interpolate.
-    - Duplicates in times are resolved by taking the last occurrence (to mirror original behavior).
-    Returns array of shape (K, 5): [object_id placeholder to be filled outside, time, x, y, z].
-    """
     order = np.argsort(times, kind='mergesort')
     ts = times[order]
     xyz = coords[order]
@@ -56,11 +45,6 @@ def _interpolate_single_track(times, coords, dt):
 
 
 def interpolate_lazy(arr_segments, timelapse_interval):
-    """
-    Linearly interpolate per object onto a uniform grid [min_t, max_t] with step timelapse_interval.
-    Keeps original semantics at exact observation times (np.interp handles exact matches).
-    More efficient grouping and vectorization reduce Python overhead.
-    """
     if arr_segments.size == 0:
         return arr_segments
 
@@ -83,7 +67,7 @@ def interpolate_lazy(arr_segments, timelapse_interval):
         interp_track = _interpolate_single_track(times_i, xyz_i, float(timelapse_interval))
         if interp_track.size == 0:
             continue
-        obj_col = np.full((interp_track.shape[0], 1), o, dtype=object)
+        obj_col = np.full((interp_track.shape[0], 1), o)
         pieces.append(np.concatenate((obj_col, interp_track.astype(float)), axis=1))
 
     if not pieces:
@@ -94,10 +78,6 @@ def interpolate_lazy(arr_segments, timelapse_interval):
 
 
 def remove_tracks_with_gaps(arr_segments, unique_objects, timelapse_interval):
-    """
-    Keep only tracks whose timepoints are contiguous with fixed interval (within np.allclose tolerance).
-    Optimized to avoid repeated boolean scans by grouping contiguous slices per object.
-    """
     if arr_segments.size == 0:
         return np.empty((0, arr_segments.shape[1]))
 
