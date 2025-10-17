@@ -1,11 +1,13 @@
 import numpy as np
 import pandas as pd
 
+
 def align_time(time_base, time_comp):
     common_times = np.intersect1d(time_base, time_comp)
     base_indices = np.nonzero(np.isin(time_base, common_times))[0]
     comp_indices = np.nonzero(np.isin(time_comp, common_times))[0]
     return common_times, base_indices, comp_indices
+
 
 def contacts(unique_objects, arr_segments, contact_length):
     df_of_contacts = []
@@ -48,6 +50,7 @@ def contacts(unique_objects, arr_segments, contact_length):
                 df_of_contacts.append(df_c)
     return df_of_contacts
 
+
 def contacts_notdividing(object_id, df):
     list_of_df = []
     for object_base in object_id:
@@ -63,6 +66,7 @@ def contacts_notdividing(object_id, df):
             })
             list_of_df.append(df_no_dividing)
     return list_of_df
+
 
 def contacts_notdead(df_arrest, df_no_div, arrested):
     moving_mask = df_arrest["Arrest Coefficient"] < arrested

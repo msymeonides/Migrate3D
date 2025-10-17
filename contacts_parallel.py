@@ -3,10 +3,12 @@ import numpy as np
 from contacts import contacts, contacts_notdead, contacts_notdividing
 import multiprocessing as mp
 
+
 def worker(task):
     timepoint_chunk, arr_segments, contact_length, df_sum, arrested, divfilter, worker_id = task
     result = process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arrested, divfilter)
     return result
+
 
 def process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arrested, divfilter):
     is_in_chunk = np.isin(arr_segments[:, 1], timepoint_chunk)
@@ -42,6 +44,7 @@ def process_chunk(timepoint_chunk, arr_segments, contact_length, df_sum, arreste
 
     return df_contacts, df_no_div, df_no_dead
 
+
 def split_with_overlap(timepoints, num_chunks, overlap):
     chunks = np.array_split(timepoints, num_chunks)
     for i in range(1, len(chunks)):
@@ -49,11 +52,13 @@ def split_with_overlap(timepoints, num_chunks, overlap):
         chunks[i] = np.concatenate((overlap_elements, chunks[i]))
     return chunks
 
+
 def drop_symmetric_duplicates(df):
     df_copy = df.copy()
     mask = df_copy["Object ID"] > df_copy["Object Compare"]
     df_copy.loc[mask, ["Object ID", "Object Compare"]] = df_copy.loc[mask, ["Object Compare", "Object ID"]].values
     return df_copy.drop_duplicates(subset=["Object ID", "Object Compare", "Time of Contact"])
+
 
 def main(timepoints, arr_segments, contact_length, df_sum, arrested, divfilter):
     max_processes = max(1, min(61, mp.cpu_count() - 2))
@@ -88,6 +93,7 @@ def main(timepoints, arr_segments, contact_length, df_sum, arrested, divfilter):
         df_no_dead = pd.DataFrame(columns=["Object ID", "Object Compare", "Time of Contact"])
 
     return df_contacts, df_no_div, df_no_dead
+
 
 if __name__ == '__main__':
     mp.set_start_method("spawn")

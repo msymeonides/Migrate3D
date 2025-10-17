@@ -13,17 +13,19 @@ colors = plotly.colors.qualitative.Plotly
 
 MEMORY_SAFETY_THRESHOLD = 0.75
 
+
 def get_category_color_map(cats_or_objs):
     cats_or_objs = [str(cat) for cat in cats_or_objs if pd.notnull(cat)]
     cats_or_objs = sorted(set(cats_or_objs))
     return {cat: colors[i % len(colors)] for i, cat in enumerate(cats_or_objs)}
 
+
 def estimate_track_processing_memory(df, df_sum, num_batches):
     mem_info = psutil.virtual_memory()
-    available_gb = mem_info.available / (1024**3)
+    available_gb = mem_info.available / (1024 ** 3)
 
-    df_size_gb = df.memory_usage(deep=True).sum() / (1024**3)
-    df_sum_size_gb = df_sum.memory_usage(deep=True).sum() / (1024**3)
+    df_size_gb = df.memory_usage(deep=True).sum() / (1024 ** 3)
+    df_sum_size_gb = df_sum.memory_usage(deep=True).sum() / (1024 ** 3)
     input_size_gb = df_size_gb + df_sum_size_gb
 
     total_rows = len(df)
@@ -32,7 +34,7 @@ def estimate_track_processing_memory(df, df_sum, num_batches):
 
     bytes_per_track = avg_points_per_object * 150
     estimated_output_bytes = num_objects * bytes_per_track
-    estimated_output_gb = estimated_output_bytes / (1024**3)
+    estimated_output_gb = estimated_output_bytes / (1024 ** 3)
 
     if estimated_output_gb < 0.1:
         peak_multiplier = 5.5
@@ -50,18 +52,19 @@ def estimate_track_processing_memory(df, df_sum, num_batches):
         'estimated_output_gb': estimated_output_gb,
         'estimated_peak_gb': estimated_peak_gb,
         'available_gb': available_gb,
-        'total_gb': mem_info.total / (1024**3),
+        'total_gb': mem_info.total / (1024 ** 3),
         'use_multiprocessing': use_multiprocessing,
         'num_objects': num_objects,
         'num_batches': num_batches,
         'total_rows': total_rows
     }
 
+
 def estimate_pca_processing_memory(df_pca):
     mem_info = psutil.virtual_memory()
-    available_gb = mem_info.available / (1024**3)
+    available_gb = mem_info.available / (1024 ** 3)
 
-    df_size_gb = df_pca.memory_usage(deep=True).sum() / (1024**3)
+    df_size_gb = df_pca.memory_usage(deep=True).sum() / (1024 ** 3)
 
     estimated_peak_gb = df_size_gb * 6.5
 
@@ -73,6 +76,7 @@ def estimate_pca_processing_memory(df_pca):
         'available_gb': available_gb,
         'use_multiprocessing': use_multiprocessing
     }
+
 
 def process_object_track_batch(batch_args):
     results = []
@@ -122,7 +126,8 @@ def process_object_track_batch(batch_args):
 
     return results
 
-def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, color_map=None):
+
+def tracks_plots(df_segments, df_sum, save_file, twodim_mode, color_map=None):
     if df_segments is None or df_segments.empty:
         return None, None
 
@@ -167,13 +172,14 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
     x_all_raw, y_all_raw, z_all_raw = [], [], []
     x_all_zeroed, y_all_zeroed, z_all_zeroed = [], [], []
 
-    trace_idx = 0
     for obj_id in object_ids:
         obj_data = df[df['Object ID'] == obj_id]
         if obj_data.empty:
             continue
 
         cat = obj_data.iloc[0]['Category']
+        cat_str = str(cat)
+        trace_color = color_map.get(cat_str, 'black')
 
         gx = obj_data[x_col].astype(float).tolist()
         gy = obj_data[y_col].astype(float).tolist()
@@ -189,16 +195,30 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
         y_all_raw.extend(gy)
         z_all_raw.extend(gz)
 
-        traces_raw.append(dict(
-            type='scatter3d', mode='lines',
-            x=gx, y=gy, z=gz,
-            line=dict(color=color_map.get(str(cat), 'black'), width=2),
-            name=f'Obj {obj_id}',
-            legendgroup=f'obj{obj_id}',
-            showlegend=False,
-            hoverinfo='skip',
-            visible=True
-        ))
+        if twodim_mode:
+            traces_raw.append(dict(
+                type='scatter', mode='lines',
+                x=gx, y=gy,
+                line=dict(color=trace_color, width=2),
+                name=f'Obj {obj_id} (Cat {cat_str})',
+                legendgroup=f'obj{obj_id}',
+                showlegend=False,
+                hoverinfo='skip',
+                visible=True,
+                customdata=[obj_id, cat_str]
+            ))
+        else:
+            traces_raw.append(dict(
+                type='scatter3d', mode='lines',
+                x=gx, y=gy, z=gz,
+                line=dict(color=trace_color, width=2),
+                name=f'Obj {obj_id} (Cat {cat_str})',
+                legendgroup=f'obj{obj_id}',
+                showlegend=False,
+                hoverinfo='skip',
+                visible=True,
+                customdata=[obj_id, cat_str]
+            ))
 
         if len(gx) > 0:
             x0, y0, z0 = gx[0], gy[0], gz[0]
@@ -212,19 +232,39 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
         y_all_zeroed.extend(gy_z)
         z_all_zeroed.extend(gz_z)
 
-        traces_zeroed.append(dict(
-            type='scatter3d', mode='lines',
-            x=gx_z, y=gy_z, z=gz_z,
-            line=dict(color=color_map.get(str(cat), 'black'), width=2),
-            name=f'Obj {obj_id}',
-            legendgroup=f'obj{obj_id}',
-            showlegend=False,
-            hoverinfo='skip',
-            visible=True
-        ))
+        if twodim_mode:
+            traces_zeroed.append(dict(
+                type='scatter', mode='lines',
+                x=gx_z, y=gy_z,
+                line=dict(color=trace_color, width=2),
+                name=f'Obj {obj_id} (Cat {cat_str})',
+                legendgroup=f'obj{obj_id}',
+                showlegend=False,
+                hoverinfo='skip',
+                visible=True,
+                customdata=[obj_id, cat_str]
+            ))
+        else:
+            traces_zeroed.append(dict(
+                type='scatter3d', mode='lines',
+                x=gx_z, y=gy_z, z=gz_z,
+                line=dict(color=trace_color, width=2),
+                name=f'Obj {obj_id} (Cat {cat_str})',
+                legendgroup=f'obj{obj_id}',
+                showlegend=False,
+                hoverinfo='skip',
+                visible=True,
+                customdata=[obj_id, cat_str]
+            ))
 
-        object_metadata.append({'obj_id': int(obj_id), 'category': str(cat), 'trace_index': trace_idx})
-        trace_idx += 1
+        raw_trace_idx = len(traces_raw) - 1
+        zeroed_trace_idx = len(traces_zeroed) - 1
+        object_metadata.append({
+            'obj_id': int(obj_id),
+            'category': cat_str,
+            'raw_trace_index': raw_trace_idx,
+            'zeroed_trace_index': zeroed_trace_idx
+        })
 
     if not traces_raw or not traces_zeroed:
         return None, None
@@ -246,68 +286,113 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
     z_center_z = (z_max_z + z_min_z) / 2.0
 
     from plotly.subplots import make_subplots
+
+    if twodim_mode:
+        subplot_specs = [[{'type': 'xy'}, {'type': 'xy'}]]
+        subplot_titles = ('Raw Tracks', 'Zeroed Tracks')
+    else:
+        subplot_specs = [[{'type': 'scatter3d'}, {'type': 'scatter3d'}]]
+        subplot_titles = ('Raw Tracks', 'Zeroed Tracks')
+
     fig = make_subplots(
         rows=1, cols=2,
-        subplot_titles=('Raw Tracks', 'Zeroed Tracks'),
-        specs=[[{'type': 'scatter3d'}, {'type': 'scatter3d'}]],
+        subplot_titles=subplot_titles,
+        specs=subplot_specs,
         horizontal_spacing=0.05
     )
 
-    for trace in traces_raw:
-        fig.add_trace(dict(trace, scene='scene'), row=1, col=1)
-    for trace in traces_zeroed:
-        fig.add_trace(dict(trace, scene='scene2'), row=1, col=2)
+    if twodim_mode:
+        for trace in traces_raw:
+            fig.add_trace(trace, row=1, col=1)
+        for trace in traces_zeroed:
+            fig.add_trace(trace, row=1, col=2)
+    else:
+        for trace in traces_raw:
+            fig.add_trace(dict(trace, scene='scene'), row=1, col=1)
+        for trace in traces_zeroed:
+            fig.add_trace(dict(trace, scene='scene2'), row=1, col=2)
 
-    fig.update_layout(
-        title=f'{save_file} Tracks 3D WebGL (Filter by Category or Object)',
-        showlegend=False,
-        margin=dict(l=0, r=0, t=80, b=0),
-        paper_bgcolor='white',
-        plot_bgcolor='white',
-        uirevision='keep',
-        scene=dict(
-            xaxis=dict(title='X', range=[x_center_r - range_r/2, x_center_r + range_r/2]),
-            yaxis=dict(title='Y', range=[y_center_r - range_r/2, y_center_r + range_r/2]),
-            zaxis=dict(title='Z', range=[z_center_r - range_r/2, z_center_r + range_r/2]),
-            aspectmode='cube'
-        ),
-        scene2=dict(
-            xaxis=dict(title='X', range=[x_center_z - range_z/2, x_center_z + range_z/2]),
-            yaxis=dict(title='Y', range=[y_center_z - range_z/2, y_center_z + range_z/2]),
-            zaxis=dict(title='Z', range=[z_center_z - range_z/2, z_center_z + range_z/2]),
-            aspectmode='cube'
+    if twodim_mode:
+        fig.update_layout(
+            title='',
+            showlegend=False,
+            margin=dict(l=0, r=0, t=40, b=0),
+            paper_bgcolor='white',
+            plot_bgcolor='white',
+            uirevision='keep',
         )
-    )
+        fig.update_xaxes(title='X', showgrid=True, zeroline=True, row=1, col=1)
+        fig.update_yaxes(title='Y', showgrid=True, zeroline=True, row=1, col=1)
+        fig.update_xaxes(title='X', showgrid=True, zeroline=True, row=1, col=2)
+        fig.update_yaxes(title='Y', showgrid=True, zeroline=True, row=1, col=2)
+    else:
+        fig.update_layout(
+            title='',
+            showlegend=False,
+            margin=dict(l=0, r=0, t=40, b=0),
+            paper_bgcolor='white',
+            plot_bgcolor='white',
+            uirevision='keep',
+            scene=dict(
+                xaxis=dict(title='X', range=[x_center_r - range_r / 2, x_center_r + range_r / 2]),
+                yaxis=dict(title='Y', range=[y_center_r - range_r / 2, y_center_r + range_r / 2]),
+                zaxis=dict(title='Z', range=[z_center_r - range_r / 2, z_center_r + range_r / 2]),
+                aspectmode='cube'
+            ),
+            scene2=dict(
+                xaxis=dict(title='X', range=[x_center_z - range_z / 2, x_center_z + range_z / 2]),
+                yaxis=dict(title='Y', range=[y_center_z - range_z / 2, y_center_z + range_z / 2]),
+                zaxis=dict(title='Z', range=[z_center_z - range_z / 2, z_center_z + range_z / 2]),
+                aspectmode='cube'
+            )
+        )
 
-    traces_raw_with_scene = []
-    for trace in traces_raw:
-        t = dict(trace)
-        t['scene'] = 'scene'
-        traces_raw_with_scene.append(t)
+    if twodim_mode:
+        traces_raw_with_scene = []
+        for trace in traces_raw:
+            t = dict(trace)
+            t['xaxis'] = 'x'
+            t['yaxis'] = 'y'
+            traces_raw_with_scene.append(t)
 
-    traces_zeroed_with_scene = []
-    for trace in traces_zeroed:
-        t = dict(trace)
-        t['scene'] = 'scene2'
-        traces_zeroed_with_scene.append(t)
+        traces_zeroed_with_scene = []
+        for trace in traces_zeroed:
+            t = dict(trace)
+            t['xaxis'] = 'x2'
+            t['yaxis'] = 'y2'
+            traces_zeroed_with_scene.append(t)
+    else:
+        traces_raw_with_scene = []
+        for trace in traces_raw:
+            t = dict(trace)
+            t['scene'] = 'scene'
+            traces_raw_with_scene.append(t)
+
+        traces_zeroed_with_scene = []
+        for trace in traces_zeroed:
+            t = dict(trace)
+            t['scene'] = 'scene2'
+            traces_zeroed_with_scene.append(t)
 
     data_dict = {
         'traces_raw': traces_raw_with_scene,
         'traces_zeroed': traces_zeroed_with_scene,
         'metadata': object_metadata,
         'categories': [str(c) for c in categories],
-        'color_map': {str(k): v for k, v in color_map.items()}
+        'color_map': {str(k): v for k, v in color_map.items()},
+        'total_traces_count': len(traces_raw) + len(traces_zeroed),
+        'is_2d': twodim_mode
     }
 
     data_json = json_dumps_safe(data_dict)
     layout_json = json_dumps_safe(fig.to_dict()['layout'])
 
     data_size_mb = len(data_json) / (1024 * 1024)
-    use_external_js = data_size_mb > 1.0
+    use_external_js = data_size_mb > 10.0
 
     external_js_file = None
     if use_external_js:
-        external_js_file = f'{save_file}_Figures_Tracks3D_WebGL_data.js'
+        external_js_file = f'{save_file}_Figures_Tracks_data.js'
 
     cats_html = ''.join([
         f'<label class="filter-item"><input type="checkbox" class="cat-checkbox" data-category="{cat}" checked /> Cat {cat}</label>'
@@ -321,15 +406,52 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
             objs_by_cat[cat] = []
         objs_by_cat[cat].append(meta['obj_id'])
 
+    for cat in objs_by_cat:
+        objs_by_cat[cat].sort()
+
     objs_html_parts = []
     for cat in categories:
-        if str(cat) in objs_by_cat:
-            objs_html_parts.append(f'<div class="obj-group"><strong>Cat {cat}:</strong> ')
-            obj_checkboxes = ''.join([
-                f'<label class="filter-item-small"><input type="checkbox" class="obj-checkbox" data-object="{obj_id}" data-category="{cat}" checked />{obj_id}</label>'
-                for obj_id in objs_by_cat[str(cat)]
-            ])
-            objs_html_parts.append(obj_checkboxes + '</div>')
+        cat_str = str(cat)
+        if cat_str in objs_by_cat:
+            obj_ids = objs_by_cat[cat_str]
+            cat_color = color_map.get(cat_str, '#cccccc')
+            objs_html_parts.append(f'''
+            <div class="category-filter-group" data-category="{cat_str}" style="background-color: {cat_color}33; border-left: 4px solid {cat_color};">
+                <div class="category-header">
+                    <label class="category-checkbox-label">
+                        <input type="checkbox" class="category-master-checkbox" data-category="{cat_str}" checked />
+                        <strong>Category {cat} ({len(obj_ids)} objects)</strong>
+                    </label>
+                    <button class="toggle-btn" onclick="toggleCategoryObjects('{cat_str}')">▼</button>
+                </div>
+                <div class="objects-container" id="objects-{cat_str}">
+                    <div class="search-container">
+                        <input type="text" class="object-search" placeholder="Search objects in Cat {cat}..." 
+                               onkeyup="filterObjects('{cat_str}', this.value)" />
+                    </div>
+                    <div class="object-controls">
+                        <button class="mini-btn" onclick="selectAllInCategory('{cat_str}')">All</button>
+                        <button class="mini-btn" onclick="selectNoneInCategory('{cat_str}')">None</button>
+                        <button class="mini-btn" onclick="invertInCategory('{cat_str}')">Invert</button>
+                    </div>
+                    <div class="objects-list" id="objects-list-{cat_str}">
+            ''')
+
+            for obj_id in obj_ids:
+                objs_html_parts.append(f'''
+                        <label class="object-item" data-object-id="{obj_id}">
+                            <input type="checkbox" class="obj-checkbox" data-object="{obj_id}" 
+                                   data-category="{cat_str}" checked />
+                            Object {obj_id}
+                        </label>
+                ''')
+
+            objs_html_parts.append('''
+                    </div>
+                </div>
+            </div>
+            ''')
+
     objs_html = ''.join(objs_html_parts)
 
     try:
@@ -352,12 +474,14 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{save_file} Tracks 3D WebGL</title>
+  <title>{save_file} Tracks</title>
   <script src="https://cdn.plot.ly/plotly-2.30.1.min.js" charset="utf-8"></script>
   <style>
-    body {{ margin: 0; padding: 0; background: white; font-family: sans-serif; }}
-    #controls {{ position: sticky; top: 0; z-index: 10; background: #fafafa; border-bottom: 2px solid #ddd; padding: 12px; }}
-    #plot {{ width: 100vw; height: calc(100vh - 280px); }}
+    body {{ margin: 0; padding: 0; background: white; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }}
+    #controls {{ background: #fafafa; border-bottom: 2px solid #ddd; padding: 12px; overflow-y: auto; flex-shrink: 0; }}
+    #resizer {{ height: 6px; background: #ddd; cursor: ns-resize; flex-shrink: 0; }}
+    #resizer:hover {{ background: #bbb; }}
+    #plot {{ flex: 1; width: 100vw; min-height: 300px; }}
     .section {{ margin-bottom: 12px; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px; }}
     .section-title {{ font-weight: bold; margin-bottom: 6px; color: #333; }}
     .btn {{ margin-right: 8px; padding: 6px 12px; border: 1px solid #bbb; border-radius: 4px; background: #eee; cursor: pointer; font-size: 13px; }}
@@ -366,64 +490,81 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
     .filter-item {{ padding: 4px 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px; white-space: nowrap; }}
     .filter-item-small {{ padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 11px; margin-right: 4px; }}
     .obj-group {{ margin: 4px 0; }}
-    .tab-buttons {{ margin-bottom: 8px; }}
-    .tab-btn {{ padding: 8px 16px; border: 1px solid #bbb; background: #eee; cursor: pointer; margin-right: 2px; }}
-    .tab-btn.active {{ background: #4CAF50; color: white; border-color: #4CAF50; }}
-    .tab-content {{ display: none; }}
-    .tab-content.active {{ display: block; }}
+    .category-filter-group {{ margin-bottom: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; display: inline-block; min-width: fit-content; max-width: 100%; }}
+    .category-header {{ display: flex; justify-content: space-between; align-items: center; }}
+    .category-checkbox-label {{ margin: 0; font-weight: bold; white-space: nowrap; }}
+    .toggle-btn {{ background: #4CAF50; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; flex-shrink: 0; margin-left: 8px; }}
+    .objects-container {{ margin-top: 8px; display: none; }}
+    .search-container {{ margin-bottom: 8px; }}
+    .object-search {{ width: calc(100% - 16px); max-width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }}
+    .object-controls {{ margin-bottom: 8px; }}
+    .mini-btn {{ padding: 4px 8px; border: 1px solid #bbb; border-radius: 4px; background: #eee; cursor: pointer; font-size: 12px; margin-right: 4px; }}
+    .mini-btn:hover {{ background: #ddd; }}
+    .objects-list {{ max-height: 150px; overflow-y: auto; }}
+    .object-item {{ display: flex; align-items: center; padding: 4px 0; }}
+    .object-item input {{ margin-right: 8px; }}
   </style>
 </head>
 <body>
   <div id="controls">
-    <div class="tab-buttons">
-      <button class="tab-btn active" data-tab="category">Filter by Category</button>
-      <button class="tab-btn" data-tab="object">Filter by Object</button>
-    </div>
-    
-    <div id="category-tab" class="tab-content active">
-      <div class="section">
-        <div class="section-title">Categories</div>
-        <div>
-          <button class="btn" onclick="selectAllCategories()">Select All</button>
-          <button class="btn" onclick="selectNoneCategories()">Select None</button>
-          <button class="btn" onclick="invertCategories()">Invert</button>
-        </div>
-        <div class="filters" style="margin-top: 8px;">{cats_html}</div>
+    <div class="section">
+      <div class="section-title">Filter by Category or Object</div>
+      <div>
+        <button class="btn" onclick="selectAllObjects()">Select All</button>
+        <button class="btn" onclick="selectNoneObjects()">Select None</button>
+        <button class="btn" onclick="invertObjects()">Invert</button>
       </div>
-    </div>
-    
-    <div id="object-tab" class="tab-content">
-      <div class="section">
-        <div class="section-title">Objects (by Category)</div>
-        <div>
-          <button class="btn" onclick="selectAllObjects()">Select All</button>
-          <button class="btn" onclick="selectNoneObjects()">Select None</button>
-          <button class="btn" onclick="invertObjects()">Invert</button>
-        </div>
-        <div style="margin-top: 8px; max-height: 120px; overflow-y: auto;">{objs_html}</div>
-      </div>
+      <div style="margin-top: 8px; max-height: none; overflow-y: visible;">{objs_html}</div>
     </div>
   </div>
-  
+
+  <div id="resizer"></div>
+
   <div id="plot"></div>
-  
+
   <script id="plotly-inline-js" type="application/json">{inline_js_json}</script>
   {data_load_script}
-  
+
   <script>
     let plotReady = false;
     const layout = {layout_json};
-    const config = {{responsive: true, displaylogo: false}};
+    const config = {{responsive: true, displaylogo: false, scrollZoom: true}};
 
-    // Tab switching
-    document.querySelectorAll('.tab-btn').forEach(btn => {{
-      btn.addEventListener('click', function() {{
-        const tab = this.getAttribute('data-tab');
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        this.classList.add('active');
-        document.getElementById(tab + '-tab').classList.add('active');
-      }});
+    // Resizer functionality
+    let isResizing = false;
+    const resizer = document.getElementById('resizer');
+    const controls = document.getElementById('controls');
+    const plot = document.getElementById('plot');
+
+    resizer.addEventListener('mousedown', function(e) {{
+      isResizing = true;
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+    }});
+
+    document.addEventListener('mousemove', function(e) {{
+      if (!isResizing) return;
+
+      const containerHeight = window.innerHeight;
+      const newControlsHeight = e.clientY;
+
+      // Set minimum and maximum heights
+      if (newControlsHeight > 100 && newControlsHeight < containerHeight - 300) {{
+        controls.style.height = newControlsHeight + 'px';
+        controls.style.maxHeight = newControlsHeight + 'px';
+      }}
+    }});
+
+    document.addEventListener('mouseup', function(e) {{
+      if (isResizing) {{
+        isResizing = false;
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = 'auto';
+        // Trigger Plotly to resize to fit new container
+        if (plotReady) {{
+          Plotly.Plots.resize('plot');
+        }}
+      }}
     }});
 
     function ensurePlotlyAndRender() {{
@@ -434,23 +575,41 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
             console.error('Track data not loaded');
             return;
           }}
-          
-          // Combine traces for both subplots
-          const allTraces = [...data.traces_raw, ...data.traces_zeroed];
-          Plotly.newPlot('plot', allTraces, layout, config);
-          plotReady = true;
+
+          console.log('Rendering with', data.traces_raw.length, 'raw traces and', data.traces_zeroed.length, 'zeroed traces');
+
+          // Use requestAnimationFrame for better performance
+          requestAnimationFrame(() => {{
+            // Combine traces for both subplots
+            const allTraces = [...data.traces_zeroed, ...data.traces_raw];
+
+            // Enable WebGL for better performance (only for 3D mode)
+            if (!data.is_2d) {{
+              layout.scene = layout.scene || {{}};
+              layout.scene.camera = layout.scene.camera || {{}};
+              layout.scene2 = layout.scene2 || {{}};
+              layout.scene2.camera = layout.scene2.camera || {{}};
+            }}
+
+            Plotly.newPlot('plot', allTraces, layout, config).then(() => {{
+              plotReady = true;
+              console.log('Plot ready with', allTraces.length, 'total traces');
+            }}).catch(e => {{
+              console.error('Plot creation error:', e);
+            }});
+          }});
         }} catch (e) {{
           console.error('Plotly render error:', e);
           document.getElementById('plot').innerHTML = '<div style="padding:12px;color:#900">Render error: ' + (e.message || e) + '</div>';
         }}
       }}
-      
+
       if (window.Plotly && window.TRACK_DATA) return render();
-      
-      // Wait for both Plotly and data
+
+      // Wait for both Plotly and data with timeout
       let waited = 0;
       const step = 50;
-      const maxWait = 3000;
+      const maxWait = 5000;
       const intv = setInterval(() => {{
         waited += step;
         if (window.Plotly && window.TRACK_DATA) {{
@@ -458,22 +617,7 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
           render();
         }} else if (waited >= maxWait) {{
           clearInterval(intv);
-          // Try inline Plotly fallback
-          try {{
-            const jsNode = document.getElementById('plotly-inline-js');
-            if (jsNode && jsNode.textContent && jsNode.textContent !== 'null') {{
-              const inline = JSON.parse(jsNode.textContent);
-              const s = document.createElement('script');
-              s.type = 'text/javascript';
-              s.text = inline;
-              document.head.appendChild(s);
-              setTimeout(() => {{
-                if (window.Plotly && window.TRACK_DATA) render();
-              }}, 500);
-            }}
-          }} catch (e) {{
-            console.error('Failed to load Plotly:', e);
-          }}
+          console.error('Timeout waiting for Plotly or data');
         }}
       }}, step);
     }}
@@ -481,82 +625,179 @@ def tracks_webgl_3d_html_unified(df_segments, df_sum, save_file, twodim_mode, co
     if (document.readyState !== 'loading') ensurePlotlyAndRender();
     else document.addEventListener('DOMContentLoaded', ensurePlotlyAndRender);
 
-    function updateVisibilityByCategory() {{
-      if (!plotReady || !window.TRACK_DATA) return;
+    // Set uniform width for category boxes based on longest category name
+    window.addEventListener('load', function() {{
+      const categoryGroups = document.querySelectorAll('.category-filter-group');
+      let maxWidth = 0;
       
-      const data = window.TRACK_DATA;
-      const selectedCats = new Set();
-      document.querySelectorAll('.cat-checkbox:checked').forEach(cb => {{
-        selectedCats.add(cb.getAttribute('data-category'));
+      // First pass: measure all category boxes to find the maximum width
+      categoryGroups.forEach(group => {{
+        const currentWidth = group.offsetWidth;
+        if (currentWidth > maxWidth) {{
+          maxWidth = currentWidth;
+        }}
       }});
       
-      const visibility = [];
-      data.metadata.forEach(meta => {{
-        const visible = selectedCats.has(meta.category);
-        visibility.push(visible); // raw
-        visibility.push(visible); // zeroed
-      }});
-      
-      Plotly.restyle('plot', {{visible: visibility}});
-    }}
+      // Second pass: apply the maximum width to all boxes
+      if (maxWidth > 0) {{
+        categoryGroups.forEach(group => {{
+          group.style.width = maxWidth + 'px';
+          group.style.minWidth = maxWidth + 'px';
+        }});
+      }}
+    }});
 
     function updateVisibilityByObject() {{
       if (!plotReady || !window.TRACK_DATA) return;
-      
+
       const data = window.TRACK_DATA;
       const selectedObjs = new Set();
       document.querySelectorAll('.obj-checkbox:checked').forEach(cb => {{
         selectedObjs.add(parseInt(cb.getAttribute('data-object')));
       }});
-      
+
+      console.log('Selected objects:', Array.from(selectedObjs));
+
+      // Create visibility array based on metadata
       const visibility = [];
+
+      // Raw traces first (same order as traces_raw)
       data.metadata.forEach(meta => {{
         const visible = selectedObjs.has(meta.obj_id);
-        visibility.push(visible); // raw
-        visibility.push(visible); // zeroed
+        visibility.push(visible);
       }});
-      
+
+      // Zeroed traces second (same order as traces_zeroed)
+      data.metadata.forEach(meta => {{
+        const visible = selectedObjs.has(meta.obj_id);
+        visibility.push(visible);
+      }});
+
+      console.log('Visibility array length:', visibility.length, 'Expected:', data.total_traces_count);
+
       Plotly.restyle('plot', {{visible: visibility}});
     }}
 
-    // Category controls
+    // Object controls with improved functionality
     document.addEventListener('change', function(e) {{
-      if (e.target && e.target.classList.contains('cat-checkbox')) {{
-        updateVisibilityByCategory();
-      }} else if (e.target && e.target.classList.contains('obj-checkbox')) {{
+      if (e.target && e.target.classList.contains('obj-checkbox')) {{
+        updateVisibilityByObject();
+      }} else if (e.target && e.target.classList.contains('category-master-checkbox')) {{
+        // Handle category master checkbox - toggle all objects in that category
+        const category = e.target.getAttribute('data-category');
+        const isChecked = e.target.checked;
+        const objCheckboxes = document.querySelectorAll(`#objects-list-${{category}} .obj-checkbox`);
+        objCheckboxes.forEach(cb => cb.checked = isChecked);
         updateVisibilityByObject();
       }}
     }});
 
-    function selectAllCategories() {{
-      document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = true);
-      updateVisibilityByCategory();
-    }}
-
-    function selectNoneCategories() {{
-      document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = false);
-      updateVisibilityByCategory();
-    }}
-
-    function invertCategories() {{
-      document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = !cb.checked);
-      updateVisibilityByCategory();
-    }}
 
     function selectAllObjects() {{
       document.querySelectorAll('.obj-checkbox').forEach(cb => cb.checked = true);
+      document.querySelectorAll('.category-master-checkbox').forEach(cb => cb.checked = true);
       updateVisibilityByObject();
     }}
 
     function selectNoneObjects() {{
       document.querySelectorAll('.obj-checkbox').forEach(cb => cb.checked = false);
+      document.querySelectorAll('.category-master-checkbox').forEach(cb => cb.checked = false);
       updateVisibilityByObject();
     }}
 
     function invertObjects() {{
       document.querySelectorAll('.obj-checkbox').forEach(cb => cb.checked = !cb.checked);
+      // Update category master checkboxes based on their objects
+      document.querySelectorAll('.category-master-checkbox').forEach(masterCb => {{
+        const category = masterCb.getAttribute('data-category');
+        const objCheckboxes = document.querySelectorAll(`#objects-list-${{category}} .obj-checkbox`);
+        const checkedCount = Array.from(objCheckboxes).filter(cb => cb.checked).length;
+        masterCb.checked = checkedCount > 0;
+        masterCb.indeterminate = checkedCount > 0 && checkedCount < objCheckboxes.length;
+      }});
       updateVisibilityByObject();
     }}
+
+    // Object filtering functions
+    function toggleCategoryObjects(category) {{
+      const container = document.getElementById('objects-' + category);
+      const toggleBtn = event.target;
+      if (container.style.display === 'none' || container.style.display === '') {{
+        container.style.display = 'block';
+        toggleBtn.textContent = '▲';
+      }} else {{
+        container.style.display = 'none';
+        toggleBtn.textContent = '▼';
+      }}
+    }}
+
+    function filterObjects(category, searchTerm) {{
+      const items = document.querySelectorAll(`#objects-list-${{category}} .object-item`);
+      items.forEach(item => {{
+        const text = item.textContent || item.innerText || '';
+        const isVisible = text.toLowerCase().includes(searchTerm.toLowerCase());
+        item.style.display = isVisible ? 'flex' : 'none';
+      }});
+    }}
+
+    function selectAllInCategory(category) {{
+      const checkboxes = document.querySelectorAll(`#objects-list-${{category}} .obj-checkbox`);
+      checkboxes.forEach(cb => cb.checked = true);
+      const masterCb = document.querySelector(`.category-master-checkbox[data-category="${{category}}"]`);
+      if (masterCb) {{
+        masterCb.checked = true;
+        masterCb.indeterminate = false;
+      }}
+      updateVisibilityByObject();
+    }}
+
+    function selectNoneInCategory(category) {{
+      const checkboxes = document.querySelectorAll(`#objects-list-${{category}} .obj-checkbox`);
+      checkboxes.forEach(cb => cb.checked = false);
+      const masterCb = document.querySelector(`.category-master-checkbox[data-category="${{category}}"]`);
+      if (masterCb) {{
+        masterCb.checked = false;
+        masterCb.indeterminate = false;
+      }}
+      updateVisibilityByObject();
+    }}
+
+    function invertInCategory(category) {{
+      const checkboxes = document.querySelectorAll(`#objects-list-${{category}} .obj-checkbox`);
+      checkboxes.forEach(cb => cb.checked = !cb.checked);
+
+      // Update master checkbox state
+      const masterCb = document.querySelector(`.category-master-checkbox[data-category="${{category}}"]`);
+      if (masterCb) {{
+        const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+        masterCb.checked = checkedCount > 0;
+        masterCb.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+      }}
+      updateVisibilityByObject();
+    }}
+
+    // Update master checkbox states when individual objects change
+    document.addEventListener('change', function(e) {{
+      if (e.target && e.target.classList.contains('obj-checkbox')) {{
+        const category = e.target.getAttribute('data-category');
+        const masterCb = document.querySelector(`.category-master-checkbox[data-category="${{category}}"]`);
+        if (masterCb) {{
+          const objCheckboxes = document.querySelectorAll(`#objects-list-${{category}} .obj-checkbox`);
+          const checkedCount = Array.from(objCheckboxes).filter(cb => cb.checked).length;
+
+          if (checkedCount === 0) {{
+            masterCb.checked = false;
+            masterCb.indeterminate = false;
+          }} else if (checkedCount === objCheckboxes.length) {{
+            masterCb.checked = true;
+            masterCb.indeterminate = false;
+          }} else {{
+            masterCb.checked = false;
+            masterCb.indeterminate = true;
+          }}
+        }}
+      }}
+    }});
   </script>
 </body>
 </html>
@@ -584,7 +825,9 @@ def json_dumps_safe(obj):
             except Exception:
                 pass
             return super().default(o)
+
     return json.dumps(obj, cls=NpEncoder, separators=(',', ':'))
+
 
 def summary_figures(df, fit_stats, color_map=None):
     columns = [col for col in df.columns if col not in ('Object ID', 'Category')]
@@ -699,434 +942,8 @@ def summary_figures(df, fit_stats, color_map=None):
     )
     return [fig]
 
-def tracks_figure(df, df_sum, cat_provided, save_file, twodim_mode, color_map=None, color_by_object=False):
-    def prepare_data():
-        data_dict = {}
-        data_dict['unique_ids'] = list(dict.fromkeys(all_ids))
 
-        data_dict['zeroed_x_data'] = []
-        data_dict['zeroed_y_data'] = []
-        data_dict['raw_x_data'] = []
-        data_dict['raw_y_data'] = []
-
-        if not twodim_mode:
-            data_dict['x_all'] = []
-            data_dict['y_all'] = []
-            data_dict['z_all'] = []
-            data_dict['x_zeroed_all'] = []
-            data_dict['y_zeroed_all'] = []
-            data_dict['z_zeroed_all'] = []
-
-        return data_dict
-
-    def calculate_range_with_padding(min_val, max_val, padding_factor):
-        range_size = max_val - min_val
-        padding = range_size * padding_factor
-        return min_val - padding, max_val + padding
-
-    def add_origin_lines(fig, x_min, x_max, y_min, y_max, col=1):
-        if y_min <= 0 <= y_max:
-            fig.add_trace(
-                go.Scatter(
-                    x=[x_min, x_max], y=[0, 0],
-                    mode='lines', line=dict(color='black', width=1),
-                    opacity=0.7, showlegend=False
-                ),
-                row=1, col=col
-            )
-
-        if x_min <= 0 <= x_max:
-            fig.add_trace(
-                go.Scatter(
-                    x=[0, 0], y=[y_min, y_max],
-                    mode='lines', line=dict(color='black', width=1),
-                    opacity=0.7, showlegend=False
-                ),
-                row=1, col=col
-            )
-
-    def add_category_legend(fig, categories):
-        for cat in categories:
-            color_key = cat if not color_by_object else None
-            trace_args = {
-                'name': f"Category {cat}",
-                'mode': 'lines',
-                'line': dict(color=color_map.get(color_key, 'black'), width=4),
-                'legendgroup': f"cat_{cat}",
-                'showlegend': True
-            }
-
-            if twodim_mode:
-                fig.add_trace(
-                    go.Scatter(x=[None], y=[None], **trace_args),
-                    row=1, col=1
-                )
-            else:
-                fig.add_trace(
-                    go.Scatter3d(x=[None], y=[None], z=[None], **trace_args),
-                    row=1, col=1
-                )
-
-    def add_track_trace(fig, track_data, zeroed=False, obj_figure=False, color_by_object=False):
-        x_data = track_data['x_zeroed'] if zeroed else track_data['x_data']
-        y_data = track_data['y_zeroed'] if zeroed else track_data['y_data']
-        z_data = track_data['z_zeroed'] if zeroed else track_data['z_data']
-
-        obj_name = str(track_data['object_id'])
-        category = str(track_data['category'])
-        time_data = track_data['time_data']
-
-        color_key = obj_name if color_by_object else category
-        col = 1 if zeroed else 2
-        common_args = {
-            'name': obj_name,
-            'mode': 'lines',
-            'marker_color': color_map.get(color_key, 'black'),
-        }
-
-        if obj_figure:
-            common_args['name'] = f"{obj_name} (Cat {category})"
-            common_args['legendgroup'] = f"obj_{obj_name}"
-            common_args['showlegend'] = zeroed
-        else:
-            common_args['legendgroup'] = f"cat_{category}"
-            common_args['showlegend'] = False
-
-        if twodim_mode:
-            fig.add_trace(
-                go.Scatter(
-                    x=x_data, y=y_data,
-                    hovertext=time_data,
-                    line=dict(width=2),
-                    **common_args
-                ),
-                row=1, col=col
-            )
-        else:
-            fig.add_trace(
-                go.Scatter3d(
-                    x=x_data, y=y_data, z=z_data,
-                    line=dict(width=4),
-                    marker=dict(size=12),
-                    **common_args
-                ),
-                row=1, col=col
-            )
-
-    def calculate_3d_axis_range(x_vals, y_vals, z_vals):
-        if not (x_vals and y_vals and z_vals):
-            return (0, 1), (0, 1), (0, 1)
-
-        x_min, x_max = min(x_vals), max(x_vals)
-        y_min, y_max = min(y_vals), max(y_vals)
-        z_min, z_max = min(z_vals), max(z_vals)
-
-        x_range = x_max - x_min
-        y_range = y_max - y_min
-        z_range = z_max - z_min
-        max_range = max(x_range, y_range, z_range)
-
-        x_center = (x_max + x_min) / 2
-        y_center = (y_max + y_min) / 2
-        z_center = (z_max + z_min) / 2
-
-        return (
-            (x_center - max_range / 2, x_center + max_range / 2),
-            (y_center - max_range / 2, y_center + max_range / 2),
-            (z_center - max_range / 2, z_center + max_range / 2)
-        )
-
-    def setup_axes(fig, all_track_data):
-        if twodim_mode:
-            for col in [1, 2]:
-                fig.update_xaxes(
-                    title="X", row=1, col=col,
-                    showline=True, linewidth=1, linecolor='black', mirror=True,
-                    ticks='outside', ticklen=5, tickwidth=1,
-                    showgrid=False, zeroline=False
-                )
-                fig.update_yaxes(
-                    title="Y", row=1, col=col,
-                    showline=True, linewidth=1, linecolor='black', mirror=True,
-                    ticks='outside', ticklen=5, tickwidth=1,
-                    showgrid=False, zeroline=False
-                )
-        else:
-            x_all = []
-            y_all = []
-            z_all = []
-            x_zeroed_all = []
-            y_zeroed_all = []
-            z_zeroed_all = []
-
-            for track in all_track_data:
-                if track['x_data'] and track['y_data'] and track['z_data']:
-                    x_all.extend(track['x_data'])
-                    y_all.extend(track['y_data'])
-                    z_all.extend(track['z_data'])
-                    x_zeroed_all.extend(track['x_zeroed'])
-                    y_zeroed_all.extend(track['y_zeroed'])
-                    z_zeroed_all.extend(track['z_zeroed'])
-
-            if x_all and y_all and z_all:
-                (x_min, x_max), (y_min, y_max), (z_min, z_max) = calculate_3d_axis_range(
-                    x_all, y_all, z_all
-                )
-
-                fig.update_layout(
-                    scene2=dict(
-                        aspectmode='cube',
-                        xaxis=dict(range=[x_min, x_max], title="X"),
-                        yaxis=dict(range=[y_min, y_max], title="Y"),
-                        zaxis=dict(range=[z_min, z_max], title="Z")
-                    )
-                )
-
-            if x_zeroed_all and y_zeroed_all and z_zeroed_all:
-                (x_zeroed_min, x_zeroed_max), (y_zeroed_min, y_zeroed_max), (z_zeroed_min,
-                                                                             z_zeroed_max) = calculate_3d_axis_range(
-                    x_zeroed_all, y_zeroed_all, z_zeroed_all
-                )
-
-                fig.update_layout(
-                    scene=dict(
-                        aspectmode='cube',
-                        xaxis=dict(range=[x_zeroed_min, x_zeroed_max], title="X"),
-                        yaxis=dict(range=[y_zeroed_min, y_zeroed_max], title="Y"),
-                        zaxis=dict(range=[z_zeroed_min, z_zeroed_max], title="Z")
-                    )
-                )
-
-    axis_padding = 0.1
-
-    if cat_provided:
-        if color_map is None:
-            categories = df_sum['Category'].unique()
-            color_map = get_category_color_map(categories)
-        all_categories = sorted(df_sum['Category'].dropna().unique())
-    else:
-        color_map = {0: colors[0]}
-        all_categories = [0]
-
-    specs = [[{"type": "xy"}, {"type": "xy"}]] if twodim_mode else [[{"type": "scene"}, {"type": "scene"}]]
-
-    limit = 5000
-    objs_in_segments = df['Object ID'].unique()
-    df_sum_in = df_sum[df_sum['Object ID'].isin(objs_in_segments)].copy()
-    total_objects = len(np.unique(objs_in_segments))
-
-    if total_objects > limit:
-        counts_series = df_sum_in.groupby('Category')['Object ID'].nunique()
-        counts = counts_series.to_dict()
-        cats = list(counts.keys())
-        counts_arr = np.array([counts[c] for c in cats], dtype=float)
-        proportions = counts_arr / counts_arr.sum()
-        ideal = proportions * limit
-        initial = np.floor(ideal)
-        capped_initial = np.minimum(initial, counts_arr)
-        current_sum = int(capped_initial.sum())
-        remainder = limit - current_sum
-        residuals = ideal - capped_initial
-        for i, c in enumerate(cats):
-            if capped_initial[i] >= counts_arr[i]:
-                residuals[i] = -np.inf
-        if remainder > 0:
-            order = np.argsort(-residuals)
-            idx = 0
-            while remainder > 0 and idx < len(order):
-                j = order[idx]
-                if capped_initial[j] < counts_arr[j]:
-                    capped_initial[j] += 1
-                    remainder -= 1
-                idx += 1
-                if idx == len(order) and remainder > 0:
-                    idx = 0
-        targets = {cats[i]: int(capped_initial[i]) for i in range(len(cats))}
-        selected_ids = []
-        for cat in cats:
-            n_keep = targets.get(cat, 0)
-            if n_keep <= 0:
-                continue
-            ids_cat = df_sum_in.loc[df_sum_in['Category'] == cat, 'Object ID'].unique()
-            ids_cat_sorted = np.sort(ids_cat)
-            selected_ids.extend(ids_cat_sorted[:n_keep].tolist())
-        selected_ids = np.array(selected_ids, dtype=int)
-        df = df[df['Object ID'].isin(selected_ids)].copy()
-        df_sum = df_sum[df_sum['Object ID'].isin(selected_ids)].copy()
-        objs_in_segments = np.unique(selected_ids)
-        total_objects = len(objs_in_segments)
-
-    all_ids = list(objs_in_segments)
-
-    data = prepare_data()
-
-    fig_category = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=["Zeroed Tracks", "Raw Tracks"],
-        specs=specs,
-        horizontal_spacing=0.05
-    )
-
-    fig_objects = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=["Zeroed Tracks", "Raw Tracks"],
-        specs=specs,
-        horizontal_spacing=0.05
-    )
-
-    add_category_legend(fig_category, all_categories)
-
-    unique_objects = np.array(all_ids, dtype=int)
-
-    max_processes = max(1, min(61, mp.cpu_count() - 2))
-    temp_workers = max_processes
-    chunk_size = max(10, max(1, len(unique_objects)) // (temp_workers * 3) if len(unique_objects) > 0 else 10)
-
-    object_batches = []
-    for i in range(0, len(unique_objects), chunk_size):
-        batch_objects = unique_objects[i:i + chunk_size]
-        df_batch = df[df['Object ID'].isin(batch_objects)]
-        df_sum_batch = df_sum[df_sum['Object ID'].isin(batch_objects)]
-        object_batches.append((df_batch, df_sum_batch, twodim_mode))
-
-    mem_est = estimate_track_processing_memory(df, df_sum, len(object_batches))
-    use_multiprocessing = mem_est['use_multiprocessing']
-
-    all_track_data = []
-
-    if use_multiprocessing and len(object_batches) > 0:
-        num_workers = min(max_processes, len(object_batches))
-        try:
-            with mp.Pool(processes=num_workers) as pool:
-                batch_results = pool.map(process_object_track_batch, object_batches)
-                for results in batch_results:
-                    all_track_data.extend(results)
-                gc.collect()
-        except Exception:
-            for batch in object_batches:
-                try:
-                    results = process_object_track_batch(batch)
-                    all_track_data.extend(results)
-                except Exception:
-                    continue
-            gc.collect()
-    else:
-        for i, batch in enumerate(object_batches):
-            try:
-                results = process_object_track_batch(batch)
-                all_track_data.extend(results)
-                if (i + 1) % 10 == 0:
-                    gc.collect()
-            except Exception:
-                continue
-        gc.collect()
-
-    if twodim_mode:
-        for track in all_track_data:
-            data['zeroed_x_data'].extend(track['x_zeroed'])
-            data['zeroed_y_data'].extend(track['y_zeroed'])
-            data['raw_x_data'].extend(track['x_data'])
-            data['raw_y_data'].extend(track['y_data'])
-
-        if data['zeroed_x_data'] and data['zeroed_y_data']:
-            x_min, x_max = min(data['zeroed_x_data']), max(data['zeroed_x_data'])
-            y_min, y_max = min(data['zeroed_y_data']), max(data['zeroed_y_data'])
-            x_min, x_max = calculate_range_with_padding(x_min, x_max, axis_padding)
-            y_min, y_max = calculate_range_with_padding(y_min, y_max, axis_padding)
-
-            for fig in [fig_category, fig_objects]:
-                add_origin_lines(fig, x_min, x_max, y_min, y_max, col=1)
-
-        if data['raw_x_data'] and data['raw_y_data']:
-            x_min, x_max = min(data['raw_x_data']), max(data['raw_x_data'])
-            y_min, y_max = min(data['raw_y_data']), max(data['raw_y_data'])
-            x_min, x_max = calculate_range_with_padding(x_min, x_max, axis_padding)
-            y_min, y_max = calculate_range_with_padding(y_min, y_max, axis_padding)
-
-            for fig in [fig_category, fig_objects]:
-                add_origin_lines(fig, x_min, x_max, y_min, y_max, col=2)
-
-    for track_data in all_track_data:
-        for fig, is_obj_figure in [(fig_category, False), (fig_objects, True)]:
-            add_track_trace(fig, track_data, zeroed=True, obj_figure=is_obj_figure, color_by_object=color_by_object)
-            add_track_trace(fig, track_data, zeroed=False, obj_figure=is_obj_figure, color_by_object=color_by_object)
-
-    setup_axes(fig_category, all_track_data)
-    setup_axes(fig_objects, all_track_data)
-
-    fig_category.update_layout(
-        title=f'{save_file} Tracks (Filter by Category)',
-        plot_bgcolor='white',
-        legend=dict(title="Categories")
-    )
-
-    fig_objects.update_layout(
-        title=f'{save_file} Tracks (Filter by Object ID)',
-        plot_bgcolor='white',
-        legend=dict(title="Object IDs")
-    )
-
-    html_template = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{title}</title>
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                height: 100vh;
-                overflow-x: hidden;
-            }}
-            #plot-container {{
-                width: 95vw;
-                height: 70vh;
-                margin: 10vh auto 0;
-            }}
-        </style>
-    </head>
-    <body>
-        <div id="plot-container"></div>
-        <script>
-            var figure = {figure_json};
-            var config = {{
-                responsive: true,
-                toImageButtonOptions: {{ format: 'png', filename: '{title}' }},
-                displayModeBar: true,
-                displaylogo: false
-            }};
-
-            Plotly.newPlot('plot-container', figure.data, figure.layout, config);
-
-            Plotly.relayout('plot-container', {{
-                'xaxis.scaleanchor': 'y',
-                'xaxis.scaleratio': 1,
-                'xaxis2.scaleanchor': 'y2',
-                'xaxis2.scaleratio': 1
-            }});
-        </script>
-    </body>
-    </html>
-    """
-
-    html_category = html_template.format(
-        title=f"{save_file} Tracks (Category Filtering)",
-        figure_json=fig_category.to_json(),
-        is_twodim=str(twodim_mode).lower()
-    )
-
-    html_objects = html_template.format(
-        title=f"{save_file} Tracks (Object ID Filtering)",
-        figure_json=fig_objects.to_json(),
-        is_twodim=str(twodim_mode).lower()
-    )
-
-    return fig_category, html_category, html_objects
-
-def _create_pca_3d_subplot(args):
+def pca_3d_subplot(args):
     i, pc_triple, df_pca, color_map = args
     x, y, z = pc_triple
     categories = sorted(df_pca['Category'].dropna().unique(), key=lambda x: str(x))
@@ -1152,6 +969,7 @@ def _create_pca_3d_subplot(args):
     )
 
     return (i, traces, scene_config, f'{x}, {y}, {z}')
+
 
 def pca_figures(df_pca, color_map=None):
     pcs = ['PC1', 'PC2', 'PC3', 'PC4']
@@ -1246,6 +1064,7 @@ def pca_figures(df_pca, color_map=None):
 
     return pcafig_1d, pcafig_2d, pcafig_3d
 
+
 def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
     fit_stats = {}
     for cat in df_msd_loglogfits_long['Category'].unique():
@@ -1279,17 +1098,17 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
             with mp.Pool(processes=num_workers) as pool:
                 args_list = [(category, df_long, fit_stats, x_min, x_max, y_min, y_max)
                              for category in categories]
-                results = pool.map(_create_msd_category_figure, args_list)
+                results = pool.map(msd_category_figure, args_list)
                 msd_figure_categories = dict(results)
                 gc.collect()
         except Exception:
             for category in categories:
-                fig = _create_msd_category_figure((category, df_long, fit_stats, x_min, x_max, y_min, y_max))
+                fig = msd_category_figure((category, df_long, fit_stats, x_min, x_max, y_min, y_max))
                 msd_figure_categories[fig[0]] = fig[1]
             gc.collect()
     else:
         for i, category in enumerate(categories):
-            fig = _create_msd_category_figure((category, df_long, fit_stats, x_min, x_max, y_min, y_max))
+            fig = msd_category_figure((category, df_long, fit_stats, x_min, x_max, y_min, y_max))
             msd_figure_categories[fig[0]] = fig[1]
             if (i + 1) % 3 == 0:
                 gc.collect()
@@ -1319,7 +1138,7 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
         msd_figure_all.add_trace(go.Scatter(
             x=x_fit, y=y_fit_line,
             mode='lines',
-            name=f'Linear fit (Cat {category}, tau {int(round(10**x_fit_start))}–{int(round(stats.get("max_tau", x[-1])))} )',
+            name=f'Linear fit (Cat {category}, tau {int(round(10 ** x_fit_start))}–{int(round(stats.get("max_tau", x[-1])))} )',
             line=dict(color=color, width=2, dash='dash'),
             showlegend=True
         ))
@@ -1335,7 +1154,7 @@ def msd_graphs(df_msd, df_msd_loglogfits_long, color_map):
     return msd_figure_all, msd_figure_categories, fit_stats
 
 
-def _create_msd_category_figure(args):
+def msd_category_figure(args):
     category, df_long, fit_stats, x_min, x_max, y_min, y_max = args
 
     cat_df = df_long[df_long['Category'] == category]
@@ -1379,7 +1198,7 @@ def _create_msd_category_figure(args):
         y=y_fit_line,
         mode='lines',
         line=dict(color='red', width=2, dash='dash'),
-        name=f'Linear fit (tau {int(round(10**x_fit_start))}–{int(round(stats.get("max_tau", x[-1])))} )',
+        name=f'Linear fit (tau {int(round(10 ** x_fit_start))}–{int(round(stats.get("max_tau", x[-1])))} )',
     ))
     fig.add_annotation(
         xref='paper', yref='paper',
@@ -1401,15 +1220,16 @@ def _create_msd_category_figure(args):
 
     return (category, fig)
 
+
 def estimate_msd_processing_memory(df_long, num_categories):
     mem_info = psutil.virtual_memory()
-    available_gb = mem_info.available / (1024**3)
+    available_gb = mem_info.available / (1024 ** 3)
 
-    df_size_gb = df_long.memory_usage(deep=True).sum() / (1024**3)
+    df_size_gb = df_long.memory_usage(deep=True).sum() / (1024 ** 3)
     num_objects = df_long['Object ID'].nunique()
 
     estimated_output_bytes = num_objects * num_categories * 500
-    estimated_output_gb = estimated_output_bytes / (1024**3)
+    estimated_output_gb = estimated_output_bytes / (1024 ** 3)
 
     if num_objects > 1000:
         peak_multiplier = 0.8
@@ -1430,6 +1250,7 @@ def estimate_msd_processing_memory(df_long, num_categories):
         'num_objects': num_objects,
         'num_categories': num_categories
     }
+
 
 def contacts_figures(df_contacts, df_contpercat, color_map=None):
     violin_metrics = [
@@ -1518,6 +1339,7 @@ def contacts_figures(df_contacts, df_contpercat, color_map=None):
     )
     return [fig]
 
+
 def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_contacts, df_contpercat,
                      savefile, cat_provided, twodim_mode):
     for df in [df_sum, df_segments, df_pca, df_msd, df_contacts, df_contpercat]:
@@ -1544,36 +1366,20 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
         color_map = get_category_color_map(categories)
         color_by_object = False
 
-    if cat_provided:
-        tracks_fig, tracks_html_category, tracks_html_objects = tracks_figure(
-            df_segments, df_sum, True, savefile, twodim_mode,
-            color_map=color_map, color_by_object=color_by_object
-        )
-        with open(f'{savefile}_Figures_Tracks_byCategory.html', 'w', encoding='utf-8') as f:
-            f.write(tracks_html_category)
-    else:
-        tracks_fig, tracks_html_category, tracks_html_objects = tracks_figure(
-            df_segments, df_sum, True, savefile, twodim_mode,
-            color_map=color_map, color_by_object=color_by_object
-        )
-
-    with open(f'{savefile}_Figures_Tracks_byObjectID.html', 'w', encoding='utf-8') as f:
-        f.write(tracks_html_objects)
-
     try:
-        html3d_unified, external_js_data = tracks_webgl_3d_html_unified(
+        html3d_unified, external_js_data = tracks_plots(
             df_segments, df_sum, savefile, twodim_mode,
             color_map=get_category_color_map(categories)
         )
         if html3d_unified:
-            with open(f'{savefile}_Figures_Tracks3D_WebGL.html', 'w', encoding='utf-8') as f:
+            with open(f'{savefile}_Figures_Tracks.html', 'w', encoding='utf-8') as f:
                 f.write(html3d_unified)
             if external_js_data:
                 js_filename, js_content = external_js_data
                 with open(js_filename, 'w', encoding='utf-8') as f:
                     f.write(js_content)
     except Exception as e:
-        print(f"Warning: Failed to generate 3D WebGL tracks: {e}")
+        print(f"Warning: Failed to generate tracks plots: {e}")
         pass
 
     if cat_provided and df_pca is not None and not df_pca.empty:
@@ -1615,6 +1421,7 @@ def save_all_figures(df_sum, df_segments, df_pca, df_msd, df_msd_loglogfits, df_
             f.write(f"<div style='width:95vw;'>{fig_html}</div>")
 
     return
+
 
 if __name__ == '__main__':
     mp.set_start_method("spawn")

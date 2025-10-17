@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def multi_tracking(arr_segments):
     if arr_segments.size == 0:
         return arr_segments

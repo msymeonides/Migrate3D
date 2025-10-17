@@ -14,6 +14,7 @@ from helicity import compute_helicity_analysis
 from machine_learning import ml_analysis, XGBAbortException
 from shared_state import messages, thread_lock, complete_progress_step
 
+
 def compute_object_summary(obj_data_tuple):
     obj, object_data, df_obj_calcs, category, parameters, summary_columns = obj_data_tuple
 
@@ -194,12 +195,14 @@ def compute_object_summary(obj_data_tuple):
     summary_tuple = tuple(summary_dict.get(col, None) for col in summary_columns)
     return obj, summary_tuple, single_euclidean
 
+
 def compute_object_summary_batch(batch_args):
     results = []
     for args in batch_args:
         result = compute_object_summary(args)
         results.append(result)
     return results
+
 
 def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, parameters, arr_cats, savefile,
                   angle_steps, all_angle_medians, df_removed):

@@ -32,7 +32,6 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             print()
 
         parameters['savefile'] = savefile
-        parameters['x_col_name'] = x_for
         parameters['object_id_col_name'] = parent_id
         parameters['time_col_name'] = time_for
         parameters['x_col_name'] = x_for
@@ -418,13 +417,12 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             messages.append(completion_message)
             messages.append('------------------------------------------------')
             if parameters['verbose']:
-                messages.append('Saving main output to ' + savepath + '...')
-                messages.append('Please wait patiently. Save times are significantly longer when verbose mode is enabled...')
-                messages.append('')
+                messages.append('PLEASE WAIT! Saving main output to ' + savepath + '...')
+                messages.append('Be patient - save times are significantly longer when verbose mode is enabled...')
             else:
-                messages.append('Saving main output to ' + savepath + '...')
-                messages.append('')
+                messages.append('PLEASE WAIT! Saving main output to ' + savepath + '...')
 
+        tic = tempo.time()
         runtime_log_data = messages.get_runtime_log()
         df_runtime_log = pd.DataFrame(runtime_log_data)
 
@@ -471,6 +469,9 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             parameters.pop('calcs_dir', None)
             parameters.pop('calcs_manifest', None)
 
+        toc = tempo.time()
+        with thread_lock:
+            msg = ' Done in {:.0f} seconds.'.format(int(round((toc - tic), 1)))
+            messages[-1] += msg
+            messages.append('')
         complete_progress_step("Final results save")
-
-        return df_segments, df_sum, df_pca

@@ -13,6 +13,7 @@ import traceback
 from governor import migrate3D
 from shared_state import messages, thread_lock, get_progress, init_progress_tracker, is_aborted
 
+
 # Welcome to Migrate3D version 2.5, under construction!
 # Please see README.md before running this package.
 # Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan and Jonah Harris
@@ -62,6 +63,7 @@ app = Dash(__name__, assets_folder='assets', assets_url_path='/assets/', externa
 
 du.configure_upload(app, UPLOAD_FOLDER_ROOT, use_upload_id=True)
 
+
 class DebugFilter(logging.Filter):
     def filter(self, record):
         if record.levelno == logging.DEBUG:
@@ -96,6 +98,7 @@ option_map = {
 default_options = [
     v for k, v in option_map.items() if parameters.get(k, False)
 ]
+
 
 app.layout = dbc.Container(
     children=[
@@ -527,6 +530,7 @@ app.layout = dbc.Container(
     fluid=True
 )
 
+
 def run_migrate_thread(args):
     (parent_id, time_for, x_for, y_for, z_for, timelapse, arrest_limit, moving,
      contact_length, arrested, min_maxeuclid, tau, options, savefile,
@@ -555,11 +559,11 @@ def run_migrate_thread(args):
     init_progress_tracker(optional_flags)
 
     try:
-        df_segments, df_sum, df_pca = migrate3D(
-            parent_id, time_for, x_for, y_for, z_for, float(timelapse),
+        migrate3D(parent_id, time_for, x_for, y_for, z_for, float(timelapse),
             float(arrest_limit), int(moving), int(contact_length), float(arrested),
             float(min_maxeuclid), int(tau), options, savefile,
-            segments_file_name, categories_file, segments_filename, categories_filename, parameters, pca_filter, attract_params)
+            segments_file_name, categories_file, segments_filename, categories_filename, parameters, pca_filter,
+            attract_params)
 
         with thread_lock:
             messages.append("You may close the GUI browser tab and terminate the Python process.")
@@ -577,6 +581,7 @@ def run_migrate_thread(args):
             os.makedirs(UPLOAD_FOLDER_ROOT, exist_ok=True)
         except Exception as cleanup_error:
             print(f"Error cleaning uploads folder: {cleanup_error}")
+
 
 @app.callback(
     Output('dummy', 'children'),
@@ -676,6 +681,7 @@ def run_migrate(*vals):
     thread.start()
     return None
 
+
 @app.callback(
     Output('parent_id', 'options'), Output('parent_id', 'value'),
     Output('time_formatting', 'options'), Output('time_formatting', 'value'),
@@ -735,6 +741,7 @@ def get_segments_file(isCompleted, fileNames, upload_id):
         detected_timelapse, detected_tau
     )
 
+
 @app.callback(
     Output('parent_id2', 'options'), Output('parent_id2', 'value'),
     Output('category_col', 'options'), Output('category_col', 'value'),
@@ -775,6 +782,7 @@ def get_category_file(isCompleted, fileNames, upload_id):
     category_guess = guess_column(df_header, ['category', 'label', 'type', 'code'])
 
     return options, id_guess, options, category_guess
+
 
 @app.callback(
     Output('Timelapse', 'value', allow_duplicate=True),
@@ -859,6 +867,7 @@ def auto_detect_timelapse_tau(id_column, time_column, current_timelapse, current
 
     return detected_timelapse, detected_tau
 
+
 @app.callback(
     Output('Timelapse', 'value', allow_duplicate=True),
     Output('tau', 'value', allow_duplicate=True),
@@ -908,6 +917,7 @@ def update_timelapse_tau_on_time_column_change(time_column, id_column, current_t
 
     return detected_timelapse, detected_tau
 
+
 @app.callback(
     Output('progress-bar', 'value'),
     Output('progress-bar', 'color'),
@@ -920,6 +930,7 @@ def update_progress_bar(n):
     else:
         return progress, 'info'
 
+
 @app.callback(
     Output('alert_box', 'children'),
     Input('progress-interval', 'n_intervals')
@@ -929,6 +940,7 @@ def update_alert_box(n):
         return html.Div([
             html.Pre('\n'.join(messages), style={'whiteSpace': 'pre-wrap', 'margin': 0})
         ])
+
 
 @app.callback(
     Output('attractor-settings-div', 'style'),
@@ -940,6 +952,7 @@ def toggle_attractor_settings(n_clicks):
     style = {'display': 'block'} if is_open else {'display': 'none'}
     label = 'Close Attractors Parameters' if is_open else 'Open Attractors Parameters'
     return style, label
+
 
 @app.callback(
     [
@@ -1067,6 +1080,7 @@ def update_run_and_freeze(n_clicks, progress, timelapse_value, tau_value, id_col
 
     return [btn_text, btn_style, btn_disabled] + freeze_outputs + [formatting_style]
 
+
 @app.callback(
     [
         Output('replicate-analysis-button', 'children'),
@@ -1133,6 +1147,7 @@ def run_replicate_analysis(n_clicks, n_intervals, savefile):
     }
     return "Running replicate analysis...", btn_style, True
 
+
 app.clientside_callback(
     """
     function(isCompleted, fileNames) {
@@ -1148,6 +1163,7 @@ app.clientside_callback(
     prevent_initial_call=True
 )
 
+
 app.clientside_callback(
     """
     function(isCompleted, fileNames) {
@@ -1162,6 +1178,7 @@ app.clientside_callback(
     State('category_upload', 'fileNames'),
     prevent_initial_call=True
 )
+
 
 app.clientside_callback(
     """
@@ -1205,6 +1222,7 @@ app.clientside_callback(
     [Input('progress-interval', 'n_intervals'), Input('Timelapse', 'value'), Input('tau', 'value')],
     prevent_initial_call=True
 )
+
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)

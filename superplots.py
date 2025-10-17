@@ -9,8 +9,8 @@ import glob
 import re
 import os
 
+
 def superplots(input_pattern):
-    # === Config ===
     input_files = sorted(glob.glob(input_pattern))
 
     base_name = os.path.basename(input_files[0])
@@ -18,7 +18,6 @@ def superplots(input_pattern):
     html_output = base_name.replace("_Results.xlsx", "_Figures-Superplots.html")
     excel_output = base_name.replace("_Results.xlsx", "_Replicate-Stats.xlsx")
 
-    # === Load and process data ===
     dfs = []
     replicate_sheets = []
     replicate_file_map = {}
@@ -47,7 +46,6 @@ def superplots(input_pattern):
 
     stats_rows = []
 
-    # === Prepare superplots ===
     ncols = 4
     nrows = int(np.ceil(len(features) / ncols))
     fig = make_subplots(
@@ -115,7 +113,6 @@ def superplots(input_pattern):
 
         first_plotted_feature = False
 
-        # === Stats ===
         low_variance = (medians_df[feature].var() == 0 or medians_df[feature].nunique() == 1)
 
         groups = [
@@ -173,7 +170,6 @@ def superplots(input_pattern):
                             "N": n_i + n_j
                         })
 
-    # === Format and save figure ===
     fig.update_layout(
         height=int(500 * nrows),
         width=int(200 * len(replicate_sheets) * ncols),
@@ -237,7 +233,6 @@ def superplots(input_pattern):
 
     fig.write_html(html_output)
 
-    # === Save statistics ===
     stats_df = pd.DataFrame(stats_rows)
     stats_df.to_excel(excel_output, index=False)
 
