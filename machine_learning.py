@@ -14,8 +14,10 @@ from xgboost import XGBClassifier
 
 from shared_state import messages, thread_lock, complete_progress_step
 
+
 class XGBAbortException(Exception):
     pass
+
 
 min_required_pca = 5            # Minimum number of samples for PCA
 min_required_xgb = 10           # Minimum number of samples for XGBoost
@@ -24,6 +26,7 @@ test_size = 0.4                 # Proportion of data to use for testing when usi
 variance_threshold = 0.01       # Threshold for near-zero variance feature removal
 correlation_threshold = 0.95    # Pearson correlation threshold. Features with correlation above this threshold will be grouped together.
 random_seed = 42                # Random seed for reproducibility
+
 
 def safe_ml_operation(operation_func, error_step=None, *args, **kwargs):
     try:
@@ -34,6 +37,7 @@ def safe_ml_operation(operation_func, error_step=None, *args, **kwargs):
         if error_step:
             complete_progress_step(error_step)
 
+
 def remove_near_zero_variance(df, threshold=None):
     if threshold is None:
         threshold = variance_threshold
@@ -43,6 +47,7 @@ def remove_near_zero_variance(df, threshold=None):
     df_filtered = df.loc[:, feature_mask]
 
     return df_filtered, removed_features
+
 
 def apply_category_filter(df, cat_filter):
     if cat_filter is None:
@@ -61,6 +66,7 @@ def apply_category_filter(df, cat_filter):
             messages.append('No data available for the selected categories.')
 
     return filtered_df
+
 
 def detect_correlated_features(df, threshold):
     corr_matrix = df.corr().abs()
@@ -99,6 +105,7 @@ def detect_correlated_features(df, threshold):
     groups = [sorted(list(g)) for g in groups]
     return groups
 
+
 def aggregate_correlated_features(df, feature_groups):
     aggregated_data = []
     feature_mapping = {}
@@ -110,6 +117,7 @@ def aggregate_correlated_features(df, feature_groups):
     aggregated_df.columns = [", ".join(group) for group in feature_groups]
 
     return aggregated_df, feature_mapping
+
 
 def create_correlation_sheet(df, feature_groups, threshold, writer):
     corr_matrix = df.corr().abs()
@@ -141,6 +149,7 @@ def create_correlation_sheet(df, feature_groups, threshold, writer):
     correlations_df = correlations_df.sort_values('Correlation', ascending=False)
     correlations_df.to_excel(writer, sheet_name='Feature Correlations', index=False)
 
+
 def create_aggregation_sheet(df, feature_groups, aggregated_df, writer):
     for i, group in enumerate(feature_groups):
         if len(group) > 1:
@@ -151,6 +160,7 @@ def create_aggregation_sheet(df, feature_groups, aggregated_df, writer):
             comparison_df = pd.concat([original_data, aggregated_data], axis=1)
             sheet_name = f'Aggregated Feature {i}'
             comparison_df.to_excel(writer, sheet_name=sheet_name, index=False)
+
 
 def preprocess_features_with_variance_filter(df, writer=None, analysis_type=""):
     df_features = df.drop(['Object ID', 'Category'], axis=1)
@@ -217,6 +227,7 @@ def preprocess_features_with_variance_filter(df, writer=None, analysis_type=""):
 
     return aggregated_features, categories, feature_mapping, removed_features
 
+
 def prepare_data_for_training(features, categories, use_kfold=False):
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(categories)
@@ -229,6 +240,7 @@ def prepare_data_for_training(features, categories, use_kfold=False):
         )
         return x_train, x_test, y_train, y_test, label_encoder, False
 
+
 def prepare_data_for_analysis(df_selected, min_samples, analysis_type=""):
     class_counts = df_selected['Category'].value_counts()
     to_drop = class_counts[class_counts < min_samples].index.tolist()
@@ -240,6 +252,7 @@ def prepare_data_for_analysis(df_selected, min_samples, analysis_type=""):
     categories = df_filtered['Category']
     features = df_filtered.drop(['Object ID', 'Category'], axis=1)
     return df_filtered, categories, features
+
 
 def adaptive_hyperparameter_grid(total_samples, is_pairwise=False):
     if is_pairwise:
@@ -293,6 +306,7 @@ def adaptive_hyperparameter_grid(total_samples, is_pairwise=False):
             'reg_lambda': [0.0, 0.1, 0.5]
         }
 
+
 def optimize_hyperparameters_adaptive(x_train, y_train, use_kfold=False, is_pairwise=False):
     total_samples = len(x_train)
     param_grid = adaptive_hyperparameter_grid(total_samples, is_pairwise)
@@ -345,6 +359,7 @@ def optimize_hyperparameters_adaptive(x_train, y_train, use_kfold=False, is_pair
                 'min_child_weight': 1, 'reg_alpha': 0.0, 'reg_lambda': 0.0
             }
 
+
 def train_and_evaluate(x_train, y_train, x_test, y_test, params):
     model = xgb.XGBClassifier(
         objective='multi:softmax',
@@ -358,6 +373,7 @@ def train_and_evaluate(x_train, y_train, x_test, y_test, params):
     y_pred = model.predict(x_test)
     accuracy = accuracy_score(y_test, y_pred)
     return accuracy, model
+
 
 def decode_classification_report_labels(report_df, label_encoder):
     label_mapping = dict(enumerate(label_encoder.classes_))
@@ -377,6 +393,7 @@ def decode_classification_report_labels(report_df, label_encoder):
     cleaned_report.index = new_index
 
     return cleaned_report
+
 
 def xgb_output(writer, results_data):
     if 'Full Dataset' in results_data:
@@ -496,6 +513,7 @@ def xgb_output(writer, results_data):
             df_hparams.to_excel(writer, sheet_name='Optimized Hyperparams', index=False)
     except Exception:
         pass
+
 
 def xgboost(df_selected, output_file, features, categories, suffix=""):
     save_xgb = output_file + f'_XGB{suffix}.xlsx'
@@ -716,6 +734,7 @@ def xgboost(df_selected, output_file, features, categories, suffix=""):
     with pd.ExcelWriter(save_xgb, engine='xlsxwriter') as writer:
         xgb_output(writer, results_data)
 
+
 def pca(df_selected, df_processed, categories, savefile):
     if df_processed.empty or len(df_processed) < 4 or df_processed.shape[1] < 4:
         with thread_lock:
@@ -821,6 +840,7 @@ def pca(df_selected, df_processed, categories, savefile):
     complete_progress_step("PCA")
 
     return df_pcscores
+
 
 def ml_analysis(df_sum, parameters, savefile):
     with thread_lock:

@@ -321,7 +321,7 @@ The following plotly figures are generated:
 - **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
 
 
-- **Tracks**: An interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks (either raw or origin-zeroed), color-coded by category (if provided). Two versions of this are saved, one which allows filtering by category and one which allows filtering by object. Categories or objects can be toggled on/off by clicking them on the legend.
+- **Tracks**: A WebGL-based HTML interactive 2D (X/Y) or 3D (X/Y/Z) plot of all tracks (either raw or origin-zeroed), color-coded by category (if provided). You can filter by category or by object. This HTML file should be opened in Chrome; performance may be poor in other browsers. For datasets larger than 1 MB, an accompanying .js file containing the data will be created to avoid browser memory issues.
 
 
 - **PCA**: A set of plots of only the first four PCs (even if additional PCs are recorded in the .xlsx PCA output) will be generated (1D violin, 2D scatter, and 3D scatter plots of all possible PC combinations).

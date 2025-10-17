@@ -11,6 +11,7 @@ import shutil
 OBJECT_COUNT_THRESHOLD = 200
 MEMORY_SAFETY_THRESHOLD = 0.75
 
+
 def calculate_euclidean(coords, tau):
     num_rows = len(coords)
     euclid_data = {}

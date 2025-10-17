@@ -3,6 +3,7 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 from typing import Optional, List
 
+
 class CalculationReader:
     def __init__(self, df_all_calcs: Optional[pd.DataFrame], manifest: Optional[List[str]]):
         self.df = df_all_calcs if (df_all_calcs is not None and not df_all_calcs.empty) else None

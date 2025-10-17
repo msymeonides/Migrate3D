@@ -4,6 +4,7 @@ import pandas as pd
 from scipy.interpolate import splprep, splev
 import warnings
 
+
 def compute_spline(object_data):
     x = object_data[:, 2].astype(float)
     y = object_data[:, 3].astype(float)
@@ -37,6 +38,7 @@ def compute_spline(object_data):
     dt = total_time / (num_points - 1)
 
     return pos_spline, dt
+
 
 def compute_metrics_single_object(args):
     object_id, object_data, category, min_timepoints = args
@@ -86,12 +88,14 @@ def compute_metrics_single_object(args):
             'Median Curvature': np.nan
         }
 
+
 def compute_metrics_batch(batch_args):
     results = []
     for args in batch_args:
         result = compute_metrics_single_object(args)
         results.append(result)
     return results
+
 
 def compute_helicity_analysis(arr_segments, arr_cats, parameters):
     min_timepoints = parameters['moving']
@@ -143,6 +147,7 @@ def compute_helicity_analysis(arr_segments, arr_cats, parameters):
     results_df = results_df.sort_values('Object ID').reset_index(drop=True)
 
     return results_df
+
 
 if __name__ == '__main__':
     mp.set_start_method("spawn")

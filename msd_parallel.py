@@ -3,6 +3,7 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 
+
 def worker_chunked(chunk_data, tau_range):
     """Process a chunk of objects for MSD calculation"""
     msd_list = []
@@ -96,6 +97,7 @@ def main(arr_segments, unique_objects, tau, n_workers=None, chunk_size=None):
         df_msd[col] = pd.to_numeric(df_msd[col], errors='coerce')
 
     return df_msd
+
 
 if __name__ == '__main__':
     mp.set_start_method("spawn")

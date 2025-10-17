@@ -6,6 +6,7 @@ window_size = 4     # Tunable parameter for bootstrapping window size
 r2_thresh = 0.995   # Tunable parameter for R-squared minimum threshold
 n_boot = 1000       # Number of bootstrap iterations
 
+
 def find_best_linear_window(x, y):
     n = len(x)
     last_good_end = None
@@ -56,6 +57,7 @@ def bootstrap_worker(task):
         slope_bs, _ = np.polyfit(x_fit_bs, y_fit_bs, 1)
         slopes.append(slope_bs)
     return slopes
+
 
 def main(df_msd):
     df = df_msd.copy()
@@ -114,6 +116,7 @@ def main(df_msd):
     )
 
     return df_msd_loglogfits
+
 
 if __name__ == '__main__':
     mp.set_start_method("spawn", force=True)
