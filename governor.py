@@ -180,15 +180,30 @@ def migrate3D(parent_id, time_for, x_for, y_for, z_for, timelapse_interval, arre
             cat_df = categories_dataframe.copy()
             categories_file_name = categories_filename if categories_filename else 'None'
 
-            cat_df = cat_df[[parameters['object_id_2_col'], parameters['category_col']]]
-            for row in cat_df.index:
-                object_id2 = int(cat_df[parameters['object_id_2_col']][row])
-                category = cat_df[parameters['category_col']][row]
-                category_input_list.append([object_id2, category])
-            cat_df.columns = ['Object ID', 'Category']
+            cat_df.dropna(subset=[parameters['object_id_2_col']], inplace=True)
+
+            for row_index in cat_df.index:
+                try:
+                    object_id_val = cat_df.loc[row_index, parameters['object_id_2_col']]
+                    object_id2 = int(object_id_val)
+                    category = cat_df.loc[row_index, parameters['category_col']]
+                    category_input_list.append([object_id2, category])
+                except (ValueError, TypeError) as e:
+                    problematic_row = cat_df.loc[row_index]
+                    print("\n--- DATASET ERROR ---")
+                    print(f"Could not process a row in your categories file: '{categories_filename}'.")
+                    print(f"Error: {e}")
+                    print(f"This occurred at row index: {row_index}")
+                    print("Problematic row content:")
+                    print(problematic_row.to_string())
+                    print("---------------------\n")
+                    raise
+
+            cat_df = pd.DataFrame(category_input_list, columns=['Object ID', 'Category'])
             cat_df['Category'] = cat_df['Category'].astype(str)
             arr_cats = np.array(category_input_list)
-            arr_cats[:, 0] = arr_cats[:, 0].astype(int)
+            if arr_cats.size > 0:
+                arr_cats[:, 0] = arr_cats[:, 0].astype(int)
 
         if dropped_objects:
             remaining_object_ids = set(unique_objects)
