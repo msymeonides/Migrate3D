@@ -70,7 +70,9 @@ def apply_category_filter(df, cat_filter):
 
 def detect_correlated_features(df, threshold):
     corr_matrix = df.corr().abs()
-    np.fill_diagonal(corr_matrix.values, 0)
+    corr_array = corr_matrix.to_numpy().copy()
+    np.fill_diagonal(corr_array, 0)
+    corr_matrix = pd.DataFrame(corr_array, index=corr_matrix.index, columns=corr_matrix.columns)
     pairs = [
         (i, j, corr_matrix.loc[i, j])
         for i in corr_matrix.columns
