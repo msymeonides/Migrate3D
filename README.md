@@ -1,6 +1,6 @@
 # README
 
-Last Edited: July 18, 2025 (Migrate3D version 2.5)
+Last Edited: May 18, 2026 (Migrate3D version 3.0)
 
 # Migrate3D
 
