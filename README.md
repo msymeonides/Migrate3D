@@ -1,6 +1,6 @@
 # README
 
-Last Edited: May 18, 2026 (Migrate3D version 3.0)
+Last Edited: May 21, 2026 (Migrate3D version 3.0)
 
 # Migrate3D
 
@@ -8,13 +8,15 @@ Migrate3D is a Python program that streamlines and automates biological object m
 
 These results can be used in downstream analyses to compare different conditions, categories of objects, etc. The calculated metrics are all adapted from existing reports in the literature where they were found to have biological significance. Migrate3D not only calculates simple metrics such as track velocity and arrest coefficient, but more complex ones such as straightness index (i.e. confinement ratio), mean squared displacement, turning angles, etc., and includes adjustable constraints and filters to ensure that clean results are produced.
 
-Migrate3D requires a .csv file input that contains data from object movements through two- or three-dimensional space. After execution, the program will return a set of .xlsx files, each with several worksheets, containing track-by-track summary metrics, mean squared displacement analysis, etc.
+Migrate3D accepts two inputs in CSV format, a Segments file (required) and a Categories file (optional):
+- Segments file: Data from object movements through two- or three-dimensional space (i.e. X, Y, and Z coordinates, Time, and Object ID).
+- Categories file: Defines object categories (i.e. simply listing the category for each object ID).
 
-If the user imports a Categories .csv file (simply listing the category for each object ID), two additional analyses will be performed: dimensionality reduction using principal component analysis (PCA), and decision tree analysis using XGBoost. There is no guarantee that these will be performed in a statistically-sound way, that is left up to the user to ensure, but the libraries used to perform these analyses are widely used.
+After execution, the program will return a set of .xlsx files containing the results of the analysis, plus a set of .html files (and an accompanying .js file) containing interactive graphical plots of the data.
 
-A limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the track’s Name field.)
+A limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the Object ID field.)
 
-Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan, and Jonah Harris at the University of Vermont, funded by NIH R21-AI152816 and NIH R56-AI172486 (PI: Markus Thali). We welcome feedback and intend to continue developing and supporting the program as resources allow.
+Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan, and Jonah Harris at the University of Vermont, funded by NIH P20GM125498 (to MS) and NIH R21AI152816, NIH R56AI172486, and R01AI172486 (to Markus Thali). We welcome feedback and intend to continue developing and supporting the program as resources allow.
 
 ## Input Files
 
@@ -22,13 +24,13 @@ A Segments input file is required to run Migrate3D. Optionally, a Categories inp
 
 ### Segments
 
-The Segments input file should be a .csv with five columns (or four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the timepoint index.
+The Segments input file should be a .csv with at least five columns (or at least four for 2D data): object ID, time, X, Y, and Z coordinates. Please ensure that column headers are in the first row of the .csv file input. Note that the Time column is expected to contain a "real" time value (e.g. number of seconds), not just the timepoint index.
 
 If an object has non-consecutive timepoints assigned to it (i.e. if an object's track has gaps), the object will be dropped and not analyzed at all, unless the interpolation option is used. The IDs of dropped objects will be recorded in the results output (along with any objects dropped due to the "Minimum Max. Euclidean" filter) in the sheet "Removed Objects". If interpolation is enabled, any missing timepoints will be linearly interpolated and the object will be used as normal.
 
 ### Categories
 
-The Categories input file should be a .csv with object ID and object category. Please ensure that column headers are in the first row of the .csv file input. If no Categories file is imported, a default category ("0") will be assigned to every object, and the PCA and XGBoost analyses (and anything else done per-category) will not be performed. 
+The Categories input file should be a .csv with object ID and object category. Please ensure that column headers are in the first row of the .csv file input. If no Categories file is imported, a default category ("0") will be assigned to every object, and the machine learning analyses (and anything else done per-category) will not be performed. 
 
 ## Installing and Running Migrate3D
 
@@ -36,7 +38,7 @@ These installation instructions involve the use of the command line. If you are 
 
 ### On Windows (tested in Windows 10 and 11)
 
-1. First, download and install the latest version of Miniconda3 for Windows using all the default options during installation: https://docs.conda.io/projects/miniconda/en/latest/index.html
+1. First, download and install the latest version of Miniconda3 for Windows using all the default options during installation: https://www.anaconda.com/download/success
 
 2. From the Start menu, open the Anaconda Prompt that was just installed. Create a folder for Migrate3D and navigate to it:
 ```powershell
@@ -57,17 +59,13 @@ conda update conda
 conda create --name Migrate3D
 conda activate Migrate3D
 ```
-Note: if you would like to exit the venv, i.e. return to the base Anaconda prompt, simply enter:
-```powershell
-conda deactivate
-```
 
 5. Install the required dependencies:
 ```powershell
 conda install pip
 pip install -r requirements.txt
 ```
-Note that these packages are only installed within the venv you just created and will not affect your base python installation.
+Note that these packages are only installed within the conda env you just created and will not affect your system python installation or the base conda env.
 
 6. Finally, to run Migrate3D:
 ```powershell
@@ -80,135 +78,119 @@ python %USERPROFILE%\Migrate3D\Migrate3D-main\main.py
 ```
 In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
 
-Note that the output result spreadsheets will be saved under C:\Users\your_username\Migrate3D\Migrate3D-main\.
+The output result files will be saved under C:\Users\<your_username>\Migrate3D\Migrate3D-main\.
 
-### On macOS (tested in Catalina 10.15.7):
+Note: if you would like to exit the Migrate3D env, i.e. return to the base conda env, simply enter:
+```powershell
+conda deactivate
+```
+### On macOS (tested in Tahoe 26.x):
 
-1. First, download and install the latest version of Miniconda3 for macOS (the pkg version will be easiest to install): https://docs.conda.io/projects/miniconda/en/latest/index.html
+1. Download and install the latest version of Miniconda3 for macOS: https://www.anaconda.com/download/success
 
 2. Open a Terminal. Create a folder for Migrate3D and navigate to it:
-```powershell
+```bash
+cd ~
 mkdir Migrate3D
 cd Migrate3D
 ```
 
 3. Download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
-```powershell
+```bash
 curl -LJO https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
-tar -xvzf Migrate3D-main.zip
+unzip Migrate3D-main.zip
 cd Migrate3D-main
 ```
 
-4. Set up a virtual environment (venv) and activate it:
-```powershell
-conda create --name Migrate3D
+4. Set up a conda virtual environment and activate it:
+```bash
+conda create --name Migrate3D python=3.13
 conda activate Migrate3D
-```
-Note: if you would like to exit the venv, i.e. return to the base Anaconda prompt, simply enter:
-```powershell
-conda deactivate
 ```
 
 5. Install the required dependencies:
-```powershell
-sudo xcode-select --install
-conda install pip
-pip3 install -r requirements.txt
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+conda install -c conda-forge llvm-openmp
 ```
-Note that these packages are only installed within the venv you just created and will not affect your base python installation.
+Note that these packages are only installed within the conda env you just created and will not affect your system python installation or the base conda env.
 
 6. Finally, to run Migrate3D:
-```powershell
-python3 ~/Migrate3D/Migrate3D-main/main.py
+```bash
+python ~/Migrate3D/Migrate3D-main/main.py
 ```
 Remember to first activate the Migrate3D venv next time you want to run Migrate3D before executing the main script:
-```powershell
+```bash
 conda activate Migrate3D
-python3 ~/Migrate3D/Migrate3D-main/main.py
+python ~/Migrate3D/Migrate3D-main/main.py
 ```
 In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
 
-Note that the output result spreadsheets will be saved under /Users/your_username/Migrate3D/Migrate3D-main/.
+The output result files will be saved under /Users/<your_username>/Migrate3D/Migrate3D-main/.
 
-### On Linux (tested in Linux Mint 22.1):
+Note: if you would like to exit the Migrate3D env, i.e. return to the base conda env, simply enter:
+```bash
+conda deactivate
+```
+
+### On Linux (tested in Linux Mint 22.1 and Ubuntu 22.04):
 
 It is easiest to do everything in the terminal, so begin by opening a Terminal window.
 
-1. Python 3 is already installed in Linux Mint. Begin by checking the installed version of python:
-```powershell
-python3 --version
-```
-On a fresh installation of Linux Mint 22.1, that should return "Python 3.12.3". Python versions 3.13.x and 3.11.x will also work, but earlier versions may not. If you have an earlier version of python, you may need to update it before proceeding.
-
-2. If you have not previously configured a python virtual environment (venv) or installed python packages using pip, you will first need to get set up to do that (if you are already set up for that, skip to step 4).
-
-First, update your system:
-```powershell
+1. Update your system:
+```bash
 sudo apt update
 sudo apt upgrade
 ```
 
-Then install some necessary packages (this is all one line, paste the whole thing in one go):
-```powershell
-sudo apt install build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
-libsqlite3-dev curl git libncursesw5-dev xz-utils tk-dev libxml2-dev \
-libxmlsec1-dev libffi-dev liblzma-dev python3.12-venv
+2. Install miniconda3, and answer "yes" when prompted with "Proceed with initialization?":
+```bash
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+```
+Close and reopen your Terminal.
+
+3. Download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
+```bash
+cd ~
+curl -LJO https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
+unzip Migrate3D-main.zip
+cd Migrate3D-main
 ```
 
-Now we need to configure PyEnv to be able to set up a venv:
-```powershell
-curl https://pyenv.run | bash
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
-echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.profile
-echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.profile
-echo 'eval "$(pyenv init -)"' >> ~/.profile
-```
-Now log out of your Linux account and log back in, then open a new Terminal window. You are now able to create python venvs.
-
-4. Create a dedicated venv:
-```powershell
-pyenv virtualenv migrate3d
+4. Set up a conda virtual environment and activate it:
+```bash
+conda create --name Migrate3D python=3.13
+conda activate Migrate3D
 ```
 
-5. Download Migrate3D from GitHub and extract the ZIP file into the /home/Migrate3D directory you just created:
-```powershell
-wget https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
-unzip Migrate3D-main.zip -d ~/.pyenv/versions/migrate3d
+5. Install the required dependencies:
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
+Note that these packages are only installed within the conda env you just created and will not affect your system python installation or the base conda env.
 
-6. You now need to activate the venv:
-```powershell
-pyenv activate migrate3d
-```
-Note: if you would like to exit the venv, i.e. return to your normal Linux terminal, simply enter:
-```powershell
-pyenv deactivate migrate3d
-```
-
-7. Install the required dependencies:
-```powershell
-cd ~/.pyenv/versions/migrate3d/Migrate3D-main
-pip install -r requirements.txt
-```
-Note that these packages are only installed within the venv you just created and will not affect your python installation.
-
-8. Finally, to run Migrate3D:
-```powershell
-cd ~/.pyenv/versions/migrate3d/Migrate3D-main
-python3 main.py
+6. Finally, to run Migrate3D:
+```bash
+cd ~/Migrate3D-main
+python main.py
 ```
 Remember to first activate the Migrate3D venv next time you want to run Migrate3D before executing the main script:
-```powershell
-pyenv activate migrate3d
-cd ~/.pyenv/versions/migrate3d/Migrate3D-main
-python3 main.py
+```bash
+conda activate Migrate3D
+cd ~/Migrate3D-main
+python main.py
 ```
 In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
 
-Note that the output result spreadsheets will be saved under ~/.pyenv/versions/migrate3d/Migrate3D-main/. In the file explorer app, you will need to enable "Show hidden files" to see this folder.
+The output result files will be saved under /home/<your_username>/Migrate3D-main/.
 
+Note: if you would like to exit the Migrate3D env, i.e. return to the base conda env, simply enter:
+```bash
+conda deactivate
+```
 
 ## Tunable Parameters
 

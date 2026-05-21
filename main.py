@@ -154,7 +154,7 @@ app.layout = dbc.Container(
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.H6(
-            "Version 2.5, published September 2025. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
+            "Version 3.0, published May 2026. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.Hr(),
