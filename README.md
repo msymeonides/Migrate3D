@@ -1,6 +1,6 @@
 # README
 
-Last Edited: May 21, 2026 (Migrate3D version 3.0)
+Last Edited: May 26, 2026 (Migrate3D version 3.0)
 
 # Migrate3D
 
@@ -15,6 +15,8 @@ Migrate3D accepts two inputs in CSV format, a Segments file (required) and a Cat
 After execution, the program will return a set of .xlsx files containing the results of the analysis, plus a set of .html files (and an accompanying .js file) containing interactive graphical plots of the data.
 
 A limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the Object ID field.)
+
+An example dataset of computer-generated tracks is included in the "example_dataset" folder, and the results of analyzing this dataset, either in standard or verbose mode, are included in corresponding subfolders within. The example dataset was generated using the "generate_synthetic_tracks.py" script included in the repository.
 
 Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan, and Jonah Harris at the University of Vermont, funded by NIH P20GM125498 (to MS) and NIH R21AI152816, NIH R56AI172486, and R01AI172486 (to Markus Thali). We welcome feedback and intend to continue developing and supporting the program as resources allow.
 
