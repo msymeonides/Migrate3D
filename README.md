@@ -16,6 +16,8 @@ After execution, the program will return a set of .xlsx files containing the res
 
 A limitation of the program is that it does not currently handle cell divisions (or fusions) in any intelligent way, so the user needs to separate all such tracks at the split/merge point so that each track only represents one cell. (Note: a record of which daughters belong to which parent cell can easily be kept using a simple numbering system within the Object ID field.)
 
+An example dataset (and Categories file) of computer-generated tracks, generated using the "generate_synthetic_tracks.py" script available in this repository, is provided in the "Example Dataset" folder. Example results generated after a standard or verbose run of Migrate3D on this dataset are provided in the corresponding subfolders.
+
 Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan, and Jonah Harris at the University of Vermont, funded by NIH P20GM125498 (to MS) and NIH R21AI152816, NIH R56AI172486, and R01AI172486 (to Markus Thali). We welcome feedback and intend to continue developing and supporting the program as resources allow.
 
 ## Input Files

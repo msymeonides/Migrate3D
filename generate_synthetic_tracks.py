@@ -17,7 +17,7 @@ class TrackConfig:
     # =============================================================================
     # GENERATION PARAMETERS
     # =============================================================================
-    n_tracks: int = 50  # Number of tracks to generate per category
+    n_tracks: int = 40  # Number of tracks to generate per category
 
     # =============================================================================
     # 2D/3D CONFIGURATION
@@ -36,7 +36,7 @@ class TrackConfig:
     # =============================================================================
     standardize_duration: bool = True
     standardize_path_length: bool = True
-    target_duration: Optional[int] = 200          # Target track duration (time steps)
+    target_duration: Optional[int] = 150          # Target track duration (time steps)
     target_path_length: Optional[float] = 500.0   # Target total distance traveled
     duration_variation: float = 0.1               # ±10% variation around target_duration
     path_length_variation: float = 0.1            # ±10% variation around target_path_length
