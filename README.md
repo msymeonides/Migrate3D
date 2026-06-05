@@ -509,6 +509,8 @@ The summary features calculated for each object are used to perform two machine 
 
 If verbose mode is enabled, the result of each dataset processing step will be saved in a separate .xlsx file. This output also contains all pairwise Pearson correlation coefficients and which aggregated feature any highly-correlated features were aggregated into. A separate verbose output file is generated for PCA and for each of the two runs of XGB, as the data processing is done separately each run.
 
+Example Machine Learning results generated after a standard or verbose run of Migrate3D on a computer-generated dataset are provided in the corresponding subfolders under the example_dataset folder (PCA results are in "..._PCA.xlsx" and "..._Figures_PCA.html"; XGBoost results are in "..._XGB-Features.xlsx" and "..._XGB-PCscores.xlsx").
+
 ### Principal Component Analysis (PCA):
 
 PCA is performed on the summary features of each object, and the results are saved in a separate .xlsx file. The minimum number of principal components (PCs) needed to explain at least 95% of the variance is determined, and that is the number of PCs that will end up shown in the output file. A Kruskal-Wallis test is performed on the PCA results to determine whether each PC is significantly different between the provided categories of objects. Additionally, p-values resulting from post-hoc comparisons (with Holm-Bonferroni correction) between each category for each PC are provided.
