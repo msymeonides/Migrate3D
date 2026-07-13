@@ -533,10 +533,28 @@ def summary_sheet(arr_segments, df_all_calcs, unique_objects, twodim_mode, param
     df_msd_loglogfits.columns = df_msd_loglogfits.columns.astype(str)
 
     if df_helicity is not None and not df_helicity.empty:
-        helicity_metrics = ['Mean Helicity', 'Median Helicity', 'Mean Curvature', 'Median Curvature']
-        helicity_cols = ['Object ID'] + helicity_metrics
-        df_helicity_subset = df_helicity[helicity_cols].copy()
-        df_sum = df_sum.merge(df_helicity_subset, on='Object ID', how='left')
+        helicity_metrics = [
+            'Helix Fit Score',
+            'Mean Curvature',
+            'Median Curvature',
+            'Mean Absolute Torsion',
+            'Median Absolute Torsion'
+        ]
+
+        available_metrics = [
+            col for col in helicity_metrics
+            if col in df_helicity.columns
+        ]
+
+        df_helicity_subset = df_helicity[
+            ['Object ID'] + available_metrics
+            ].copy()
+
+        df_sum = df_sum.merge(
+            df_helicity_subset,
+            on='Object ID',
+            how='left'
+        )
 
     toc = tempo.time()
     with thread_lock:

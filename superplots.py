@@ -44,6 +44,12 @@ def superplots(input_pattern):
     exclude_cols = {"Object ID", "Category", "Replicate"}
     features = [col for col in data.columns if col not in exclude_cols]
 
+    for feature in features:
+        data[feature] = pd.to_numeric(
+            data[feature],
+            errors="coerce"
+        ).replace([np.inf, -np.inf], np.nan)
+
     stats_rows = []
 
     ncols = 4
@@ -74,6 +80,7 @@ def superplots(input_pattern):
             data.groupby(["Category", "Replicate"])[feature]
             .median()
             .reset_index()
+            .dropna(subset=[feature])
         )
 
         for rep in replicate_sheets:
@@ -201,7 +208,9 @@ def superplots(input_pattern):
             y_min = data[feature].min()
             y_max = data[feature].max()
 
-            if y_min > 0:
+            if feature == "Helix Fit Score":
+                y_range = [0, 1]
+            elif y_min > 0:
                 y_range = [0, y_max * 1.1]
             else:
                 y_range = [y_min * 1.1, y_max * 1.1]

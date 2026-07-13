@@ -172,7 +172,7 @@ def preprocess_features_with_variance_filter(df, writer=None, analysis_type=""):
     if writer is not None:
         df.to_excel(writer, sheet_name='1. Filter Categories', index=False)
 
-    zero_check_columns = ['Velocity Mean', 'Velocity Median']
+    zero_check_columns = ['Mean Velocity', 'Median Velocity']
     available_zero_check_columns = [col for col in zero_check_columns if col in df_features.columns]
 
     if available_zero_check_columns:
@@ -188,6 +188,7 @@ def preprocess_features_with_variance_filter(df, writer=None, analysis_type=""):
         df_after_zero_filter.to_excel(writer, sheet_name='2. Remove Non-Moving Objs.', index=False)
 
     log_data = np.sign(df_features) * np.log(np.abs(df_features) + 1)
+    log_data = log_data.replace([np.inf, -np.inf], np.nan)
     log_data = log_data.dropna()
     categories = categories.loc[log_data.index]
     object_ids = object_ids.loc[log_data.index]

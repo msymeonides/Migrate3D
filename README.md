@@ -208,7 +208,7 @@ Set this value by examining tracks of control objects which should not be moving
 
 This filter is an integer parameter that denotes the total number of 'moving' timepoints an object must exceed to be considered for certain summary features, namely those relating to Helicity, Velocity, and Acceleration. Tracks which fail to meet this threshold (i.e. number of timepoints for which displacement is above the Arrest Limit) will show no value for those summary features, but will still have their own row on the Summary Sheet with values everywhere but those Helicity/Velocity/Acceleration columns.
 
-This filter is most useful when the dataset contains objects which are not really moving and are outliers in that sense that could still be useful to have in order to provide context for the rest of the dataset. That said, your dataset may already have been filtered down to only objects you are interested in and they are by definition all moving, in which case you can turn this filter off by setting its value to 0. When the Helicity option is enabled, this parameter should be set to a number of timepoints that is the minimum at which you can still visually see helicity in the tracks in your particular dataset. 
+This filter is most useful when the dataset contains objects which are not really moving and are outliers in that sense that could still be useful to have in order to provide context for the rest of the dataset. That said, your dataset may already have been filtered down to only objects you are interested in and they are by definition all moving, in which case you can turn this filter off by setting its value to 0. When the Helicity option is enabled, this parameter should be set high enough that a helical trajectory can be distinguished reliably. Helix fitting requires at least six recorded positions, and tracks spanning approximately one complete turn or more provide more meaningful scores. 
 
 ### Contact Length:
 
@@ -269,37 +269,96 @@ Identifies instances where an object is attracting other objects towards it (eve
 
 ### Helicity:
 
-This option should be used only when the objects in the dataset are expected to exhibit helicity in their motion. Enabling this option will use spline-smoothed versions of the tracks to calculate four additional summary features related to helicity: Mean/Median Helicity and Mean/Median Curvature.
+This option is available only for three-dimensional datasets. It evaluates how closely each complete trajectory resembles a single circular helix and also calculates the trajectory's curvature and torsion.
 
-**Mean/Median Helicity** is a measure of how much and in what direction an object is moving helically. Values lie between -1 and 1, where -1 indicates perfect counter-clockwise (left-handed) rotation, 0 indicates no rotation, and 1 indicates perfect clockwise (right-handed) rotation. This is calculated as follows:
+Enabling this option adds the following summary features:
+
+- **Helix Fit Score**
+- **Mean Curvature**
+- **Median Curvature**
+- **Mean Absolute Torsion**
+- **Median Absolute Torsion**
+
+#### Helix Fit Score
+
+The Helix Fit Score is a value between 0 and 1 that measures how closely the complete trajectory resembles a single circular helix.
+
+A circular helix is modeled as:
 
 $$
-\vec{curl}_v = \nabla \times (\vec{v}(t-1) \times \vec{v}(t))
+\vec{r}(\theta)=\vec{c}+R\cos(\theta)\vec{u}+R\sin(\theta)\vec{v}+p\theta\vec{a}
 $$
 
+where:
+
+- $\vec{a}$ is the helix axis.
+- $R$ is the helix radius.
+- $p$ is the axial progression per radian.
+- $\vec{c}$ is the center of the helix.
+- $\vec{u}$ and $\vec{v}$ are perpendicular unit vectors spanning the plane normal to the helix axis.
+
+The program searches for the helix axis and other parameters that minimize the difference between the observed trajectory and the fitted helix. The final score combines three components:
+
+1. **Fit quality:** How closely the observed positions lie on the fitted helix.
+2. **Angular monotonicity:** Whether the trajectory progresses consistently around the helix axis rather than repeatedly reversing direction.
+3. **Turn coverage:** Whether the trajectory spans enough angular distance to establish a helical pattern. By default, approximately one complete turn is required to receive the maximum contribution from this component.
+
+The score is calculated as:
+
 $$
-helicity_{inst}(t) = \frac{\vec{v}(t) \cdot \vec{curl}_v(t)}{|\vec{v}(t)|^2 + \epsilon}
+Helix\ Fit\ Score=Fit\ Quality\times Angular\ Monotonicity\times Turn\ Coverage
 $$
 
-Where $`\vec{curl}_v`$ is the curl of the velocity field, $`\vec{v}(t)`$ is the velocity vector at time $`t`$, $`\nabla`$ is the gradient operator with respect to time, $`|\vec{v}(t)|`$ is the velocity magnitude, and $`\epsilon = 1\times10^{-8}`$ is a small constant to prevent division by zero.
+A score approaching 1 indicates that the complete trajectory closely follows a consistent helix. A score approaching 0 indicates poor agreement with a helix, insufficient angular coverage, or irregular/reversing movement around the fitted axis.
 
-**Mean/Median Curvature** is a measure of how sharply the track bends, where higher values indicate more curved motion. This is calculated as follows:
+The score should be interpreted comparatively within a dataset. A universal cutoff separating helical and non-helical tracks is not assumed.
+
+#### Curvature
+
+Curvature measures how sharply a trajectory bends:
 
 $$
-curvature_{inst}(t) = \frac{|\vec{v}(t) \times \vec{a}(t)|}{|\vec{v}(t)|^3}
+\kappa(t)
+=
+\frac{
+\left|\vec{r}\,'(t)\times\vec{r}\,''(t)\right|
+}{
+\left|\vec{r}\,'(t)\right|^3
+}
 $$
 
-Where $`\vec{v}(t)`$ is the velocity vector at time $`t`$ and $`\vec{a}(t)`$ is the acceleration vector at time $`t`$.
+Higher curvature indicates sharper bending. Curvature is reported as the mean and median across the track and has units of inverse distance, based on the spatial units of the input coordinates.
 
-These two features will be appended to the Summary Sheet and will appear in the Summary Features HTML figure output. Additionally, these features will become available for Machine Learning analysis together with all other summary features.
+#### Absolute Torsion
 
-The "Minimum timepoints" tunable parameter can be used to set a minimum track length limit for these calculations to be done for a given track.
+Torsion measures how strongly the trajectory's plane of bending rotates in three-dimensional space:
+
+$$
+\tau(t)
+=
+\frac{
+\left(\vec{r}\,'(t)\times\vec{r}\,''(t)\right)
+\cdot\vec{r}\,'''(t)
+}{
+\left|\vec{r}\,'(t)\times\vec{r}\,''(t)\right|^2
+}
+$$
+
+A planar trajectory has zero torsion, while a three-dimensional trajectory that twists out of a single plane has nonzero torsion. Absolute torsion is used so that left- and right-handed twisting do not cancel when values are summarized across a track.
+
+Torsion is undefined for locally straight portions of a trajectory. Such points are excluded from the torsion summary rather than being assigned artificially large or zero values. Mean and median absolute torsion are reported and have units of inverse distance.
+
+Curvature and torsion are calculated from the analytical derivatives of a spline-smoothed representation of the trajectory. They are provided as separate geometric descriptors and are not used as substitutes for the Helix Fit Score.
+
+The Helix Fit Score, curvature, and absolute torsion values are appended to the Summary Features sheet, included in the Summary Features figures and replicate analysis, and made available to the machine-learning analyses.
+
+The **Minimum Timepoints** parameter controls the minimum track length required for these calculations. Helix fitting requires at least six recorded positions, even if Minimum Timepoints is set below six.
 
 ### Generate Figures:
 
 The following plotly figures are generated:
 
-- **Summary Features**: Per-category interactive violin plots for each of the summary features, plus the MSD log-log linear fit slope (error bars = 95% confidence interval) for each category.
+- **Summary Features**: Per-category interactive violin plots for each reported summary feature, including the Helix Fit Score, curvature, and absolute torsion when Helicity analysis is enabled. The MSD log-log linear fit slope and its 95% confidence interval are also shown for each category.
 
 
 - **Contacts**: Violin plots of the number of contacts, total time spent in contact, and median contact duration for each category, as well as bar graphs of the percent of cells in each category that have at least 1 or at least 3 contacts.
@@ -502,7 +561,7 @@ The summary features calculated for each object are used to perform two machine 
 2. Any non-moving objects (i.e. those with a Velocity Mean/Median of 0) are removed from the dataset.
 
 
-3. The dataset is transformed (signed log10 + 1), then z-score scaling is performed. This processing step ensures that all features are on a similar scale and are normally distributed, reducing the impact of outliers.
+3. The dataset is transformed using signed ln(|x| + 1), then z-score scaling is performed. This processing step ensures that all features are on a similar scale and are normally distributed, reducing the impact of outliers.
 
 
 4. Features with zero variance are removed, and highly-correlated features (i.e. those with a pairwise Pearson correlation coefficient greater than 0.95) are aggregated into a single feature by taking the mean of the (transformed and scaled) values for those features within each object and casting that to the new aggregated feature. The threshold for variance (default = 0.01) and the feature correlation threshold (default = 0.95) can be adjusted at the top of machine_learning.py.

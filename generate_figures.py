@@ -913,10 +913,19 @@ def summary_figures(df, fit_stats, color_map=None):
         else:
             for cat in categories:
                 df_cat = df[df['Category'] == cat]
+
+                values = pd.to_numeric(
+                    df_cat[col],
+                    errors='coerce'
+                ).replace([np.inf, -np.inf], np.nan).dropna()
+
+                if values.empty:
+                    continue
+
                 fig.add_trace(
                     go.Violin(
-                        x=[str(cat)] * len(df_cat),
-                        y=df_cat[col],
+                        x=[str(cat)] * len(values),
+                        y=values,
                         marker_color=color_map.get(cat, 'black'),
                         legendgroup=f'cat{cat}',
                         showlegend=(i == 0),
@@ -926,12 +935,23 @@ def summary_figures(df, fit_stats, color_map=None):
                         box_visible=True,
                         name=f'Cat {cat}'
                     ),
-                    row=row + 1, col=col_idx + 1
+                    row=row + 1,
+                    col=col_idx + 1
                 )
+
             fig.update_xaxes(
                 type='category',
-                row=row + 1, col=col_idx + 1
+                row=row + 1,
+                col=col_idx + 1
             )
+
+            if col == 'Helix Fit Score':
+                fig.update_yaxes(
+                    range=[0, 1],
+                    title_text='Score',
+                    row=row + 1,
+                    col=col_idx + 1
+                )
 
     fig.update_layout(
         violinmode='group',

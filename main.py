@@ -14,7 +14,7 @@ from governor import migrate3D
 from shared_state import messages, thread_lock, get_progress, init_progress_tracker, is_aborted
 
 
-# Welcome to Migrate3D version 3.0, major release (May 2026) to accompany publication.
+# Welcome to Migrate3D version 3.1, major release (July 2026) to accompany publication.
 # Please see README.md before running this package.
 # Migrate3D was developed by Menelaos Symeonides, Emily Mynar, Matthew Kinahan and Jonah Harris
 # at the University of Vermont, funded by NIH R56-AI172486 and NIH R01-AI172486 (PI: Markus Thali).
@@ -154,7 +154,7 @@ app.layout = dbc.Container(
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.H6(
-            "Version 3.0, published May 2026. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
+            "Version 3.1, published July 2026. Developed at the University of Vermont by Menelaos Symeonides, Emily Mynar, Matt Kinahan, and Jonah Harris.",
             style={"fontWeight": "normal", "color": "#555", "textAlign": "center"}
         ),
         html.Hr(),
