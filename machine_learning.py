@@ -123,7 +123,15 @@ def aggregate_correlated_features(df, feature_groups):
 
 def create_correlation_sheet(df, feature_groups, threshold, writer):
     corr_matrix = df.corr().abs()
-    np.fill_diagonal(corr_matrix.values, 0)
+
+    corr_array = corr_matrix.to_numpy().copy()
+    np.fill_diagonal(corr_array, 0)
+
+    corr_matrix = pd.DataFrame(
+        corr_array,
+        index=corr_matrix.index,
+        columns=corr_matrix.columns
+    )
 
     feature_to_group = {}
     for i, group in enumerate(feature_groups):
@@ -143,13 +151,26 @@ def create_correlation_sheet(df, feature_groups, threshold, writer):
                     'Correlation': corr_value,
                     'Meets_Threshold': meets_threshold,
                     'Actually_Grouped': same_group,
-                    'Aggregated_Feature_1': feature_to_group[i] if feature_to_group[i] is not None else '',
-                    'Aggregated_Feature_2': feature_to_group[j] if feature_to_group[j] is not None else ''
+                    'Aggregated_Feature_1': (
+                        feature_to_group[i]
+                        if feature_to_group[i] is not None else ''
+                    ),
+                    'Aggregated_Feature_2': (
+                        feature_to_group[j]
+                        if feature_to_group[j] is not None else ''
+                    )
                 })
 
     correlations_df = pd.DataFrame(correlation_decisions)
-    correlations_df = correlations_df.sort_values('Correlation', ascending=False)
-    correlations_df.to_excel(writer, sheet_name='Feature Correlations', index=False)
+    correlations_df = correlations_df.sort_values(
+        'Correlation',
+        ascending=False
+    )
+    correlations_df.to_excel(
+        writer,
+        sheet_name='Feature Correlations',
+        index=False
+    )
 
 
 def create_aggregation_sheet(df, feature_groups, aggregated_df, writer):
