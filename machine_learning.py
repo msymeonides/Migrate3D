@@ -214,6 +214,16 @@ def preprocess_features_with_variance_filter(df, writer=None, analysis_type=""):
     categories = categories.loc[log_data.index]
     object_ids = object_ids.loc[log_data.index]
 
+    if log_data.empty:
+        with thread_lock:
+            messages.append(
+                f"No valid samples remain after {analysis_type} preprocessing. "
+                f"{analysis_type} will be skipped."
+            )
+            messages.append('')
+
+        return log_data, categories, {}, []
+
     scaler = StandardScaler()
     scaled_data = scaler.fit_transform(log_data)
     scaled_df = pd.DataFrame(scaled_data, columns=log_data.columns, index=log_data.index)

@@ -36,7 +36,6 @@ def compute_object_summary(obj_data_tuple):
     times = df_obj_calcs['Time'].values
     time_interval = abs(times[1] - times[0]) if times.size > 1 else 0
     duration_val = times.size * time_interval
-
     total_disp = df_obj_calcs['Total Displacement'].values
     final_euclid = total_disp[-1] if total_disp.size > 0 else 0
     max_euclid = total_disp.max() if total_disp.size > 0 else 0
@@ -90,18 +89,37 @@ def compute_object_summary(obj_data_tuple):
     else:
         convex = 0
 
-    velocity = df_obj_calcs['Instantaneous Velocity'].values[1:] if 'Instantaneous Velocity' in df_obj_calcs else np.array([])
-    valid_velocity = velocity[(~np.isnan(velocity)) & (velocity != 0)] if velocity.size > 0 else np.array([])
+    # Unfiltered velocity statistics
+    velocity = (
+        df_obj_calcs['Instantaneous Velocity'].values[1:]
+        if 'Instantaneous Velocity' in df_obj_calcs
+        else np.array([])
+    )
+
+    valid_velocity = (
+        velocity[(~np.isnan(velocity)) & (velocity != 0)]
+        if velocity.size > 0
+        else np.array([])
+    )
+
     velocity_mean = valid_velocity.mean() if valid_velocity.size > 0 else 0
     velocity_median = np.median(valid_velocity) if valid_velocity.size > 0 else 0
     velocity_stdev = valid_velocity.std(ddof=1) if valid_velocity.size > 1 else 0
 
-    acceleration = df_obj_calcs['Instantaneous Acceleration'].values if 'Instantaneous Acceleration' in df_obj_calcs else np.array([])
+    # Unfiltered acceleration statistics
+    acceleration = (
+        df_obj_calcs['Instantaneous Acceleration'].values
+        if 'Instantaneous Acceleration' in df_obj_calcs
+        else np.array([])
+    )
+
     if acceleration.size >= parameters['moving']:
         valid_acc = acceleration[(~np.isnan(acceleration)) & (acceleration != 0)]
+
         acceleration_mean = valid_acc.mean() if valid_acc.size > 0 else 0
         acceleration_median = np.median(valid_acc) if valid_acc.size > 0 else 0
         acceleration_stdev = valid_acc.std(ddof=1) if valid_acc.size > 1 else 0
+
         accel_abs = np.abs(valid_acc)
         accel_abs_mean = accel_abs.mean() if accel_abs.size > 0 else 0
         accel_abs_median = np.median(accel_abs) if accel_abs.size > 0 else 0
@@ -110,33 +128,100 @@ def compute_object_summary(obj_data_tuple):
         acceleration_mean = acceleration_median = acceleration_stdev = 0
         accel_abs_mean = accel_abs_median = accel_abs_stdev = 0
 
-    acceleration_filtered = df_obj_calcs['Instantaneous Acceleration Filtered'].values if 'Instantaneous Acceleration Filtered' in df_obj_calcs else np.array([])
-    valid_acc_f = acceleration_filtered[(~np.isnan(acceleration_filtered)) & (acceleration_filtered != 0)] if acceleration_filtered.size > 0 else np.array([])
+    velocity_filtered = (
+        df_obj_calcs['Instantaneous Velocity Filtered'].values
+        if 'Instantaneous Velocity Filtered' in df_obj_calcs
+        else np.array([])
+    )
+
+    valid_velocity_f = (
+        velocity_filtered[
+            (~np.isnan(velocity_filtered)) &
+            (velocity_filtered != 0)
+        ]
+        if velocity_filtered.size > 0
+        else np.array([])
+    )
+
+    velocity_filtered_mean = (
+        valid_velocity_f.mean()
+        if valid_velocity_f.size > 0
+        else 0
+    )
+
+    velocity_filtered_median = (
+        np.median(valid_velocity_f)
+        if valid_velocity_f.size > 0
+        else 0
+    )
+
+    velocity_filtered_stdev = (
+        valid_velocity_f.std(ddof=1)
+        if valid_velocity_f.size > 1
+        else 0
+    )
+
+    acceleration_filtered = (
+        df_obj_calcs['Instantaneous Acceleration Filtered'].values
+        if 'Instantaneous Acceleration Filtered' in df_obj_calcs
+        else np.array([])
+    )
+
+    valid_acc_f = (
+        acceleration_filtered[
+            (~np.isnan(acceleration_filtered)) &
+            (acceleration_filtered != 0)
+        ]
+        if acceleration_filtered.size > 0
+        else np.array([])
+    )
+
     if valid_acc_f.size >= parameters['moving']:
-        velocity_filtered = df_obj_calcs['Instantaneous Velocity Filtered'].values if 'Instantaneous Velocity Filtered' in df_obj_calcs else np.array([])
-        valid_velocity_f = velocity_filtered[(~np.isnan(velocity_filtered)) & (velocity_filtered != 0)] if velocity_filtered.size > 0 else np.array([])
-        velocity_filtered_mean = valid_velocity_f.mean() if valid_velocity_f.size > 0 else 0
-        velocity_filtered_median = np.median(valid_velocity_f) if valid_velocity_f.size > 0 else 0
-        velocity_filtered_stdev = valid_velocity_f.std(ddof=1) if valid_velocity_f.size > 1 else 0
         acceleration_filtered_mean = valid_acc_f.mean()
         acceleration_filtered_median = np.median(valid_acc_f)
-        acceleration_filtered_stdev = valid_acc_f.std(ddof=1) if valid_acc_f.size > 1 else 0
-        accel_filtered_abs = np.abs(valid_acc_f)
-        accel_filtered_abs_mean = accel_filtered_abs.mean() if accel_filtered_abs.size > 0 else 0
-        accel_filtered_abs_median = np.median(accel_filtered_abs) if accel_filtered_abs.size > 0 else 0
-        accel_filtered_abs_stdev = accel_filtered_abs.std(ddof=1) if accel_filtered_abs.size > 1 else 0
-    else:
-        velocity_filtered_mean = velocity_filtered_median = velocity_filtered_stdev = 0
-        acceleration_filtered_mean = acceleration_filtered_median = acceleration_filtered_stdev = 0
-        accel_filtered_abs_mean = accel_filtered_abs_median = accel_filtered_abs_stdev = 0
+        acceleration_filtered_stdev = (
+            valid_acc_f.std(ddof=1)
+            if valid_acc_f.size > 1
+            else 0
+        )
 
+        accel_filtered_abs = np.abs(valid_acc_f)
+
+        accel_filtered_abs_mean = (
+            accel_filtered_abs.mean()
+            if accel_filtered_abs.size > 0
+            else 0
+        )
+
+        accel_filtered_abs_median = (
+            np.median(accel_filtered_abs)
+            if accel_filtered_abs.size > 0
+            else 0
+        )
+
+        accel_filtered_abs_stdev = (
+            accel_filtered_abs.std(ddof=1)
+            if accel_filtered_abs.size > 1
+            else 0
+        )
+    else:
+        acceleration_filtered_mean = 0
+        acceleration_filtered_median = 0
+        acceleration_filtered_stdev = 0
+        accel_filtered_abs_mean = 0
+        accel_filtered_abs_median = 0
+        accel_filtered_abs_stdev = 0
+
+    # Select unfiltered or arrest-filtered statistics for output
     if parameters['arrest_limit'] == 0:
         velocity_mean_out = velocity_mean
         velocity_median_out = velocity_median
         velocity_stdev_out = velocity_stdev
+
         acceleration_mean_out = acceleration_mean
         acceleration_median_out = acceleration_median
         acceleration_stdev_out = acceleration_stdev
+
         abs_acc_mean_out = accel_abs_mean
         abs_acc_median_out = accel_abs_median
         abs_acc_stdev_out = accel_abs_stdev
@@ -144,13 +229,16 @@ def compute_object_summary(obj_data_tuple):
         velocity_mean_out = velocity_filtered_mean
         velocity_median_out = velocity_filtered_median
         velocity_stdev_out = velocity_filtered_stdev
+
         acceleration_mean_out = acceleration_filtered_mean
         acceleration_median_out = acceleration_filtered_median
         acceleration_stdev_out = acceleration_filtered_stdev
+
         abs_acc_mean_out = accel_filtered_abs_mean
         abs_acc_median_out = accel_filtered_abs_median
         abs_acc_stdev_out = accel_filtered_abs_stdev
 
+    # Euclidean displacement metrics at individual tau values
     cols_euclidean = [col for col in df_obj_calcs.columns if 'Euclid' in col]
     single_euclidean = {}
 
@@ -162,7 +250,11 @@ def compute_object_summary(obj_data_tuple):
             if match:
                 tau_num = int(match.group())
                 euclidean_values = df_obj_calcs[col].values
-                valid_euclidean = euclidean_values[(~np.isnan(euclidean_values)) & (euclidean_values != 0)]
+                valid_euclidean = euclidean_values[
+                    (~np.isnan(euclidean_values)) &
+                    (euclidean_values != 0)
+                ]
+
                 if len(valid_euclidean) > 2:
                     single_euclidean[tau_num] = np.median(valid_euclidean)
                 else:
@@ -192,7 +284,11 @@ def compute_object_summary(obj_data_tuple):
         'Category': category
     }
 
-    summary_tuple = tuple(summary_dict.get(col, None) for col in summary_columns)
+    summary_tuple = tuple(
+        summary_dict.get(col, None)
+        for col in summary_columns
+    )
+
     return obj, summary_tuple, single_euclidean
 
 
