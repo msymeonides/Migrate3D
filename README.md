@@ -36,46 +36,58 @@ The Categories input file should be a .csv with object ID and object category. P
 
 ## Installing and Running Migrate3D
 
-These installation instructions involve the use of the command line. If you are not familiar with using the command line, just copy each line and paste into your prompt/terminal and press Enter. Once the process is complete, you will be able to paste in the next line and press Enter, and so on. If "sudo" is used, you will need to enter your account password to proceed.
+These installation instructions involve the use of the command line. If you are not familiar with using the command line, just copy each line and paste into your prompt/terminal and press Enter. Once the process is complete, you will be able to paste in the next line and press Enter, and so on. Please enter one line at a time, and look for any prompts to accept terms or answer yes/no during installation. If "sudo" is used, you will need to enter your account password to proceed.
 
 ### On Windows (tested in Windows 10 and 11)
 
 1. First, download and install the latest version of Miniconda3 for Windows using all the default options during installation: https://www.anaconda.com/download/success
 
-2. From the Start menu, open the Anaconda Prompt that was just installed. Create a folder for Migrate3D and navigate to it:
+2. From the Start menu, open the Anaconda Prompt that was just installed. These commands will create a folder for Migrate3D and navigate to it:
 ```powershell
 mkdir Migrate3D
 cd Migrate3D
 ```
 
-3. Download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
+3. These commands will download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
 ```powershell
 curl -LJO https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
+```
+```powershell
 tar -xvzf Migrate3D-main.zip
+```
+```powershell
 cd Migrate3D-main
 ```
 
-4. Set up a virtual environment (venv) and activate it:
+4. These commands will set up a virtual environment (venv) and activate it:
 ```powershell
 conda update conda
+```
+```powershell
 conda create --name Migrate3D
+```
+```powershell
 conda activate Migrate3D
 ```
 
-5. Install the required dependencies:
+5. These commands will install the required dependencies:
 ```powershell
 conda install pip
+```
+```powershell
 pip install -r requirements.txt
 ```
 Note that these packages are only installed within the conda env you just created and will not affect your system python installation or the base conda env.
 
-6. Finally, to run Migrate3D:
+6. Finally, to run Migrate3D, enter:
 ```powershell
 python %USERPROFILE%\Migrate3D\Migrate3D-main\main.py
 ```
 Remember to open the Anaconda Prompt and activate the Migrate3D venv next time you want to run Migrate3D:
 ```powershell
 conda activate Migrate3D
+```
+```powershell
 python %USERPROFILE%\Migrate3D\Migrate3D-main\main.py
 ```
 In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.
@@ -90,30 +102,40 @@ conda deactivate
 
 1. Download and install the latest version of Miniconda3 for macOS: https://www.anaconda.com/download/success
 
-2. Open a Terminal. Create a folder for Migrate3D and navigate to it:
+2. Open a Terminal. These commands will create a folder for Migrate3D and navigate to it:
 ```bash
 cd ~
 mkdir Migrate3D
 cd Migrate3D
 ```
 
-3. Download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
+3. These commands will download Migrate3D from GitHub, extract the ZIP file, and navigate into the subfolder that was just created:
 ```bash
 curl -LJO https://github.com/msymeonides/Migrate3D/archive/main/Migrate3D-main.zip
+```
+```powershell
 unzip Migrate3D-main.zip
+```
+```powershell
 cd Migrate3D-main
 ```
 
-4. Set up a conda virtual environment and activate it:
+4. These commands will set up a conda virtual environment and activate it:
 ```bash
 conda create --name Migrate3D python=3.13
+```
+```powershell
 conda activate Migrate3D
 ```
 
-5. Install the required dependencies:
+5. These commands will install the required dependencies:
 ```bash
 python -m pip install --upgrade pip
+```
+```powershell
 python -m pip install -r requirements.txt
+```
+```powershell
 conda install -c conda-forge llvm-openmp
 ```
 Note that these packages are only installed within the conda env you just created and will not affect your system python installation or the base conda env.
@@ -125,6 +147,8 @@ python ~/Migrate3D/Migrate3D-main/main.py
 Remember to first activate the Migrate3D venv next time you want to run Migrate3D before executing the main script:
 ```bash
 conda activate Migrate3D
+```
+```powershell
 python ~/Migrate3D/Migrate3D-main/main.py
 ```
 In the prompt, you will see a notification that the GUI is now available ("Dash is running on http://127.0.0.1:5555/"). You can now go to this address in your web browser to access the Migrate3D GUI.

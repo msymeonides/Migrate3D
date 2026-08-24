@@ -1,4 +1,4 @@
-dash>=4.1.0
+dash>=4.4.1
 dash-bootstrap-components>=2.0.4
 dash_uploader>=0.6.1
 matplotlib>=3.10.7
@@ -13,5 +13,6 @@ scikit-learn>=1.8.0
 scikit-posthocs>=0.13.0
 scipy>=1.17.1
 wakepy>=1.0.0
-xgboost-cpu>=3.2.0
+xgboost-cpu>=3.2.0; platform_system != "Darwin"
+xgboost>=3.2.0; platform_system == "Darwin"
 xlsxwriter>=3.2.9
