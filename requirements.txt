@@ -1,18 +1,18 @@
 dash>=4.4.1
 dash-bootstrap-components>=2.0.4
 dash_uploader>=0.6.1
-matplotlib>=3.10.7
-narwhals>=2.8.0
-numpy>=2.4.5
+matplotlib>=3.11.2
+narwhals>=2.26.0
+numpy>=2.5.3
 openpyxl>=3.1.5
-pandas>=2.3.3
-plotly>=6.7.0
+pandas>=3.0.6
+plotly>=7.1.0
 psutil>=7.2.2
-pyarrow>=21.0.0
-scikit-learn>=1.8.0
-scikit-posthocs>=0.13.0
-scipy>=1.17.1
+pyarrow>=25.0.1
+scikit-learn>=1.9.1
+scikit-posthocs>=0.17.0
+scipy>=1.18.1
 wakepy>=1.0.0
-xgboost-cpu>=3.2.0; platform_system != "Darwin"
-xgboost>=3.2.0; platform_system == "Darwin"
+xgboost-cpu>=3.4.1; platform_system != "Darwin"
+xgboost>=3.4.1; platform_system == "Darwin"
 xlsxwriter>=3.2.9
